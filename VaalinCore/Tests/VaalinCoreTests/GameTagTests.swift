@@ -2,7 +2,7 @@
 
 import Testing
 import Foundation
-@testable import VaalinParser
+@testable import VaalinCore
 
 @Suite("GameTag Data Model Tests")
 struct GameTagTests {
