@@ -14,6 +14,11 @@ let package = Package(
             name: "Vaalin",
             targets: ["Vaalin"]
         ),
+        // Test executable for manual Lich connection testing
+        .executable(
+            name: "TestLichConnection",
+            targets: ["TestLichConnection"]
+        ),
         // Parser library for XML streaming
         .library(
             name: "VaalinParser",
@@ -49,6 +54,21 @@ let package = Package(
             resources: [
                 .process("Assets.xcassets")
             ],
+            swiftSettings: [
+                .enableUpcomingFeature("BareSlashRegexLiterals"),
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+
+        // Test executable for manual Lich connection testing
+        .executableTarget(
+            name: "TestLichConnection",
+            dependencies: [
+                "VaalinNetwork",
+                "VaalinParser",
+                "VaalinCore"
+            ],
+            path: "TestTools/TestLichConnection",
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals"),
                 .enableExperimentalFeature("StrictConcurrency")
