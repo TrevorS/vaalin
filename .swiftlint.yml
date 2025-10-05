@@ -1,0 +1,120 @@
+# SwiftLint configuration for Vaalin
+# macOS SwiftUI app with Swift Concurrency
+
+# Paths to exclude from linting
+excluded:
+  - .build
+  - .swiftpm
+  - DerivedData
+  - build
+  - Carthage
+  - Pods
+  - "*/Tests/*" # Less strict on test files
+
+# Enabled rules (beyond defaults)
+opt_in_rules:
+  - closure_spacing
+  - explicit_init
+  - redundant_type_annotation
+  - explicit_self
+  - multiline_parameters
+  - multiline_arguments
+  - operator_usage_whitespace
+  - overridden_super_call
+  - private_outlet
+  - prohibited_super_call
+  - sorted_imports
+  - unneeded_parentheses_in_closure_argument
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+  - yoda_condition
+
+# Disabled rules
+disabled_rules:
+  - trailing_whitespace # Handled by editor
+  - todo # TODOs are acceptable during development
+
+# Rule configurations
+line_length:
+  warning: 120
+  error: 150
+  ignores_function_declarations: false
+  ignores_comments: false
+  ignores_urls: true
+
+file_length:
+  warning: 500
+  error: 800
+  ignore_comment_only_lines: true
+
+function_body_length:
+  warning: 50
+  error: 100
+
+type_body_length:
+  warning: 300
+  error: 500
+
+identifier_name:
+  min_length: 2
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - id
+    - x
+    - y
+    - i
+    - j
+    - k
+
+type_name:
+  min_length: 2
+  max_length:
+    warning: 50
+    error: 60
+
+# Enforce strict concurrency practices
+# (These are enforced via compiler flags in Package.swift, but lint for style)
+explicit_self:
+  severity: warning
+
+# SwiftUI best practices
+large_tuple:
+  warning: 3
+  error: 4
+
+# Nesting limits
+nesting:
+  type_level:
+    warning: 2
+  function_level:
+    warning: 3
+
+# Cyclomatic complexity
+cyclomatic_complexity:
+  warning: 10
+  error: 15
+  ignores_case_statements: true
+
+# Custom rules for project conventions
+custom_rules:
+  # Note: ABOUTME comment check disabled - files have them but not always on line 1
+  # (e.g., Package.swift has swift-tools-version first)
+
+  no_print_statements:
+    name: "No Print Statements"
+    regex: '\bprint\('
+    match_kinds:
+      - identifier
+    message: "Use proper logging instead of print()"
+    severity: warning
+
+  actor_naming:
+    name: "Actor Naming Convention"
+    regex: 'actor\s+[A-Z][a-zA-Z0-9]*(?!Actor)'
+    message: "Consider suffixing actor names with 'Actor' for clarity (e.g., 'XMLStreamParserActor')"
+    severity: warning
+
+# Reporter format (use 'emoji' for fun, 'xcode' for CI)
+reporter: "xcode"
