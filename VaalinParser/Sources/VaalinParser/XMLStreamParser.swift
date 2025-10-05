@@ -153,8 +153,9 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Prepend any buffered XML from previous chunk
         let combinedXML = xmlBuffer + chunk
 
-        // Wrap in root tag for XMLParser (requires single root element)
-        let wrappedXML = "<root>\(combinedXML)</root>"
+        // Wrap in synthetic root tag for XMLParser (requires single root element)
+        // Using unique tag name to avoid conflicts with game XML
+        let wrappedXML = "<__synthetic_root__>\(combinedXML)</__synthetic_root__>"
 
         // Create XMLParser instance
         guard let data = wrappedXML.data(using: .utf8) else {
@@ -226,13 +227,12 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         attributes attributeDict: [String: String] = [:]
     ) {
         // Ignore the synthetic root tag
-        if elementName == "root" {
+        if elementName == "__synthetic_root__" {
             return
         }
 
-        // If there's accumulated character data and we're at the root level (stack is empty),
-        // create a :text node for it
-        if !currentCharacterBuffer.isEmpty && currentTagStack.isEmpty {
+        // Handle accumulated character data before starting new tag
+        if !currentCharacterBuffer.isEmpty {
             let textNode = GameTag(
                 name: ":text",
                 text: currentCharacterBuffer,
@@ -240,7 +240,16 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
                 children: [],
                 state: .closed
             )
-            currentParsedTags.append(textNode)
+
+            if currentTagStack.isEmpty {
+                // At root level - add text node to parsed tags
+                currentParsedTags.append(textNode)
+            } else {
+                // Inside a parent tag - add text node as child of parent
+                var parent = currentTagStack.removeLast()
+                parent.children.append(textNode)
+                currentTagStack.append(parent)
+            }
         }
 
         // Create new GameTag with .open state
@@ -269,7 +278,7 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     }
 
     /// Called when parser encounters a closing tag
-    /// Pops tag from stack, assigns text, and adds to parsedTags
+    /// Pops tag from stack, assigns text/children, and adds to parsedTags or parent's children
     /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
     nonisolated public func parser(
         _ parser: XMLParser,
@@ -278,7 +287,7 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         qualifiedName qName: String?
     ) {
         // Ignore the synthetic root tag
-        if elementName == "root" {
+        if elementName == "__synthetic_root__" {
             return
         }
 
@@ -296,15 +305,40 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
             return
         }
 
-        // Assign accumulated character data as text
-        tag.text = currentCharacterBuffer.isEmpty ? nil : currentCharacterBuffer
+        // Handle accumulated character data:
+        // - If tag has no children, character data becomes the tag's text
+        // - If tag has children, character data was already added as :text child nodes
+        if tag.children.isEmpty && !currentCharacterBuffer.isEmpty {
+            tag.text = currentCharacterBuffer
+        } else if !tag.children.isEmpty && !currentCharacterBuffer.isEmpty {
+            // Tag has children AND trailing text - add text as final child
+            let textNode = GameTag(
+                name: ":text",
+                text: currentCharacterBuffer,
+                attrs: [:],
+                children: [],
+                state: .closed
+            )
+            tag.children.append(textNode)
+        }
         tag.state = .closed
 
-        // Add to completed tags (thread-local state)
-        currentParsedTags.append(tag)
-
-        // Clear character buffer
+        // Clear character buffer for next tag
         currentCharacterBuffer = ""
+
+        // CRITICAL NESTING LOGIC:
+        // If there's a parent tag on the stack, add this tag as a child of the parent
+        // Otherwise, add to the root-level parsed tags
+        if currentTagStack.isEmpty {
+            // No parent - this is a root-level tag
+            currentParsedTags.append(tag)
+        } else {
+            // Has parent - add as child to the parent tag
+            // Parent is at the top of the stack (last element)
+            var parent = currentTagStack.removeLast()
+            parent.children.append(tag)
+            currentTagStack.append(parent) // Put parent back on stack
+        }
     }
 
     /// Called when parser encounters an error
