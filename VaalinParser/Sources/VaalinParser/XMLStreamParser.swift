@@ -83,13 +83,17 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - Chunk 2: `"123">gem</a>` (prepend buffer, parse full tag)
     private var xmlBuffer: String = ""
 
-    // MARK: - Per-Parse State
+    // MARK: - Per-Parse State (Thread-Local)
 
-    /// Completed tags from the current parse operation.
+    /// Temporary storage for current parse operation
+    /// These are accessed by XMLParserDelegate callbacks during synchronous parse()
+    /// and must be thread-local (not actor-isolated) since XMLParser is synchronous.
     ///
-    /// This is reset at the start of each `parse()` call and returned
-    /// as the result. Only fully closed tags are added here.
-    private var parsedTags: [GameTag] = []
+    /// SAFETY: These are only accessed during parse() which is serialized by actor,
+    /// so even though they're nonisolated, only one parse() runs at a time.
+    nonisolated(unsafe) private var currentTagStack: [GameTag] = []
+    nonisolated(unsafe) private var currentCharacterBuffer: String = ""
+    nonisolated(unsafe) private var currentParsedTags: [GameTag] = []
 
     // MARK: - Initialization
 
@@ -136,14 +140,61 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// // Returns [GameTag(name: "a", text: "blue gem", ...)]
     /// ```
     public func parse(_ chunk: String) async -> [GameTag] {
-        // TODO: Implement parsing logic in issues #7-#12
-        // Implementation will:
-        // 1. Reset parsedTags = []
-        // 2. Prepend xmlBuffer to chunk
-        // 3. Wrap in <root> tag for XMLParser
-        // 4. Create XMLParser instance and parse
-        // 5. Return parsedTags
-        return []
+        // Reset per-parse state (thread-local, safe because actor serializes calls)
+        currentTagStack = []
+        currentCharacterBuffer = ""
+        currentParsedTags = []
+
+        // Handle empty/whitespace input
+        if chunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return []
+        }
+
+        // Prepend any buffered XML from previous chunk
+        let combinedXML = xmlBuffer + chunk
+
+        // Wrap in root tag for XMLParser (requires single root element)
+        let wrappedXML = "<root>\(combinedXML)</root>"
+
+        // Create XMLParser instance
+        guard let data = wrappedXML.data(using: .utf8) else {
+            return []
+        }
+
+        let xmlParser = XMLParser(data: data)
+        xmlParser.delegate = self
+
+        // Parse synchronously (delegate callbacks happen during this call)
+        let success = xmlParser.parse()
+
+        // If parsing failed, buffer the entire chunk for next parse
+        if !success {
+            xmlBuffer = combinedXML
+            return []
+        }
+
+        // Clear buffer on successful parse
+        xmlBuffer = ""
+
+        // If there's remaining character data at the end and we're at root level,
+        // create a final :text node
+        if !currentCharacterBuffer.isEmpty && currentTagStack.isEmpty {
+            let textNode = GameTag(
+                name: ":text",
+                text: currentCharacterBuffer,
+                attrs: [:],
+                children: [],
+                state: .closed
+            )
+            currentParsedTags.append(textNode)
+            currentCharacterBuffer = ""
+        }
+
+        // Transfer any incomplete tags to persistent stack for next parse
+        tagStack = currentTagStack
+
+        // Return completed tags
+        return currentParsedTags
     }
 
     // MARK: - Testing Support
@@ -164,10 +215,104 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
 
     // MARK: - XMLParserDelegate
 
-    // Delegate methods will be implemented in subsequent issues (#7-#12)
-    // These will handle:
-    // - didStartElement: Create GameTag, push to stack, handle stream tags
-    // - didEndElement: Pop from stack, associate with currentStream
-    // - foundCharacters: Accumulate character data for current tag
-    // - parseErrorOccurred: Error recovery for malformed XML
+    /// Called when parser encounters an opening tag
+    /// Creates a new GameTag and pushes it onto the stack
+    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
+    nonisolated public func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        // Ignore the synthetic root tag
+        if elementName == "root" {
+            return
+        }
+
+        // If there's accumulated character data and we're at the root level (stack is empty),
+        // create a :text node for it
+        if !currentCharacterBuffer.isEmpty && currentTagStack.isEmpty {
+            let textNode = GameTag(
+                name: ":text",
+                text: currentCharacterBuffer,
+                attrs: [:],
+                children: [],
+                state: .closed
+            )
+            currentParsedTags.append(textNode)
+        }
+
+        // Create new GameTag with .open state
+        let tag = GameTag(
+            name: elementName,
+            text: nil,
+            attrs: attributeDict,
+            children: [],
+            state: .open
+        )
+
+        // Push to tag stack (thread-local state)
+        currentTagStack.append(tag)
+
+        // Clear character buffer for new tag content
+        currentCharacterBuffer = ""
+    }
+
+    /// Called when parser encounters character data
+    /// Accumulates text for the current tag or creates a text node if no tag is active
+    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
+    nonisolated public func parser(_ parser: XMLParser, foundCharacters string: String) {
+        // XMLParser can call this multiple times for a single text node
+        // Accumulate into buffer (thread-local state)
+        currentCharacterBuffer += string
+    }
+
+    /// Called when parser encounters a closing tag
+    /// Pops tag from stack, assigns text, and adds to parsedTags
+    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
+    nonisolated public func parser(
+        _ parser: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?
+    ) {
+        // Ignore the synthetic root tag
+        if elementName == "root" {
+            return
+        }
+
+        // Pop the most recent tag from stack (thread-local state)
+        guard var tag = currentTagStack.popLast() else {
+            // Unexpected closing tag with no matching open tag
+            // This shouldn't happen with well-formed XML, but handle gracefully
+            return
+        }
+
+        // Verify tag names match (defensive check)
+        guard tag.name == elementName else {
+            // Tag mismatch - this indicates malformed XML
+            // For now, just discard. Issue #12 will handle error recovery.
+            return
+        }
+
+        // Assign accumulated character data as text
+        tag.text = currentCharacterBuffer.isEmpty ? nil : currentCharacterBuffer
+        tag.state = .closed
+
+        // Add to completed tags (thread-local state)
+        currentParsedTags.append(tag)
+
+        // Clear character buffer
+        currentCharacterBuffer = ""
+    }
+
+    /// Called when parser encounters an error
+    /// For issue #7, we handle gracefully (detailed recovery in issue #12)
+    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
+    nonisolated public func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
+        // For now, just let parsing fail
+        // Issue #12 will implement proper error recovery
+        // The parse() method will buffer the chunk for retry
+    }
 }
