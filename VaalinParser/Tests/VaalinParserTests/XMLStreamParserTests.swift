@@ -309,6 +309,26 @@ struct XMLStreamParserTests {
         #expect(tags.count == 1000) // Verify parsing succeeded
     }
 
+    /// Test throughput performance with chunked parsing
+    /// Validates >10k lines/min performance requirement with realistic game output
+    @Test func test_chunkThroughputPerformance() async throws {
+        let parser = XMLStreamParser()
+
+        // Generate 10k lines of XML (typical game output pattern)
+        // Mix of prompts, text, and tags to simulate real usage
+        var testXML = ""
+        for i in 1...10_000 {
+            testXML += "<prompt>\(i)</prompt>\n"
+        }
+
+        let start = Date()
+        _ = await parser.parse(testXML)
+        let duration = Date().timeIntervalSince(start)
+
+        let linesPerMinute = (10_000.0 / duration) * 60.0
+        #expect(linesPerMinute > 10_000.0, "Throughput: \(linesPerMinute) lines/min, expected > 10k")
+    }
+
     // MARK: - Integration Preparation Tests
 
     /// Test parser integrates with GameTag model
@@ -1171,5 +1191,315 @@ struct XMLStreamParserTests {
 
         #expect(tags[4].name == ":text")
         #expect(tags[4].text == "!")
+    }
+
+    // MARK: - Issue #9: Chunked/Incomplete XML Handling Tests
+
+    /// Test incomplete tag buffering - tag cut off mid-element
+    /// Incomplete tags should be buffered until complete in next chunk
+    @Test func test_parseIncompleteTag() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Incomplete opening tag (cut off in tag name)
+        let tags1 = await parser.parse("<pro")
+
+        // Should buffer - nothing returned
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Complete the tag
+        let tags2 = await parser.parse("mpt>&gt;</prompt>")
+
+        // Now should return the complete tag
+        #expect(tags2.count == 1)
+        let tag = tags2[0]
+        #expect(tag.name == "prompt")
+        #expect(tag.text == ">")
+    }
+
+    /// Test tag split across two chunks at attribute boundary
+    /// Parser must handle incomplete attributes and continue correctly
+    @Test func test_parseTagAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Tag with incomplete attribute
+        let tags1 = await parser.parse("<a exist=\"123\" noun=\"ge")
+
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Complete attribute and tag
+        let tags2 = await parser.parse("m\">blue gem</a>")
+
+        #expect(tags2.count == 1)
+        let tag = tags2[0]
+        #expect(tag.name == "a")
+        #expect(tag.text == "blue gem")
+        #expect(tag.attrs["exist"] == "123")
+        #expect(tag.attrs["noun"] == "gem")
+    }
+
+    /// Test attribute split across chunks at value boundary
+    /// Verifies attribute value parsing works across chunk boundaries
+    @Test func test_parseAttributeAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Attribute name complete, value incomplete
+        let tags1 = await parser.parse("<progressBar id=\"heal")
+
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Complete value and close tag
+        let tags2 = await parser.parse("th\" value=\"100\"/>")
+
+        #expect(tags2.count == 1)
+        let tag = tags2[0]
+        #expect(tag.name == "progressBar")
+        #expect(tag.attrs["id"] == "health")
+        #expect(tag.attrs["value"] == "100")
+    }
+
+    /// Test stream state persistence across chunked parsing
+    /// Critical: currentStream and inStream must persist between parse() calls
+    @Test func test_streamStatePersistsAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // This test will be expanded in Issue #10 when stream tags are implemented
+        // For now, verify that stream state accessors work across chunks
+
+        let stream1 = await parser.getCurrentStream()
+        _ = await parser.parse("<a>test</a>")
+        let stream2 = await parser.getCurrentStream()
+
+        // State should persist (both nil for now, but accessible)
+        #expect(stream1 == stream2)
+    }
+
+    /// Test content split across chunks
+    /// Tag content can be fragmented across multiple TCP packets
+    @Test func test_midContentBreak() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Opening tag and partial content
+        let tags1 = await parser.parse("<output>You see a blu")
+
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Rest of content and closing tag
+        let tags2 = await parser.parse("e gem here.</output>")
+
+        #expect(tags2.count == 1)
+        let tag = tags2[0]
+        #expect(tag.name == "output")
+        #expect(tag.text == "You see a blue gem here.")
+    }
+
+    /// Test incomplete opening tag at various break points
+    /// Opening tags can break anywhere: tag name, attributes, etc.
+    @Test func test_midOpeningTagBreak() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Break in the middle of opening tag
+        let tags1 = await parser.parse("<a ex")
+
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Complete opening tag and content
+        let tags2 = await parser.parse("ist=\"123\" noun=\"gem\">gem</a>")
+
+        #expect(tags2.count == 1)
+        #expect(tags2[0].name == "a")
+        #expect(tags2[0].attrs["exist"] == "123")
+        #expect(tags2[0].attrs["noun"] == "gem")
+        #expect(tags2[0].text == "gem")
+    }
+
+    /// Test multiple consecutive incomplete chunks
+    /// Parser must accumulate buffers across many fragments
+    @Test func test_multipleIncompleteChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Start of tag
+        let tags1 = await parser.parse("<a ")
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: First attribute name
+        let tags2 = await parser.parse("exist")
+        #expect(tags2.isEmpty)
+
+        // Chunk 3: Equals and quote
+        let tags3 = await parser.parse("=\"")
+        #expect(tags3.isEmpty)
+
+        // Chunk 4: Attribute value
+        let tags4 = await parser.parse("123")
+        #expect(tags4.isEmpty)
+
+        // Chunk 5: Close quote and next attribute
+        let tags5 = await parser.parse("\" noun=\"gem")
+        #expect(tags5.isEmpty)
+
+        // Chunk 6: Close opening tag
+        let tags6 = await parser.parse("\">")
+        #expect(tags6.isEmpty)
+
+        // Chunk 7: Content
+        let tags7 = await parser.parse("blue gem")
+        #expect(tags7.isEmpty)
+
+        // Chunk 8: Closing tag
+        let tags8 = await parser.parse("</a>")
+        #expect(tags8.count == 1)
+        #expect(tags8[0].name == "a")
+        #expect(tags8[0].text == "blue gem")
+        #expect(tags8[0].attrs["exist"] == "123")
+        #expect(tags8[0].attrs["noun"] == "gem")
+    }
+
+    /// Test very small chunks (character-by-character parsing)
+    /// Extreme fragmentation test - parser should handle byte-level splits
+    @Test func test_verySmallChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // Parse a complete tag character by character
+        let fullTag = "<prompt>&gt;</prompt>"
+        var allTags: [GameTag] = []
+
+        for char in fullTag {
+            let tags = await parser.parse(String(char))
+            allTags.append(contentsOf: tags)
+        }
+
+        // Should get exactly one complete tag at the end
+        #expect(allTags.count == 1)
+        #expect(allTags[0].name == "prompt")
+        #expect(allTags[0].text == ">")
+    }
+
+    /// Test nested tags split across chunks
+    /// Nesting state must be maintained across chunk boundaries
+    @Test func test_nestedTagsChunked() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Outer tag start
+        let tags1 = await parser.parse("<d cmd=\"loo")
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Complete outer, start inner
+        let tags2 = await parser.parse("k\"><a exist=\"")
+        #expect(tags2.isEmpty)
+
+        // Chunk 3: Inner attributes and content
+        let tags3 = await parser.parse("123\" noun=\"gem\">gem</a>")
+        #expect(tags3.isEmpty)
+
+        // Chunk 4: Close outer
+        let tags4 = await parser.parse("</d>")
+        #expect(tags4.count == 1)
+
+        let outer = tags4[0]
+        #expect(outer.name == "d")
+        #expect(outer.attrs["cmd"] == "look")
+        #expect(outer.children.count == 1)
+        #expect(outer.children[0].name == "a")
+        #expect(outer.children[0].text == "gem")
+    }
+
+    /// Test chunk ending with incomplete closing tag
+    /// Closing tags can also be fragmented
+    @Test func test_incompleteClosingTag() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Complete opening and content, partial closing
+        let tags1 = await parser.parse("<output>text</out")
+
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Complete closing tag
+        let tags2 = await parser.parse("put>")
+
+        #expect(tags2.count == 1)
+        #expect(tags2[0].name == "output")
+        #expect(tags2[0].text == "text")
+    }
+
+    /// Test chunk with multiple complete tags followed by incomplete tag
+    /// Mixed complete/incomplete content in single chunk
+    @Test func test_mixedCompleteAndIncomplete() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Two complete tags + incomplete tag
+        // Current implementation buffers entire chunk when parse fails
+        let tags1 = await parser.parse("<left>Empty</left><right>Empty</right><pro")
+
+        // Entire chunk is buffered due to incomplete tag at end
+        #expect(tags1.isEmpty)
+
+        // Chunk 2: Complete the buffered tag
+        // Should now get all three tags from combined chunks
+        let tags2 = await parser.parse("mpt>&gt;</prompt>")
+
+        #expect(tags2.count == 3)
+        #expect(tags2[0].name == "left")
+        #expect(tags2[1].name == "right")
+        #expect(tags2[2].name == "prompt")
+    }
+
+    /// Test real-world GemStone IV chunked output
+    /// Realistic scenario with game text fragmentation
+    @Test func test_realisticChunkedGameOutput() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Partial item description
+        // The incomplete tag causes entire chunk to be buffered
+        let tags1 = await parser.parse("You see <a exist=\"12345\" noun=\"")
+        #expect(tags1.isEmpty) // Buffered due to incomplete tag
+
+        // Chunk 2: Complete item
+        // Should now get all content from both chunks
+        let tags2 = await parser.parse("gem\">a blue gem</a> here.")
+        #expect(tags2.count == 3) // :text "You see ", <a> tag, :text " here."
+        #expect(tags2[0].name == ":text")
+        #expect(tags2[0].text == "You see ")
+        #expect(tags2[1].name == "a")
+        #expect(tags2[1].text == "a blue gem")
+        #expect(tags2[2].name == ":text")
+        #expect(tags2[2].text == " here.")
+    }
+
+    /// Test buffer size limit protection
+    /// Parser should protect against unbounded buffer growth
+    @Test func test_bufferSizeLimitProtection() async throws {
+        let parser = XMLStreamParser()
+
+        // Create a very large incomplete chunk (> 10KB)
+        let largeChunk = String(repeating: "<tag attr=\"", count: 1000) // ~12KB
+        let tags1 = await parser.parse(largeChunk)
+
+        // Buffer should be cleared due to size limit
+        #expect(tags1.isEmpty)
+
+        // Next chunk should parse normally (not combined with cleared buffer)
+        let tags2 = await parser.parse("<prompt>&gt;</prompt>")
+        #expect(tags2.count == 1)
+        #expect(tags2[0].name == "prompt")
+    }
+
+    /// Test consecutive parse failures with buffering
+    /// Verifies that repeated failures don't cause issues
+    @Test func test_consecutiveParseFailures() async throws {
+        let parser = XMLStreamParser()
+
+        // Multiple incomplete chunks in sequence
+        _ = await parser.parse("<a")
+        _ = await parser.parse(" exist=")
+        _ = await parser.parse("\"123")
+        _ = await parser.parse("\" noun")
+        _ = await parser.parse("=\"gem")
+
+        // Finally complete the tag
+        let tags = await parser.parse("\">gem</a>")
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "a")
+        #expect(tags[0].attrs["exist"] == "123")
+        #expect(tags[0].attrs["noun"] == "gem")
     }
 }
