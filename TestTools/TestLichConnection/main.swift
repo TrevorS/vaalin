@@ -1,9 +1,9 @@
 // ABOUTME: Interactive test program for LichConnection - connects to Lich and streams XML
 
 import Foundation
+import VaalinCore
 import VaalinNetwork
 import VaalinParser
-import VaalinCore
 
 /// ANSI color codes for pretty terminal output
 enum Color: String {
@@ -92,7 +92,6 @@ struct TestLichConnection {
             streamTask.cancel()
             await connection.disconnect()
             success("Disconnected cleanly")
-
         } catch let connectionError {
             error("Connection failed: \(connectionError.localizedDescription)")
             print("")
