@@ -210,7 +210,8 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
                 text: currentCharacterBuffer,
                 attrs: [:],
                 children: [],
-                state: .closed
+                state: .closed,
+                streamId: inStream ? currentStream : nil
             )
             currentParsedTags.append(textNode)
             currentCharacterBuffer = ""
@@ -304,7 +305,8 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
                 text: currentCharacterBuffer,
                 attrs: [:],
                 children: [],
-                state: .closed
+                state: .closed,
+                streamId: inStream ? currentStream : nil
             )
 
             if currentTagStack.isEmpty {
@@ -324,7 +326,8 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
             text: nil,
             attrs: attributeDict,
             children: [],
-            state: .open
+            state: .open,
+            streamId: inStream ? currentStream : nil
         )
 
         // Push to tag stack (thread-local state)
@@ -410,7 +413,8 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
                 text: currentCharacterBuffer,
                 attrs: [:],
                 children: [],
-                state: .closed
+                state: .closed,
+                streamId: inStream ? currentStream : nil
             )
             tag.children.append(textNode)
         }

@@ -1649,10 +1649,7 @@ struct XMLStreamParserTests {
         #expect(tag.text == "You think about magic.")
 
         // Tag should be marked with stream ID
-        // NOTE: This assumes GameTag will have a streamId property added in Issue #10
-        // For now, this test documents the expected behavior
-        // Uncomment when GameTag.streamId is added:
-        // #expect(tag.streamId == "thoughts")
+        #expect(tag.streamId == "thoughts")
     }
 
     /// Test multiple stream cycles work correctly

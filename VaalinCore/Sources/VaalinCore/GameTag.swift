@@ -68,6 +68,24 @@ public struct GameTag: Identifiable, Equatable {
     /// Used by XMLStreamParser to handle chunked TCP data.
     public var state: TagState
 
+    /// Stream ID if tag was parsed inside a stream context.
+    ///
+    /// Set to the active stream ID (e.g., "thoughts", "speech", "combat") when parsed
+    /// between `<pushStream id="X">` and `<popStream>` tags. `nil` for tags outside streams.
+    ///
+    /// Used by EventBus to route stream content to appropriate subscribers, enabling
+    /// stream filtering in the UI (thoughts panel, speech panel, etc.).
+    ///
+    /// ## Example
+    /// ```swift
+    /// // Tag parsed inside <pushStream id="thoughts">...</pushStream>
+    /// let tag = GameTag(name: "output", text: "You think...", streamId: "thoughts")
+    ///
+    /// // Tag parsed outside any stream context
+    /// let tag = GameTag(name: "prompt", text: ">", streamId: nil)
+    /// ```
+    public var streamId: String?
+
     /// Creates a new GameTag with the specified properties.
     ///
     /// - Parameters:
@@ -77,13 +95,15 @@ public struct GameTag: Identifiable, Equatable {
     ///   - attrs: Attribute dictionary (defaults to empty)
     ///   - children: Nested child tags (defaults to empty)
     ///   - state: Tag parsing state
+    ///   - streamId: Stream context ID (nil if outside stream)
     public init(
         id: UUID = UUID(),
         name: String,
         text: String? = nil,
         attrs: [String: String] = [:],
         children: [GameTag] = [],
-        state: TagState
+        state: TagState,
+        streamId: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -91,6 +111,7 @@ public struct GameTag: Identifiable, Equatable {
         self.attrs = attrs
         self.children = children
         self.state = state
+        self.streamId = streamId
     }
 
     // MARK: - Equatable
@@ -102,7 +123,8 @@ public struct GameTag: Identifiable, Equatable {
         lhs.text == rhs.text &&
         lhs.attrs == rhs.attrs &&
         lhs.children == rhs.children &&
-        lhs.state == rhs.state
+        lhs.state == rhs.state &&
+        lhs.streamId == rhs.streamId
     }
 }
 
