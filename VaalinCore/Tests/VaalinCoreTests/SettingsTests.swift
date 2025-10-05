@@ -294,7 +294,7 @@ struct SettingsTests {
     }
 
     /// Test encoding with minimal/edge case values
-    @Test func test_minimialSettingsEncoding() throws {
+    @Test func test_minimalSettingsEncoding() throws {
         let data = minimalSettingsJSON.data(using: .utf8)!
         let decoder = JSONDecoder()
         let settings = try decoder.decode(Settings.self, from: data)
