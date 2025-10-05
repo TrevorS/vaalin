@@ -16,11 +16,9 @@ struct XMLStreamParserTests {
     /// Test parser initializes correctly as an actor
     /// Verifies that XMLStreamParser can be instantiated and is an actor type
     @Test func test_parserInitialization() async throws {
-        let parser = XMLStreamParser()
-
         // Parser should initialize successfully
         // This verifies the actor exists and can be created
-        #expect(parser != nil)
+        _ = XMLStreamParser()
     }
 
     /// Test parser initial state is correct
@@ -66,10 +64,8 @@ struct XMLStreamParserTests {
         let parser = XMLStreamParser()
 
         // Parse method should accept String and return [GameTag] asynchronously
-        let result: [GameTag] = await parser.parse("<test/>")
-
-        // Type system enforces this, but we verify it compiles and returns correct type
-        #expect(result is [GameTag])
+        // Type system enforces this at compile time
+        _ = await parser.parse("<test/>")
     }
 
     /// Test parse method accepts String parameter
@@ -103,10 +99,8 @@ struct XMLStreamParserTests {
     @Test func test_getCurrentStreamAccessor() async throws {
         let parser = XMLStreamParser()
 
-        let stream = await parser.getCurrentStream()
-
-        // Should return Optional String
-        #expect(stream == nil || stream is String)
+        // Accessor should exist and return Optional String
+        _ = await parser.getCurrentStream()
     }
 
     /// Test getInStream accessor exists
@@ -114,10 +108,8 @@ struct XMLStreamParserTests {
     @Test func test_getInStreamAccessor() async throws {
         let parser = XMLStreamParser()
 
-        let inStream = await parser.getInStream()
-
-        // Should return Bool
-        #expect(inStream is Bool)
+        // Accessor should exist and return Bool
+        _ = await parser.getInStream()
     }
 
     // MARK: - Actor Isolation Tests
@@ -160,20 +152,17 @@ struct XMLStreamParserTests {
     /// Test parser conforms to XMLParserDelegate protocol
     /// Required for NSXMLParser SAX-based parsing
     @Test func test_parserConformsToXMLParserDelegate() async throws {
-        let parser = XMLStreamParser()
-
         // Parser should conform to XMLParserDelegate
-        // This is verified at compile time, but we document the requirement
-        #expect(parser is any XMLParserDelegate)
+        // This is verified at compile time by the protocol conformance
+        _ = XMLStreamParser()
     }
 
     /// Test parser inherits from NSObject
     /// Required for XMLParserDelegate conformance
     @Test func test_parserInheritsFromNSObject() async throws {
-        let parser = XMLStreamParser()
-
         // Parser should inherit from NSObject for Objective-C protocol conformance
-        #expect(parser is NSObject)
+        // This is verified at compile time by the class inheritance
+        _ = XMLStreamParser()
     }
 
     // MARK: - Basic Parse Structure Tests
@@ -183,10 +172,9 @@ struct XMLStreamParserTests {
     @Test func test_parseNeverReturnsNil() async throws {
         let parser = XMLStreamParser()
 
-        let tags = await parser.parse("")
-
-        // Should return empty array, never nil
-        #expect(tags != nil)
+        // Should return array (possibly empty), never nil
+        // Type system guarantees this - [GameTag] is non-optional
+        _ = await parser.parse("")
     }
 
     /// Test parser can be called multiple times
@@ -306,10 +294,8 @@ struct XMLStreamParserTests {
     @Test func test_parserUsesGameTagModel() async throws {
         let parser = XMLStreamParser()
 
-        let tags = await parser.parse("")
-
-        // Empty result still verifies type compatibility
-        #expect(tags is [GameTag])
+        // Type system verifies GameTag compatibility at compile time
+        _ = await parser.parse("")
 
         // Future: Will verify actual GameTag creation in later tests
     }
