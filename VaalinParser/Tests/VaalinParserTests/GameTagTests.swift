@@ -10,7 +10,7 @@ struct GameTagTests {
     // MARK: - Identifiable Tests
 
     @Test("GameTag has unique ID for each instance")
-    func test_gameTagIdentifiability() async throws {
+    func test_gameTagIdentifiability() {
         let tag1 = GameTag(name: "a", text: "a gem", attrs: [:], children: [], state: .open)
         let tag2 = GameTag(name: "a", text: "a gem", attrs: [:], children: [], state: .open)
 
@@ -18,7 +18,7 @@ struct GameTagTests {
     }
 
     @Test("GameTag ID remains stable across property changes")
-    func test_gameTagIDStability() async throws {
+    func test_gameTagIDStability() {
         var tag = GameTag(name: "a", text: nil, attrs: [:], children: [], state: .open)
         let originalID = tag.id
 
@@ -31,7 +31,7 @@ struct GameTagTests {
     // MARK: - Equatable Tests
 
     @Test("GameTag equality compares all fields")
-    func test_gameTagEquality() async throws {
+    func test_gameTagEquality() {
         let tag1 = GameTag(name: "prompt", text: ">", attrs: [:], children: [], state: .closed)
         let tag2 = GameTag(name: "prompt", text: ">", attrs: [:], children: [], state: .closed)
 
@@ -39,7 +39,7 @@ struct GameTagTests {
     }
 
     @Test("GameTag inequality when names differ")
-    func test_gameTagInequalityName() async throws {
+    func test_gameTagInequalityName() {
         let tag1 = GameTag(name: "a", text: "gem", attrs: [:], children: [], state: .open)
         let tag2 = GameTag(name: "b", text: "gem", attrs: [:], children: [], state: .open)
 
@@ -47,15 +47,23 @@ struct GameTagTests {
     }
 
     @Test("GameTag inequality when text differs")
-    func test_gameTagInequalityText() async throws {
+    func test_gameTagInequalityText() {
         let tag1 = GameTag(name: "a", text: "blue gem", attrs: [:], children: [], state: .closed)
         let tag2 = GameTag(name: "a", text: "red gem", attrs: [:], children: [], state: .closed)
 
         #expect(tag1 != tag2, "Tags with different text should not be equal")
     }
 
+    @Test("GameTag inequality when attributes differ")
+    func test_gameTagInequalityAttrs() {
+        let tag1 = GameTag(name: "a", text: "gem", attrs: ["exist": "12345"], children: [], state: .closed)
+        let tag2 = GameTag(name: "a", text: "gem", attrs: ["exist": "67890"], children: [], state: .closed)
+
+        #expect(tag1 != tag2, "Tags with different attributes should not be equal")
+    }
+
     @Test("GameTag inequality when state differs")
-    func test_gameTagInequalityState() async throws {
+    func test_gameTagInequalityState() {
         let tag1 = GameTag(name: "stream", text: nil, attrs: ["id": "thoughts"], children: [], state: .open)
         let tag2 = GameTag(name: "stream", text: nil, attrs: ["id": "thoughts"], children: [], state: .closed)
 
@@ -65,7 +73,7 @@ struct GameTagTests {
     // MARK: - Nested Tag Structure Tests
 
     @Test("GameTag supports nested children array")
-    func test_nestedTagStructure() async throws {
+    func test_nestedTagStructure() {
         let innerTag = GameTag(name: "b", text: "bold text", attrs: [:], children: [], state: .closed)
         let outerTag = GameTag(name: "d", text: nil, attrs: [:], children: [innerTag], state: .closed)
 
@@ -75,7 +83,7 @@ struct GameTagTests {
     }
 
     @Test("GameTag supports deeply nested structures")
-    func test_deeplyNestedStructure() async throws {
+    func test_deeplyNestedStructure() {
         let level3 = GameTag(name: "a", text: "gem", attrs: ["noun": "gem"], children: [], state: .closed)
         let level2 = GameTag(name: "b", text: nil, attrs: [:], children: [level3], state: .closed)
         let level1 = GameTag(name: "d", text: nil, attrs: [:], children: [level2], state: .closed)
@@ -86,7 +94,7 @@ struct GameTagTests {
     }
 
     @Test("GameTag with no children has empty array")
-    func test_gameTagWithNoChildren() async throws {
+    func test_gameTagWithNoChildren() {
         let tag = GameTag(name: "prompt", text: ">", attrs: [:], children: [], state: .closed)
 
         #expect(tag.children.isEmpty, "Tag without children should have empty array")
@@ -95,7 +103,7 @@ struct GameTagTests {
     // MARK: - Attribute Storage Tests
 
     @Test("GameTag stores attributes as dictionary")
-    func test_attributeStorage() async throws {
+    func test_attributeStorage() {
         let attrs = ["exist": "12345", "noun": "gem", "cmd": "look at gem"]
         let tag = GameTag(name: "a", text: "a blue gem", attrs: attrs, children: [], state: .closed)
 
@@ -105,14 +113,14 @@ struct GameTagTests {
     }
 
     @Test("GameTag with empty attributes dictionary")
-    func test_gameTagWithEmptyAttributes() async throws {
+    func test_gameTagWithEmptyAttributes() {
         let tag = GameTag(name: "prompt", text: ">", attrs: [:], children: [], state: .closed)
 
         #expect(tag.attrs.isEmpty, "Tag with no attributes should have empty dictionary")
     }
 
     @Test("GameTag attributes can be mutated")
-    func test_attributeMutation() async throws {
+    func test_attributeMutation() {
         var tag = GameTag(name: "a", text: "gem", attrs: [:], children: [], state: .open)
 
         tag.attrs["exist"] = "12345"
@@ -125,7 +133,7 @@ struct GameTagTests {
     // MARK: - TagState Tests
 
     @Test("TagState enum supports open and closed states")
-    func test_tagStateBehavior() async throws {
+    func test_tagStateBehavior() {
         let openTag = GameTag(name: "stream", text: nil, attrs: ["id": "thoughts"], children: [], state: .open)
         let closedTag = GameTag(name: "prompt", text: ">", attrs: [:], children: [], state: .closed)
 
@@ -134,7 +142,7 @@ struct GameTagTests {
     }
 
     @Test("TagState can be mutated")
-    func test_tagStateMutation() async throws {
+    func test_tagStateMutation() {
         var tag = GameTag(name: "stream", text: nil, attrs: [:], children: [], state: .open)
 
         #expect(tag.state == .open)
@@ -147,14 +155,14 @@ struct GameTagTests {
     // MARK: - Optional Text Tests
 
     @Test("GameTag with no text has nil text property")
-    func test_gameTagWithNoText() async throws {
+    func test_gameTagWithNoText() {
         let tag = GameTag(name: "stream", text: nil, attrs: ["id": "main"], children: [], state: .open)
 
         #expect(tag.text == nil, "Tag without text should have nil text property")
     }
 
     @Test("GameTag text can be mutated")
-    func test_textMutation() async throws {
+    func test_textMutation() {
         var tag = GameTag(name: "a", text: nil, attrs: [:], children: [], state: .open)
 
         #expect(tag.text == nil)
