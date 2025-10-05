@@ -218,7 +218,6 @@ Vaalin/
 ├── VaalinParser/                  # Swift Package: XML parsing (actor-based)
 │   ├── Sources/
 │   │   ├── XMLStreamParser.swift  # Actor - stateful SAX parser
-│   │   ├── GameTag.swift          # Parsed XML element model
 │   │   └── TagRenderer.swift      # GameTag → AttributedString
 │   ├── Tests/
 │   │   └── XMLStreamParserTests.swift
@@ -230,6 +229,8 @@ Vaalin/
 │   │   └── LichConnectionTests.swift
 ├── VaalinCore/                    # Swift Package: shared models/utilities
 │   ├── Sources/
+│   │   ├── GameTag.swift          # Parsed XML element model (moved from VaalinParser)
+│   │   ├── Message.swift          # Rendered game log entry with AttributedString
 │   │   ├── EventBus.swift         # Actor - pub/sub events
 │   │   ├── Settings.swift         # Codable settings model
 │   │   ├── SettingsManager.swift  # Actor - JSON persistence
@@ -240,6 +241,8 @@ Vaalin/
 │   │   ├── ANSIParser.swift       # ANSI escape code parsing
 │   │   └── ThemeManager.swift     # Color theme loader
 │   ├── Tests/
+│   │   ├── GameTagTests.swift     # GameTag model tests (moved from VaalinParser)
+│   │   ├── MessageTests.swift     # Message model tests
 │   │   ├── EventBusTests.swift
 │   │   ├── SettingsTests.swift
 │   │   └── ItemCategorizerTests.swift
