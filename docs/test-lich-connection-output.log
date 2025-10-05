@@ -1,0 +1,625 @@
+vaalin on  feature/issue-13-lich-connection [!?] via 🐦 v6.2
+❯ swift run TestLichConnection
+[1/1] Planning build
+Building for debugging...
+[3/3] Emitting module VaalinNetwork
+Build of product 'TestLichConnection' complete! (0.50s)
+
+═══ Lich Connection Test ═══
+▸ Connecting to Lich at 127.0.0.1:8000...
+✓ Connected!
+
+═══ XML Stream (Ctrl+C to stop) ═══
+───────────────────────────────────────
+Chunk #1 (846 bytes, 19 tags)
+<progressBar id='mana' value='0' text='mana 146/146'/><progressBar id='health' value='0' text='health 113/113'/><progressBar id='spirit' value='0' text='spirit 9/9'/><progressBar id='stamina' value='0...
+Parsed Tags:
+• progressBar [id="mana" text="mana 146/146" value="0"]
+• progressBar [value="0" id="health" text="health 113/113"]
+• progressBar [id="spirit" text="spirit 9/9" value="0"]
+• progressBar [value="0" id="stamina" text="stamina 74/74"]
+• spell: "None"
+• indicator [id="IconBLEEDING" visible=""]
+• indicator [visible="" id="IconPOISONED"]
+• indicator [id="IconDISEASED" visible=""]
+• indicator [id="IconSTANDING" visible="n"]
+• indicator [visible="n" id="IconKNEELING"]
+• indicator [id="IconSITTING" visible="y"]
+• indicator [id="IconPRONE" visible="n"]
+• progressBar [value="100" id="pbarStance"]
+• progressBar [text="clear as a bell" value="0" id="mindState"]
+• progressBar [id="encumlevel" text="Light" value="10"]
+• right: "Empty"
+• left: "Empty"
+• compass
+  • dir [value="ne"]
+  • dir [value="e"]
+  • dir [value="se"]
+  • dir [value="sw"]
+  • dir [value="w"]
+  • dir [value="nw"]
+• :text: "
+"
+
+═══ Sending Test Commands ═══
+▸ Sending: look
+───────────────────────────────────────
+Chunk #2 (82 bytes, 3 tags)
+<resource picture="0"/><style id="roomName" />[Town Square Central - 228] (u7120)
+
+Parsed Tags:
+• resource [picture="0"]
+• style [id="roomName"]
+• :text: "[Town Square Central - 228] (u7120)
+"
+───────────────────────────────────────
+Chunk #3 (1493 bytes, 40 tags)
+<style id=""/><style id="roomDesc"/>This is the heart of the main square of Wehnimer's Landing.  The impromptu shops of the bazaar are clustered around this central gathering place, where townsfolk, t...
+Parsed Tags:
+• style [id=""]
+• style [id="roomDesc"]
+• :text: "This is the heart of the main square of Wehnimer's..."
+• a [noun="well" exist="-562"]: "old well"
+• :text: ", with moss-covered stones and a craggy roof, is s..."
+• a [exist="-563" noun="tree"]: "tree"
+• :text: ".  The oak is tall and straight, and it is apparen..."
+• style [id=""]
+• :text: "You also see "
+• pushBold
+• pushBold
+• :text: "a "
+• a [noun="hyena" exist="630236154"]: "grist hyena"
+• popBold
+• popBold
+• :text: ", the "
+• a [exist="627963440" noun="disk"]: "Ruchys disk"
+• :text: ", a "
+• a [noun="chest" exist="630129144"]: "corroded gold chest"
+• :text: ", a "
+• a [exist="625953960" noun="backpack"]: "dashing coal black backpack"
+• :text: ", a "
+• a [noun="backpack" exist="624790467"]: "heavy backpack"
+• :text: ", a "
+• a [noun="pestle" exist="8683305"]: "stone pestle"
+• :text: ", "
+• a [noun="stem" exist="8683308"]: "some ground bloodthorn stem"
+• :text: ", a "
+• a [noun="pestle" exist="8683307"]: "stone pestle"
+• :text: ", "
+• a [exist="8683306" noun="vine"]: "some ground honeysuckle vine"
+• :text: ", a "
+• a [noun="trail" exist="57577"]: "trail"
+• :text: " of aster-wreathed silver hedgehogs leading southw..."
+• a [exist="57574" noun="barrel"]: "round silver-banded barrel"
+• :text: ", an "
+• a [noun="bin" exist="57534"]: "herbal remedy donation bin"
+• :text: " and "
+• a [exist="-49715" noun="benches"]: "some wide stone benches"
+• :text: " with some stuff on it.
+"
+───────────────────────────────────────
+Chunk #4 (677 bytes, 27 tags)
+Also here: <a exist="-10383793" noun="Ikenn">Ikenn</a>, <a exist="-11234057" noun="Abunyu">Abunyu</a>, <a exist="-10168864" noun="Ruchys">Ruchys</a>, <a exist="-11208001" noun="Ikeye">Ikeye</a>, <a ex...
+Parsed Tags:
+• :text: "Also here: "
+• a [exist="-10383793" noun="Ikenn"]: "Ikenn"
+• :text: ", "
+• a [noun="Abunyu" exist="-11234057"]: "Abunyu"
+• :text: ", "
+• a [noun="Ruchys" exist="-10168864"]: "Ruchys"
+• :text: ", "
+• a [exist="-11208001" noun="Ikeye"]: "Ikeye"
+• :text: ", "
+• a [noun="Vatsesan" exist="-11206750"]: "Vatsesan"
+• :text: ", "
+• a [exist="-11233336" noun="Xyroth"]: "Xyroth"
+• :text: ", "
+• a [noun="Tarbish" exist="-11142654"]: "Tarbish"
+• :text: ", "
+• a [noun="Harbenjer" exist="-11083514"]: "Harbenjer"
+• :text: " who is sitting, Great Lord "
+• a [noun="Aeyris" exist="-10341141"]: "Aeyris"
+• :text: ", "
+• a [noun="Dexon" exist="-11226962"]: "Dexon"
+• :text: ", "
+• a [exist="-11234116" noun="Blizzardberry"]: "Blizzardberry"
+• :text: ", "
+• a [noun="Soulberry" exist="-11234111"]: "Soulberry"
+• :text: ", "
+• a [exist="-11153575" noun="Ahseetah"]: "Ahseetah"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #5 (420 bytes, 13 tags)
+Obvious paths: <a exist="-11231958" coord="2524,1864" noun="northeast">northeast</a>, <a exist="-11231958" coord="2524,1864" noun="east">east</a>, <a exist="-11231958" coord="2524,1864" noun="southeas...
+Parsed Tags:
+• :text: "Obvious paths: "
+• a [coord="2524,1864" exist="-11231958" noun="northeast"]: "northeast"
+• :text: ", "
+• a [noun="east" coord="2524,1864" exist="-11231958"]: "east"
+• :text: ", "
+• a [noun="southeast" exist="-11231958" coord="2524,1864"]: "southeast"
+• :text: ", "
+• a [exist="-11231958" coord="2524,1864" noun="southwest"]: "southwest"
+• :text: ", "
+• a [noun="west" exist="-11231958" coord="2524,1864"]: "west"
+• :text: ", "
+• a [exist="-11231958" coord="2524,1864" noun="northwest"]: "northwest"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #6 (160 bytes, 3 tags)
+<compass><dir value="ne"/><dir value="e"/><dir value="se"/><dir value="sw"/><dir value="w"/><dir value="nw"/></compass><prompt time="1759701501">s&gt;</prompt>
+
+Parsed Tags:
+• compass
+  • dir [value="ne"]
+  • dir [value="e"]
+  • dir [value="se"]
+  • dir [value="sw"]
+  • dir [value="w"]
+  • dir [value="nw"]
+• prompt [time="1759701501"]: "s>"
+• :text: "
+"
+▸ Sending: time
+───────────────────────────────────────
+Chunk #7 (140 bytes, 1 tags)
+Today is Restday, day 5 of the month Jastatos in the year 5125.  It is 17:58 by the elven time standard.  It is currently evening twilight.
+
+Parsed Tags:
+• :text: "Today is Restday, day 5 of the month Jastatos in t..."
+───────────────────────────────────────
+Chunk #8 (41 bytes, 2 tags)
+<prompt time="1759701503">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701503"]: "s>"
+• :text: "
+"
+▸ Sending: info
+───────────────────────────────────────
+Chunk #9 (382 bytes, 3 tags)
+<dialogData id='expr'><label id='yourLvl' value='Level 25' top='0' left='0' align='n' width='160' height='15'/><progressBar id='mindState' value='0' text='clear as a bell' top='45' left='3' align='n' ...
+Parsed Tags:
+• dialogData [id="expr"]
+  • label [left="0" id="yourLvl" width="160" height="15" top="0" align="n" value="Level 25"]
+  • progressBar [align="n" value="0" id="mindState" height="15" text="clear as a bell" width="160" left="3" top="45"]
+  • progressBar [height="15" width="160" top="20" text="53699 until next level" left="3" value="5" id="nextLvlPB" align="n"]
+• output [class="mono"]
+• :text: "
+"
+───────────────────────────────────────
+Chunk #10 (106 bytes, 3 tags)
+Name: <a exist="-11231958" noun="Sceotan">Sceotan</a> Race: Burghal Gnome  Profession: Wizard (not shown)
+
+Parsed Tags:
+• :text: "Name: "
+• a [noun="Sceotan" exist="-11231958"]: "Sceotan"
+• :text: " Race: Burghal Gnome  Profession: Wizard (not show..."
+───────────────────────────────────────
+Chunk #11 (54 bytes, 1 tags)
+Gender: Male    Age: 0    Expr: 727,801    Level:  25
+
+Parsed Tags:
+• :text: "Gender: Male    Age: 0    Expr: 727,801    Level: ..."
+───────────────────────────────────────
+Chunk #12 (56 bytes, 1 tags)
+                  Normal (Bonus)  ...  Enhanced (Bonus)
+
+Parsed Tags:
+• :text: "                  Normal (Bonus)  ...  Enhanced (B..."
+───────────────────────────────────────
+Chunk #13 (47 bytes, 1 tags)
+    Strength (STR):    86 (3)     ...   86 (3)
+
+Parsed Tags:
+• :text: "    Strength (STR):    86 (3)     ...   86 (3)
+"
+───────────────────────────────────────
+Chunk #14 (48 bytes, 1 tags)
+Constitution (CON):    76 (23)    ...   76 (23)
+
+Parsed Tags:
+• :text: "Constitution (CON):    76 (23)    ...   76 (23)
+"
+───────────────────────────────────────
+Chunk #15 (48 bytes, 1 tags)
+   Dexterity (DEX):    93 (31)    ...   93 (31)
+
+Parsed Tags:
+• :text: "   Dexterity (DEX):    93 (31)    ...   93 (31)
+"
+───────────────────────────────────────
+Chunk #16 (48 bytes, 1 tags)
+     Agility (AGI):    77 (23)    ...   77 (23)
+
+Parsed Tags:
+• :text: "     Agility (AGI):    77 (23)    ...   77 (23)
+"
+───────────────────────────────────────
+Chunk #17 (48 bytes, 1 tags)
+  Discipline (DIS):    95 (17)    ...   95 (17)
+
+Parsed Tags:
+• :text: "  Discipline (DIS):    95 (17)    ...   95 (17)
+"
+───────────────────────────────────────
+Chunk #18 (48 bytes, 1 tags)
+        Aura (AUR):    90 (25)    ...   90 (25)
+
+Parsed Tags:
+• :text: "        Aura (AUR):    90 (25)    ...   90 (25)
+"
+───────────────────────────────────────
+Chunk #19 (48 bytes, 1 tags)
+       Logic (LOG):    99 (34)    ...   99 (34)
+
+Parsed Tags:
+• :text: "       Logic (LOG):    99 (34)    ...   99 (34)
+"
+───────────────────────────────────────
+Chunk #20 (48 bytes, 1 tags)
+   Intuition (INT):    62 (11)    ...   62 (11)
+
+Parsed Tags:
+• :text: "   Intuition (INT):    62 (11)    ...   62 (11)
+"
+───────────────────────────────────────
+Chunk #21 (48 bytes, 1 tags)
+      Wisdom (WIS):    47 (-1)    ...   47 (-1)
+
+Parsed Tags:
+• :text: "      Wisdom (WIS):    47 (-1)    ...   47 (-1)
+"
+───────────────────────────────────────
+Chunk #22 (48 bytes, 1 tags)
+   Influence (INF):    42 (-9)    ...   42 (-9)
+
+Parsed Tags:
+• :text: "   Influence (INF):    42 (-9)    ...   42 (-9)
+"
+───────────────────────────────────────
+Chunk #23 (23 bytes, 1 tags)
+Mana:  146   Silver: 0
+
+Parsed Tags:
+• :text: "Mana:  146   Silver: 0
+"
+───────────────────────────────────────
+Chunk #24 (19 bytes, 2 tags)
+<output class=""/>
+
+Parsed Tags:
+• output [class=""]
+• :text: "
+"
+───────────────────────────────────────
+Chunk #25 (41 bytes, 2 tags)
+<prompt time="1759701504">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701504"]: "s>"
+• :text: "
+"
+▸ Streaming for 10 more seconds...
+───────────────────────────────────────
+Chunk #26 (770 bytes, 2 tags)
+<component id='room players'>Also here: Lord <a exist="-10454713" noun="Baleal">Baleal</a>, <a exist="-10383793" noun="Ikenn">Ikenn</a>, <a exist="-11234057" noun="Abunyu">Abunyu</a>, <a exist="-10168...
+Parsed Tags:
+• component [id="room players"]
+  • :text: "Also here: Lord "
+  • a [exist="-10454713" noun="Baleal"]: "Baleal"
+  • :text: ", "
+  • a [exist="-10383793" noun="Ikenn"]: "Ikenn"
+  • :text: ", "
+  • a [noun="Abunyu" exist="-11234057"]: "Abunyu"
+  • :text: ", "
+  • a [noun="Ruchys" exist="-10168864"]: "Ruchys"
+  • :text: ", "
+  • a [exist="-11208001" noun="Ikeye"]: "Ikeye"
+  • :text: ", "
+  • a [noun="Vatsesan" exist="-11206750"]: "Vatsesan"
+  • :text: ", "
+  • a [noun="Xyroth" exist="-11233336"]: "Xyroth"
+  • :text: ", "
+  • a [noun="Tarbish" exist="-11142654"]: "Tarbish"
+  • :text: ", "
+  • a [noun="Harbenjer" exist="-11083514"]: "Harbenjer"
+  • :text: " who is sitting, Great Lord "
+  • a [exist="-10341141" noun="Aeyris"]: "Aeyris"
+  • :text: ", "
+  • a [noun="Dexon" exist="-11226962"]: "Dexon"
+  • :text: ", "
+  • a [exist="-11234116" noun="Blizzardberry"]: "Blizzardberry"
+  • :text: ", "
+  • a [noun="Soulberry" exist="-11234111"]: "Soulberry"
+  • :text: ", "
+  • a [exist="-11153575" noun="Ahseetah"]: "Ahseetah"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #27 (65 bytes, 3 tags)
+Lord <a exist="-10454713" noun="Baleal">Baleal</a> just arrived.
+
+Parsed Tags:
+• :text: "Lord "
+• a [exist="-10454713" noun="Baleal"]: "Baleal"
+• :text: " just arrived.
+"
+───────────────────────────────────────
+Chunk #28 (41 bytes, 2 tags)
+<prompt time="1759701506">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701506"]: "s>"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #29 (718 bytes, 2 tags)
+<component id='room players'>Also here: <a exist="-10383793" noun="Ikenn">Ikenn</a>, <a exist="-11234057" noun="Abunyu">Abunyu</a>, <a exist="-10168864" noun="Ruchys">Ruchys</a>, <a exist="-11208001" ...
+Parsed Tags:
+• component [id="room players"]
+  • :text: "Also here: "
+  • a [exist="-10383793" noun="Ikenn"]: "Ikenn"
+  • :text: ", "
+  • a [exist="-11234057" noun="Abunyu"]: "Abunyu"
+  • :text: ", "
+  • a [noun="Ruchys" exist="-10168864"]: "Ruchys"
+  • :text: ", "
+  • a [noun="Ikeye" exist="-11208001"]: "Ikeye"
+  • :text: ", "
+  • a [exist="-11206750" noun="Vatsesan"]: "Vatsesan"
+  • :text: ", "
+  • a [noun="Xyroth" exist="-11233336"]: "Xyroth"
+  • :text: ", "
+  • a [noun="Tarbish" exist="-11142654"]: "Tarbish"
+  • :text: ", "
+  • a [noun="Harbenjer" exist="-11083514"]: "Harbenjer"
+  • :text: " who is sitting, Great Lord "
+  • a [noun="Aeyris" exist="-10341141"]: "Aeyris"
+  • :text: ", "
+  • a [exist="-11226962" noun="Dexon"]: "Dexon"
+  • :text: ", "
+  • a [noun="Blizzardberry" exist="-11234116"]: "Blizzardberry"
+  • :text: ", "
+  • a [exist="-11234111" noun="Soulberry"]: "Soulberry"
+  • :text: ", "
+  • a [noun="Ahseetah" exist="-11153575"]: "Ahseetah"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #30 (88 bytes, 5 tags)
+Lord <a exist="-10454713" noun="Baleal">Baleal</a> just went <d cmd='go west'>west</d>.
+
+Parsed Tags:
+• :text: "Lord "
+• a [exist="-10454713" noun="Baleal"]: "Baleal"
+• :text: " just went "
+• d [cmd="go west"]: "west"
+• :text: ".
+"
+───────────────────────────────────────
+Chunk #31 (41 bytes, 2 tags)
+<prompt time="1759701506">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701506"]: "s>"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #32 (771 bytes, 2 tags)
+<component id='room players'>Also here: <a exist="-11232779" noun="Xanthirra">Xanthirra</a>, <a exist="-10383793" noun="Ikenn">Ikenn</a>, <a exist="-11234057" noun="Abunyu">Abunyu</a>, <a exist="-1016...
+Parsed Tags:
+• component [id="room players"]
+  • :text: "Also here: "
+  • a [exist="-11232779" noun="Xanthirra"]: "Xanthirra"
+  • :text: ", "
+  • a [exist="-10383793" noun="Ikenn"]: "Ikenn"
+  • :text: ", "
+  • a [noun="Abunyu" exist="-11234057"]: "Abunyu"
+  • :text: ", "
+  • a [noun="Ruchys" exist="-10168864"]: "Ruchys"
+  • :text: ", "
+  • a [exist="-11208001" noun="Ikeye"]: "Ikeye"
+  • :text: ", "
+  • a [noun="Vatsesan" exist="-11206750"]: "Vatsesan"
+  • :text: ", "
+  • a [noun="Xyroth" exist="-11233336"]: "Xyroth"
+  • :text: ", "
+  • a [noun="Tarbish" exist="-11142654"]: "Tarbish"
+  • :text: ", "
+  • a [noun="Harbenjer" exist="-11083514"]: "Harbenjer"
+  • :text: " who is sitting, Great Lord "
+  • a [exist="-10341141" noun="Aeyris"]: "Aeyris"
+  • :text: ", "
+  • a [noun="Dexon" exist="-11226962"]: "Dexon"
+  • :text: ", "
+  • a [exist="-11234116" noun="Blizzardberry"]: "Blizzardberry"
+  • :text: ", "
+  • a [noun="Soulberry" exist="-11234111"]: "Soulberry"
+  • :text: ", "
+  • a [exist="-11153575" noun="Ahseetah"]: "Ahseetah"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #33 (66 bytes, 2 tags)
+<a exist="-11232779" noun="Xanthirra">Xanthirra</a> just arrived.
+
+Parsed Tags:
+• a [exist="-11232779" noun="Xanthirra"]: "Xanthirra"
+• :text: " just arrived.
+"
+───────────────────────────────────────
+Chunk #34 (41 bytes, 2 tags)
+<prompt time="1759701508">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701508"]: "s>"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #35 (241 bytes, 8 tags)
+<a exist="-11232779" noun="Xanthirra">Xanthirra</a> put a <a exist="630153380" noun="runestaff">sigil-etched orase runestaff</a> in <a exist="-11232779" noun="Xanthirra">her</a> <a exist="630153400" n...
+Parsed Tags:
+• a [exist="-11232779" noun="Xanthirra"]: "Xanthirra"
+• :text: " put a "
+• a [noun="runestaff" exist="630153380"]: "sigil-etched orase runestaff"
+• :text: " in "
+• a [noun="Xanthirra" exist="-11232779"]: "her"
+• :text: " "
+• a [exist="630153400" noun="harness"]: "leather staff harness"
+• :text: ".
+"
+───────────────────────────────────────
+Chunk #36 (41 bytes, 2 tags)
+<prompt time="1759701514">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701514"]: "s>"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #37 (926 bytes, 2 tags)
+<component id='room objs'>  You also see<b> <pushBold/>a <a exist="630236154" noun="hyena">grist hyena</a><popBold/></b>, the <a exist="627963440" noun="disk">Ruchys disk</a>, a <a exist="630129144" n...
+Parsed Tags:
+• component [id="room objs"]
+  • :text: "  You also see"
+  • b
+    • :text: " "
+    • pushBold
+    • :text: "a "
+    • a [noun="hyena" exist="630236154"]: "grist hyena"
+    • popBold
+  • :text: ", the "
+  • a [noun="disk" exist="627963440"]: "Ruchys disk"
+  • :text: ", a "
+  • a [exist="630129144" noun="chest"]: "corroded gold chest"
+  • :text: ", a "
+  • a [exist="625953960" noun="backpack"]: "dashing coal black backpack"
+  • :text: ", a "
+  • a [noun="backpack" exist="624790467"]: "heavy backpack"
+  • :text: ", a "
+  • a [exist="8683305" noun="pestle"]: "stone pestle"
+  • :text: ", "
+  • a [noun="stem" exist="8683308"]: "some ground bloodthorn stem"
+  • :text: ", a "
+  • a [noun="pestle" exist="8683307"]: "stone pestle"
+  • :text: ", "
+  • a [noun="vine" exist="8683306"]: "some ground honeysuckle vine"
+  • :text: ", a "
+  • a [noun="trail" exist="57577"]: "trail"
+  • :text: " of aster-wreathed silver hedgehogs leading southw..."
+  • a [exist="57574" noun="barrel"]: "round silver-banded barrel"
+  • :text: ", an "
+  • a [noun="bin" exist="57534"]: "herbal remedy donation bin"
+  • :text: " and "
+  • a [exist="-49715" noun="benches"]: "some wide stone benches"
+  • :text: " with some stuff on it."
+• :text: "
+"
+───────────────────────────────────────
+Chunk #38 (824 bytes, 2 tags)
+<component id='room players'>Also here: <a exist="-10896766" noun="Puptilian">Puptilian</a>, <a exist="-11232779" noun="Xanthirra">Xanthirra</a>, <a exist="-10383793" noun="Ikenn">Ikenn</a>, <a exist=...
+Parsed Tags:
+• component [id="room players"]
+  • :text: "Also here: "
+  • a [exist="-10896766" noun="Puptilian"]: "Puptilian"
+  • :text: ", "
+  • a [exist="-11232779" noun="Xanthirra"]: "Xanthirra"
+  • :text: ", "
+  • a [noun="Ikenn" exist="-10383793"]: "Ikenn"
+  • :text: ", "
+  • a [noun="Abunyu" exist="-11234057"]: "Abunyu"
+  • :text: ", "
+  • a [exist="-10168864" noun="Ruchys"]: "Ruchys"
+  • :text: ", "
+  • a [noun="Ikeye" exist="-11208001"]: "Ikeye"
+  • :text: ", "
+  • a [noun="Vatsesan" exist="-11206750"]: "Vatsesan"
+  • :text: ", "
+  • a [noun="Xyroth" exist="-11233336"]: "Xyroth"
+  • :text: ", "
+  • a [noun="Tarbish" exist="-11142654"]: "Tarbish"
+  • :text: ", "
+  • a [exist="-11083514" noun="Harbenjer"]: "Harbenjer"
+  • :text: " who is sitting, Great Lord "
+  • a [noun="Aeyris" exist="-10341141"]: "Aeyris"
+  • :text: ", "
+  • a [exist="-11226962" noun="Dexon"]: "Dexon"
+  • :text: ", "
+  • a [noun="Blizzardberry" exist="-11234116"]: "Blizzardberry"
+  • :text: ", "
+  • a [exist="-11234111" noun="Soulberry"]: "Soulberry"
+  • :text: ", "
+  • a [exist="-11153575" noun="Ahseetah"]: "Ahseetah"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #39 (41 bytes, 2 tags)
+<prompt time="1759701515">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701515"]: "s>"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #40 (771 bytes, 2 tags)
+<component id='room players'>Also here: <a exist="-10896766" noun="Puptilian">Puptilian</a>, <a exist="-10383793" noun="Ikenn">Ikenn</a>, <a exist="-11234057" noun="Abunyu">Abunyu</a>, <a exist="-1016...
+Parsed Tags:
+• component [id="room players"]
+  • :text: "Also here: "
+  • a [exist="-10896766" noun="Puptilian"]: "Puptilian"
+  • :text: ", "
+  • a [exist="-10383793" noun="Ikenn"]: "Ikenn"
+  • :text: ", "
+  • a [noun="Abunyu" exist="-11234057"]: "Abunyu"
+  • :text: ", "
+  • a [noun="Ruchys" exist="-10168864"]: "Ruchys"
+  • :text: ", "
+  • a [exist="-11208001" noun="Ikeye"]: "Ikeye"
+  • :text: ", "
+  • a [noun="Vatsesan" exist="-11206750"]: "Vatsesan"
+  • :text: ", "
+  • a [noun="Xyroth" exist="-11233336"]: "Xyroth"
+  • :text: ", "
+  • a [noun="Tarbish" exist="-11142654"]: "Tarbish"
+  • :text: ", "
+  • a [noun="Harbenjer" exist="-11083514"]: "Harbenjer"
+  • :text: " who is sitting, Great Lord "
+  • a [exist="-10341141" noun="Aeyris"]: "Aeyris"
+  • :text: ", "
+  • a [noun="Dexon" exist="-11226962"]: "Dexon"
+  • :text: ", "
+  • a [exist="-11234116" noun="Blizzardberry"]: "Blizzardberry"
+  • :text: ", "
+  • a [noun="Soulberry" exist="-11234111"]: "Soulberry"
+  • :text: ", "
+  • a [exist="-11153575" noun="Ahseetah"]: "Ahseetah"
+• :text: "
+"
+───────────────────────────────────────
+Chunk #41 (89 bytes, 4 tags)
+<a exist="-11232779" noun="Xanthirra">Xanthirra</a> just went <d cmd='go west'>west</d>.
+
+Parsed Tags:
+• a [exist="-11232779" noun="Xanthirra"]: "Xanthirra"
+• :text: " just went "
+• d [cmd="go west"]: "west"
+• :text: ".
+"
+───────────────────────────────────────
+Chunk #42 (41 bytes, 2 tags)
+<prompt time="1759701516">s&gt;</prompt>
+
+Parsed Tags:
+• prompt [time="1759701516"]: "s>"
+• :text: "
+"
+
+═══ Shutting Down ═══
+
+✓ Stream ended (42 chunks, 177 total tags)
+✓ Disconnected cleanly
+
+═══ Test Complete ═══
