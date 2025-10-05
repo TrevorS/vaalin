@@ -63,6 +63,9 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals"),
                 .enableExperimentalFeature("StrictConcurrency")
+            ],
+            linkerSettings: [
+                .linkedLibrary("xml2")
             ]
         ),
         .testTarget(

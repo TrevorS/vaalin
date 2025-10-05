@@ -3,12 +3,198 @@
 import Foundation
 import os
 import VaalinCore
+import libxml2
+
+// MARK: - C Callbacks
+
+/// User data structure for libxml2 SAX callbacks.
+private struct ParserUserData {
+    weak var parser: XMLStreamParser?
+    var currentStream: String?
+    var inStream: Bool = false
+    var tagStack: [GameTag] = []
+    var characterBuffer: String = ""
+    var completedTags: [GameTag] = []
+}
+
+/// SAX callback for element start events.
+private func startElementNsCallback(
+    ctx: UnsafeMutableRawPointer?,
+    localname: UnsafePointer<UInt8>?,
+    prefix: UnsafePointer<UInt8>?,
+    URI: UnsafePointer<UInt8>?,
+    nb_namespaces: CInt,
+    namespaces: UnsafeMutablePointer<UnsafePointer<UInt8>?>?,
+    nb_attributes: CInt,
+    nb_defaulted: CInt,
+    attributes: UnsafeMutablePointer<UnsafePointer<UInt8>?>?
+) {
+    guard let ctx = ctx,
+          let localname = localname else { return }
+
+    let elementName = String(cString: localname)
+
+    // Parse attributes
+    var attributeDict: [String: String] = [:]
+    if nb_attributes > 0, let attributes = attributes {
+        for i in 0..<Int(nb_attributes) {
+            let attrIndex = i * 5
+
+            guard let attrName = attributes[attrIndex] else { continue }
+            let name = String(cString: attrName)
+
+            guard let valueStart = attributes[attrIndex + 3],
+                  let valueEnd = attributes[attrIndex + 4] else {
+                continue
+            }
+
+            let valueLength = valueEnd - valueStart
+            let valueBytes = UnsafeBufferPointer(start: valueStart, count: Int(valueLength))
+            let value = String(decoding: valueBytes, as: UTF8.self)
+
+            attributeDict[name] = value
+        }
+    }
+
+    let userDataPtr = ctx.assumingMemoryBound(to: ParserUserData.self)
+
+    // Ignore synthetic root tag
+    if elementName == "__synthetic_root__" {
+        return
+    }
+
+    // Stream control tags
+    if elementName == "pushStream" {
+        userDataPtr.pointee.currentStream = attributeDict["id"]
+        userDataPtr.pointee.inStream = true
+        return
+    }
+
+    if elementName == "popStream" || elementName == "clearStream" {
+        userDataPtr.pointee.currentStream = nil
+        userDataPtr.pointee.inStream = false
+        return
+    }
+
+    // Handle accumulated character data
+    if !userDataPtr.pointee.characterBuffer.isEmpty {
+        let textNode = GameTag(
+            name: ":text",
+            text: userDataPtr.pointee.characterBuffer,
+            attrs: [:],
+            children: [],
+            state: .closed,
+            streamId: userDataPtr.pointee.inStream ? userDataPtr.pointee.currentStream : nil
+        )
+
+        if userDataPtr.pointee.tagStack.isEmpty {
+            userDataPtr.pointee.completedTags.append(textNode)
+        } else {
+            var parent = userDataPtr.pointee.tagStack.removeLast()
+            parent.children.append(textNode)
+            userDataPtr.pointee.tagStack.append(parent)
+        }
+
+        userDataPtr.pointee.characterBuffer = ""
+    }
+
+    // Create new tag
+    let tag = GameTag(
+        name: elementName,
+        text: nil,
+        attrs: attributeDict,
+        children: [],
+        state: .open,
+        streamId: userDataPtr.pointee.inStream ? userDataPtr.pointee.currentStream : nil
+    )
+
+    userDataPtr.pointee.tagStack.append(tag)
+}
+
+/// SAX callback for element end events.
+private func endElementNsCallback(
+    ctx: UnsafeMutableRawPointer?,
+    localname: UnsafePointer<UInt8>?,
+    prefix: UnsafePointer<UInt8>?,
+    URI: UnsafePointer<UInt8>?
+) {
+    guard let ctx = ctx,
+          let localname = localname else { return }
+
+    let elementName = String(cString: localname)
+    let userDataPtr = ctx.assumingMemoryBound(to: ParserUserData.self)
+
+    // Ignore synthetic root tag
+    if elementName == "__synthetic_root__" {
+        return
+    }
+
+    // Stream control tags
+    if elementName == "popStream" {
+        userDataPtr.pointee.currentStream = nil
+        userDataPtr.pointee.inStream = false
+        return
+    }
+
+    if elementName == "pushStream" || elementName == "clearStream" {
+        return
+    }
+
+    // Pop tag from stack
+    guard var tag = userDataPtr.pointee.tagStack.popLast() else { return }
+    guard tag.name == elementName else { return }
+
+    // Handle character data
+    if tag.children.isEmpty && !userDataPtr.pointee.characterBuffer.isEmpty {
+        tag.text = userDataPtr.pointee.characterBuffer
+    } else if !tag.children.isEmpty && !userDataPtr.pointee.characterBuffer.isEmpty {
+        let textNode = GameTag(
+            name: ":text",
+            text: userDataPtr.pointee.characterBuffer,
+            attrs: [:],
+            children: [],
+            state: .closed,
+            streamId: userDataPtr.pointee.inStream ? userDataPtr.pointee.currentStream : nil
+        )
+        tag.children.append(textNode)
+    }
+    tag.state = .closed
+
+    userDataPtr.pointee.characterBuffer = ""
+
+    // Add to completed tags or parent
+    if userDataPtr.pointee.tagStack.isEmpty {
+        userDataPtr.pointee.completedTags.append(tag)
+    } else {
+        var parent = userDataPtr.pointee.tagStack.removeLast()
+        parent.children.append(tag)
+        userDataPtr.pointee.tagStack.append(parent)
+    }
+}
+
+/// SAX callback for character data events.
+private func charactersCallback_C(
+    ctx: UnsafeMutableRawPointer?,
+    ch: UnsafePointer<UInt8>?,
+    len: CInt
+) {
+    guard let ctx = ctx,
+          let ch = ch else { return }
+
+    let charBuffer = UnsafeBufferPointer(start: ch, count: Int(len))
+    let characters = String(decoding: charBuffer, as: UTF8.self)
+
+    let userDataPtr = ctx.assumingMemoryBound(to: ParserUserData.self)
+    userDataPtr.pointee.characterBuffer += characters
+}
+
+// MARK: - XMLStreamParser Actor
 
 /// Thread-safe actor that parses XML chunks from the GemStone IV game server.
 ///
 /// This parser handles incomplete XML fragments received over TCP connections,
-/// maintaining state across multiple `parse()` calls. It uses Foundation's
-/// XMLParser (SAX-based) for memory-efficient streaming parsing.
+/// maintaining state across multiple `parse()` calls. It uses libxml2's push
+/// parser API for native streaming XML support.
 ///
 /// ## Critical State Management
 ///
@@ -32,14 +218,8 @@ import VaalinCore
 /// // Parse second chunk - state persists
 /// let tags2 = await parser.parse(" about magic.</popStream>")
 /// ```
-public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable:this actor_naming
+public actor XMLStreamParser { // swiftlint:disable:this actor_naming
     // MARK: - Constants
-
-    /// Maximum buffer size in characters to prevent unbounded memory growth.
-    ///
-    /// If buffer exceeds this size, it will be cleared and parsing will fail gracefully.
-    /// 10KB should handle even extremely fragmented chunks (typical game output is < 1KB).
-    private let maxBufferSize = 10_000
 
     /// Maximum error recovery buffer size (10MB).
     ///
@@ -59,22 +239,14 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - `<popStream>` clears this to `nil`
     ///
     /// Stream IDs include: thoughts, speech, combat, arrivals, deaths, etc.
-    ///
-    /// SAFETY: Although marked nonisolated(unsafe), this is accessed from XMLParserDelegate
-    /// callbacks which are called synchronously during parse(). Since parse() is actor-isolated
-    /// and executes serially, only one parse() can run at a time, making this safe.
-    nonisolated(unsafe) private var currentStream: String?
+    private var currentStream: String?
 
     /// Whether the parser is currently inside a stream context.
     ///
     /// This flag persists across `parse()` calls and is updated by:
     /// - `<pushStream>` sets to `true`
     /// - `<popStream>` sets to `false`
-    ///
-    /// SAFETY: Although marked nonisolated(unsafe), this is accessed from XMLParserDelegate
-    /// callbacks which are called synchronously during parse(). Since parse() is actor-isolated
-    /// and executes serially, only one parse() can run at a time, making this safe.
-    nonisolated(unsafe) private var inStream: Bool = false
+    private var inStream: Bool = false
 
     /// Stack of tags being constructed across parse operations.
     ///
@@ -91,23 +263,12 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
 
     /// Buffer for accumulating character data across multiple foundCharacters() callbacks.
     ///
-    /// Foundation's XMLParser can split character data into multiple calls.
-    /// This buffer accumulates all text for the current tag until didEndElement() is called.
-    /// - `didStartElement()` → reset `characterBuffer = ""`
-    /// - `foundCharacters()` → append to `characterBuffer`
-    /// - `didEndElement()` → assign `characterBuffer` to tag's text, then clear
+    /// SAX parsers can split character data into multiple calls.
+    /// This buffer accumulates all text for the current tag until the end element callback.
     private var characterBuffer: String = ""
 
-    /// Buffer for incomplete XML from previous chunk.
-    ///
-    /// When a chunk ends mid-tag (e.g., `<a exist="123" no`), we cannot
-    /// parse it until the next chunk arrives. This buffer stores the incomplete
-    /// XML and prepends it to the next chunk.
-    ///
-    /// Example:
-    /// - Chunk 1: `text<a exist=` (incomplete, buffered)
-    /// - Chunk 2: `"123">gem</a>` (prepend buffer, parse full tag)
-    private var xmlBuffer: String = ""
+    /// Completed tags from current parse operation.
+    private var completedTags: [GameTag] = []
 
     // MARK: - Error Recovery State
 
@@ -124,42 +285,88 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// Limited to `maxErrorBufferSize` (10MB) to prevent memory exhaustion.
     private var errorBuffer: String = ""
 
-    /// Line number where the last error occurred.
-    ///
-    /// Used for diagnostic logging to help identify problematic game output.
-    /// XMLParser provides this via `parser.lineNumber` in error callbacks.
-    nonisolated(unsafe) private var errorLineNumber: Int = 0
-
     /// The most recent parsing error encountered.
     ///
     /// Stores the error for test verification and debugging. Cleared when
     /// parsing succeeds or parser resyncs successfully.
     private var lastError: Error?
 
-    /// Count of consecutive parse failures.
-    ///
-    /// Used to distinguish incomplete XML (which may fail once or twice while
-    /// buffering) from truly malformed XML (which keeps failing).
-    /// Reset to 0 on successful parse.
-    private var consecutiveFailures: Int = 0
+    // MARK: - libxml2 State
 
-    // MARK: - Per-Parse State (Thread-Local)
-
-    /// Temporary storage for current parse operation
-    /// These are accessed by XMLParserDelegate callbacks during synchronous parse()
-    /// and must be thread-local (not actor-isolated) since XMLParser is synchronous.
+    /// The libxml2 push parser context.
     ///
-    /// SAFETY: These are only accessed during parse() which is serialized by actor,
-    /// so even though they're nonisolated, only one parse() runs at a time.
-    nonisolated(unsafe) private var currentTagStack: [GameTag] = []
-    nonisolated(unsafe) private var currentCharacterBuffer: String = ""
-    nonisolated(unsafe) private var currentParsedTags: [GameTag] = []
+    /// Created once during initialization and reused across parse() calls.
+    /// This enables true streaming parsing - libxml2 handles incomplete XML natively.
+    ///
+    /// SAFETY: Marked nonisolated(unsafe) because it's accessed during init/deinit.
+    /// Actual parsing calls are actor-isolated, ensuring thread safety.
+    nonisolated(unsafe) private var parserContext: xmlParserCtxtPtr?
+
+    /// SAX handler structure with callback pointers.
+    ///
+    /// SAFETY: Marked nonisolated(unsafe) because it's accessed during init() before actor isolation.
+    /// The handler is only modified during initialization and then used immutably.
+    nonisolated(unsafe) private var saxHandler: xmlSAXHandler
+
+    /// User data passed to SAX callbacks.
+    ///
+    /// This structure is stored as UnsafeMutableRawPointer in libxml2 context
+    /// and accessed in callbacks. It maintains a weak reference to this actor
+    /// to prevent retain cycles.
+    ///
+    /// SAFETY: Marked nonisolated(unsafe) because it's accessed during init() before actor isolation.
+    /// The pointer is only modified during initialization and deinitialization.
+    nonisolated(unsafe) private var userData: UnsafeMutablePointer<ParserUserData>?
 
     // MARK: - Initialization
 
-    /// Creates a new XML stream parser with empty state.
-    public override init() {
-        super.init()
+    /// Creates a new XML stream parser with libxml2 push parser.
+    public init() {
+        // Initialize SAX handler with XML_SAX2_MAGIC
+        var handler = xmlSAXHandler()
+        handler.initialized = UInt32(XML_SAX2_MAGIC)
+
+        // Set callback pointers to free functions
+        handler.startElementNs = startElementNsCallback
+        handler.endElementNs = endElementNsCallback
+        handler.characters = charactersCallback_C
+
+        self.saxHandler = handler
+
+        // Initialize user data
+        self.userData = UnsafeMutablePointer<ParserUserData>.allocate(capacity: 1)
+        self.userData?.initialize(to: ParserUserData(parser: self))
+
+        // Create push parser context with empty initial chunk
+        let emptyChunk = ""
+        self.parserContext = emptyChunk.withCString { bytes in
+            return xmlCreatePushParserCtxt(
+                &self.saxHandler,
+                self.userData,
+                bytes,
+                0,
+                nil
+            )
+        }
+
+        // Configure parser options
+        if let context = parserContext {
+            xmlCtxtUseOptions(context, Int32(XML_PARSE_RECOVER.rawValue | XML_PARSE_NOENT.rawValue))
+        }
+    }
+
+    deinit {
+        // Clean up libxml2 context
+        if let context = parserContext {
+            xmlFreeParserCtxt(context)
+        }
+
+        // Clean up user data
+        userData?.deinitialize(count: 1)
+        userData?.deallocate()
+
+        // Clean up libxml2 global state (if last parser)
+        xmlCleanupParser()
     }
 
     // MARK: - Public API
@@ -178,17 +385,6 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// 3. Buffers subsequent chunks in `errorBuffer` until resync
     /// 4. Searches for `<prompt>` tag to resync parser state
     /// 5. Resumes normal parsing from prompt onward
-    ///
-    /// ## Buffering Strategy
-    ///
-    /// The parser maintains multiple buffers to handle TCP fragmentation:
-    /// - `xmlBuffer`: Stores incomplete XML from previous chunk
-    /// - `tagStack`: Maintains open tags across chunks
-    /// - `characterBuffer`: Accumulates character data split across callbacks
-    /// - `errorBuffer`: Accumulates chunks during error recovery
-    ///
-    /// Incomplete tags at chunk boundaries remain on the stack until
-    /// subsequent chunks complete them. Only fully closed tags are returned.
     ///
     /// - Parameter chunk: A string containing XML data (may be incomplete)
     /// - Returns: An array of parsed `GameTag` elements from this chunk
@@ -235,253 +431,79 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
 
     // MARK: - Internal Parsing
 
-    /// Internal parsing logic extracted from `parse()` to separate error recovery concerns.
+    /// Internal parsing logic using libxml2 push parser.
     ///
-    /// This method performs the actual XML parsing with XMLParser. If parsing fails,
-    /// it enters error recovery mode and returns any tags parsed up to the error point.
+    /// This method feeds the chunk to libxml2's push parser in streaming mode.
+    /// The parser context persists across chunks, allowing incomplete tags to
+    /// buffer naturally within libxml2.
     ///
     /// - Parameter chunk: The XML chunk to parse
     /// - Returns: Array of successfully parsed tags
     private func parseChunk(_ chunk: String) async -> [GameTag] {
-        // Reset per-parse state (thread-local, safe because actor serializes calls)
-        currentTagStack = []
-        currentCharacterBuffer = ""
-        currentParsedTags = []
+        guard let context = parserContext else {
+            logger.error("Parser context is nil - cannot parse")
+            return []
+        }
 
         // Handle empty/whitespace input
         if chunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return []
         }
 
-        // Prepend any buffered XML from previous chunk
-        var combinedXML = xmlBuffer + chunk
+        // Reset completed tags for this parse operation
+        completedTags = []
 
-        // Protect against unbounded buffer growth
-        if combinedXML.count > maxBufferSize {
-            // Buffer too large - likely malformed XML or attack
-            // Clear buffer and process only current chunk
-            xmlBuffer = ""
-            combinedXML = chunk // Reset to just current chunk
-            logger.warning("XML buffer exceeded \(self.maxBufferSize) chars, clearing buffer")
+        // Update user data with current actor state
+        userData?.pointee.currentStream = currentStream
+        userData?.pointee.inStream = inStream
+        userData?.pointee.tagStack = tagStack  // Persist tag stack
+        userData?.pointee.characterBuffer = characterBuffer
+        userData?.pointee.completedTags = []
+
+        // Wrap in synthetic root to force completion of text nodes
+        // This ensures character data is flushed even without a closing tag
+        let wrappedXML = "<__synthetic_root__>\(chunk)</__synthetic_root__>"
+
+        // Feed chunk to libxml2 push parser
+        // terminate: 0 means more chunks may follow (true streaming mode)
+        let result = wrappedXML.withCString { bytes in
+            return xmlParseChunk(context, bytes, CInt(wrappedXML.utf8.count), 0)
         }
 
-        // Wrap in synthetic root tag for XMLParser (requires single root element)
-        // Using unique tag name to avoid conflicts with game XML
-        let wrappedXML = "<__synthetic_root__>\(combinedXML)</__synthetic_root__>"
-
-        // Create XMLParser instance
-        guard let data = wrappedXML.data(using: .utf8) else {
-            return []
-        }
-
-        let xmlParser = XMLParser(data: data)
-        xmlParser.delegate = self
-
-        // Parse synchronously (delegate callbacks happen during this call)
-        let success = xmlParser.parse()
-
-        // If parsing failed, decide whether to buffer or enter error recovery
-        if !success {
-            // Strategy for distinguishing incomplete vs truly malformed XML:
-            //
-            // MALFORMED XML (enter error recovery immediately):
-            //   - Same chunk fails 2+ consecutive times → definitely malformed
-            //     (first failure buffers, second confirms it's not just incomplete)
-            //   - Syntax error patterns detected (missing quotes, invalid attributes)
-            //   - Buffer has grown too large (> maxBufferSize)
-            //
-            // INCOMPLETE XML (buffer and wait for more data):
-            //   - Unbalanced tags (more opening than closing)
-            //   - First failure (may just need more data)
-            //   - No obvious syntax errors
-            //   - Examples: "<a exist=", "<parent><child>text</child>", "<prompt>te"
-            //
-            // Priority: consecutiveFailures >= 2 > syntax errors > buffer size > tag balance
-
-            // Check 1: Detect obvious syntax errors (missing quotes, malformed attributes)
-            // Pattern: attribute name followed by => or =< (invalid syntax)
-            // Examples: noun=>, attr=<, id=>
-            // BUT: Don't match incomplete closing tags like "</out" (that's just incomplete, not malformed)
-            // Strategy: Look for = followed by > or < that's NOT part of a closing tag pattern "</"
-            let syntaxErrorPattern = #"=\s*[><]"#
-            let hasSyntaxError: Bool
-            if let range = combinedXML.range(of: syntaxErrorPattern, options: .regularExpression) {
-                // Found potential syntax error - verify it's not an incomplete closing tag
-                // Incomplete closing tag pattern: ends with "</[a-z]+" without the closing >
-                let incompleteClosingTagPattern = #"</[a-zA-Z_][a-zA-Z0-9_]*$"#
-                let isIncompleteClosingTag = combinedXML.range(
-                    of: incompleteClosingTagPattern,
-                    options: .regularExpression
-                ) != nil
-                hasSyntaxError = !isIncompleteClosingTag
-            } else {
-                hasSyntaxError = false
-            }
-
-            if hasSyntaxError {
-                // Definite syntax error - enter recovery immediately
-                let partialTags = currentParsedTags
-                // Don't buffer (single chunk failure, prompt in chunk is suspect)
-                enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: false)
-                // Don't resync in the same parseChunk() call - wait for next parse() call
-                // The top-level parse() method will handle resync on subsequent chunks
-                return partialTags
-            }
-
-            // Check 2: Buffer too large
-            let bufferTooLarge = combinedXML.count > maxBufferSize
-            if bufferTooLarge {
-                // Buffer exceeded limit - enter recovery to prevent unbounded growth
-                let partialTags = currentParsedTags
-                // Don't buffer (discard oversized chunk)
-                enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: false)
-                // Don't resync in the same parseChunk() call - wait for next parse() call
-                // The top-level parse() method will handle resync on subsequent chunks
-                return partialTags
-            }
-
-            // Check 3: Tag balance heuristic
-            let openingTagCount = combinedXML.components(separatedBy: "<").count - 1
-            let closingTagCount = combinedXML.components(separatedBy: "</").count - 1
-            let selfClosingCount = combinedXML.components(separatedBy: "/>").count - 1
-
-            // Rough balance check: if we have as many (or more) closing tags as
-            // opening tags (accounting for self-closing), the chunk looks "complete"
-            // Subtract self-closing from opening count since they don't need closing tags
-            let netOpeningTags = openingTagCount - selfClosingCount
-            let requiredClosingTags = Int(Double(netOpeningTags) * 0.8) // 80% of opening tags should be closed
-            // Chunk looks complete if: has closing tags AND they roughly match opening tags
-            let looksComplete = closingTagCount > 0 && closingTagCount >= requiredClosingTags
-
-            if looksComplete {
-                // Chunk appears complete but failed to parse (malformed syntax)
-                // Enter error recovery mode and return any partial results
-                let partialTags = currentParsedTags
-                // Increment failure counter (this is a real failure, not buffering)
-                consecutiveFailures += 1
-                // Buffer if we had a prior failure (multi-chunk), otherwise discard
-                let shouldBuffer = consecutiveFailures >= 2
-                enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: shouldBuffer)
-                // Don't resync in the same parseChunk() call - wait for next parse() call
-                // The top-level parse() method will handle resync on subsequent chunks
-                return partialTags
-            }
-
-            // Check 4: Multiple buffering failures
-            // If we've buffered before (consecutiveFailures >= 1) and adding new data still fails,
-            // check if this is the second consecutive buffering failure
-            if consecutiveFailures >= 1 && !xmlBuffer.isEmpty {
-                // This is at least the second buffering failure
-                consecutiveFailures += 1
-
-                // Decide whether to enter recovery:
-                // - If combined chunk contains <prompt> tag AND we've failed 2+ times: enter recovery
-                //   (Prompt is a sync point, suggests buffered data + prompt = malformed + resync opportunity)
-                // - If no prompt but 5+ failures: enter recovery
-                //   (Valid incomplete XML shouldn't take more than 5 chunks; if it does, likely stuck)
-                let containsPrompt = combinedXML.contains("<prompt>")
-                let shouldEnterRecovery = (consecutiveFailures >= 2 && containsPrompt) || consecutiveFailures >= 5
-
-                if shouldEnterRecovery {
-                    let partialTags = currentParsedTags
-                    // Buffer the chunk (may contain prompt for resync)
-                    enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: true)
-
-                    // Try immediate resync
-                    if let recoveredChunk = attemptResync() {
-                        logger.info("Successfully resynced after multiple buffering failures")
-                        return await parseChunk(recoveredChunk)
-                    }
-
-                    return partialTags
-                }
-
-                // First consecutive failure - keep buffering
-                xmlBuffer = combinedXML
-                return []
-            }
-
-            // First buffering failure - buffer and wait for more data
-            consecutiveFailures += 1
-            xmlBuffer = combinedXML
-            return []
-        }
-
-        // Clear buffer on successful parse
-        xmlBuffer = ""
-
-        // Clear error state on successful parse
-        lastError = nil
-        consecutiveFailures = 0
-
-        // If there's remaining character data at the end and we're at root level,
-        // create a final :text node
-        if !currentCharacterBuffer.isEmpty && currentTagStack.isEmpty {
-            let textNode = GameTag(
-                name: ":text",
-                text: currentCharacterBuffer,
-                attrs: [:],
-                children: [],
-                state: .closed,
-                streamId: inStream ? currentStream : nil
+        // Check for parse errors
+        if result != 0 {
+            // Parse error occurred
+            let error = NSError(
+                domain: "XMLStreamParser",
+                code: Int(result),
+                userInfo: [NSLocalizedDescriptionKey: "libxml2 parse error: code \(result)"]
             )
-            currentParsedTags.append(textNode)
-            currentCharacterBuffer = ""
+
+            logger.error("XML parse error in chunk: \(error.localizedDescription)")
+
+            // Enter error recovery mode
+            lastError = error
+            inErrorRecovery = true
+
+            // Return completed tags before error
+            let partialResults = userData?.pointee.completedTags ?? []
+            return partialResults
         }
 
-        // Transfer any incomplete tags to persistent stack for next parse
-        // NOTE: currentTagStack should always be empty here (successful parse = all tags closed)
-        // The synthetic root wrapper ensures XMLParser only succeeds when all tags are properly closed
-        #if DEBUG
-        assert(currentTagStack.isEmpty, "Bug: Successful parse left tags open on stack")
-        #endif
-        tagStack = currentTagStack
+        // Success - sync state back from user data
+        currentStream = userData?.pointee.currentStream
+        inStream = userData?.pointee.inStream ?? false
+        tagStack = userData?.pointee.tagStack ?? []
+        characterBuffer = userData?.pointee.characterBuffer ?? ""
+        completedTags = userData?.pointee.completedTags ?? []
 
-        // Return completed tags
-        return currentParsedTags
+        // Clear error on successful parse
+        lastError = nil
+
+        return completedTags
     }
 
     // MARK: - Error Recovery
-
-    /// Enters error recovery mode and handles the failed chunk.
-    ///
-    /// Called when XML parsing fails. Sets recovery flag, stores error details,
-    /// and decides whether to buffer the failed chunk for resync attempts.
-    ///
-    /// Strategy for buffering vs discarding:
-    /// - If `consecutiveFailures >= 2`: Multiple chunks combined, buffer the failed chunk
-    ///   (it contains new data that arrived after initial error, may have valid prompt)
-    /// - If `consecutiveFailures == 1`: Single chunk failed, discard it
-    ///   (prompt in this chunk is suspect, part of malformed data)
-    ///
-    /// - Parameters:
-    ///   - error: The parsing error that triggered recovery (may be nil)
-    ///   - lineNumber: The line number where error occurred
-    ///   - failedChunk: The full XML chunk that failed
-    ///   - shouldBufferChunk: Whether to buffer the chunk (true if new data arrived)
-    private func enterErrorRecovery(error: Error?, lineNumber: Int, failedChunk: String, shouldBufferChunk: Bool) {
-        inErrorRecovery = true
-        lastError = error
-        errorLineNumber = lineNumber
-
-        // Buffer strategy: only trust prompts from multi-chunk failures
-        if shouldBufferChunk {
-            // Multiple chunks combined - buffer for potential resync
-            errorBuffer = failedChunk
-            logger.info("Buffering \(failedChunk.count) characters for resync (multi-chunk failure)")
-        } else {
-            // Single chunk failed - discard it (prompt is suspect)
-            errorBuffer = ""
-            logger.warning("Discarding \(failedChunk.count) characters of malformed XML (single-chunk failure)")
-        }
-
-        xmlBuffer = ""
-
-        // Reset consecutive failures counter since we're entering recovery mode
-        consecutiveFailures = 0
-
-        logger.error("Entering error recovery mode at line \(lineNumber): \(String(describing: error))")
-    }
 
     /// Attempts to resynchronize the parser by finding a `<prompt>` tag.
     ///
@@ -509,12 +531,9 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         lastError = nil
 
         // Reset parser state for clean slate
-        // CRITICAL: Reset stream state too - after an error we can't trust the stream context
-        currentStream = nil
-        inStream = false
+        // NOTE: We preserve stream state with libxml2 - the parser context maintains consistency
         tagStack = []
         characterBuffer = ""
-        xmlBuffer = ""
 
         return recoveredChunk
     }
@@ -543,15 +562,36 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// memory exhaustion. This is a last resort - it loses all buffered data.
     ///
     /// Reset actions:
-    /// - Clear all buffers (xml, error, character)
+    /// - Reset libxml2 parser context
+    /// - Clear all buffers (error, character)
     /// - Reset stream state (currentStream, inStream)
     /// - Clear tag stack
     /// - Exit error recovery mode
     /// - Clear last error
-    /// - Reset consecutive failures counter
     private func resetParserState() {
+        // Clean up old parser context
+        if let context = parserContext {
+            xmlFreeParserCtxt(context)
+        }
+
+        // Create fresh parser context
+        let emptyChunk = ""
+        parserContext = emptyChunk.withCString { bytes in
+            return xmlCreatePushParserCtxt(
+                &saxHandler,
+                userData,
+                bytes,
+                0,
+                nil
+            )
+        }
+
+        // Configure parser options
+        if let context = parserContext {
+            xmlCtxtUseOptions(context, Int32(XML_PARSE_RECOVER.rawValue | XML_PARSE_NOENT.rawValue))
+        }
+
         // Clear all buffers
-        xmlBuffer = ""
         errorBuffer = ""
         characterBuffer = ""
 
@@ -565,7 +605,6 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Exit recovery mode
         inErrorRecovery = false
         lastError = nil
-        consecutiveFailures = 0
 
         logger.warning("Parser state forcibly reset due to buffer overflow")
     }
@@ -614,237 +653,5 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - Returns: The last error, or nil if no error occurred
     public func getLastError() async -> Error? {
         return lastError
-    }
-
-    // MARK: - XMLParserDelegate
-
-    /// Called when parser encounters an opening tag
-    /// Creates a new GameTag and pushes it onto the stack
-    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
-    nonisolated public func parser(
-        _ parser: XMLParser,
-        didStartElement elementName: String,
-        namespaceURI: String?,
-        qualifiedName qName: String?,
-        attributes attributeDict: [String: String] = [:]
-    ) {
-        // Ignore the synthetic root tag
-        if elementName == "__synthetic_root__" {
-            return
-        }
-
-        // STREAM CONTROL: Handle pushStream tag
-        // <pushStream id="X"/> sets the current stream context
-        // This is a control directive, not a game tag, so return early
-        if elementName == "pushStream" {
-            // Extract stream ID from id attribute
-            // If no id attribute, set currentStream to nil (graceful handling)
-            currentStream = attributeDict["id"]
-            inStream = true
-
-            // Don't create a GameTag - this is a stream control directive
-            return
-        }
-
-        // STREAM CONTROL: Handle popStream opening tag (for self-closing tags)
-        // <popStream/> clears the current stream context
-        // For self-closing tags, XMLParser calls didStartElement first
-        // This is a control directive, not a game tag, so return early
-        if elementName == "popStream" {
-            currentStream = nil
-            inStream = false
-
-            // Don't create a GameTag - this is a stream control directive
-            return
-        }
-
-        // STREAM CONTROL: Handle clearStream tag
-        // <clearStream id="X"/> clears the current stream (like popStream)
-        // This is a control directive, not a game tag, so return early
-        if elementName == "clearStream" {
-            currentStream = nil
-            inStream = false
-
-            // Don't create a GameTag - this is a stream control directive
-            return
-        }
-
-        // Handle accumulated character data before starting new tag
-        if !currentCharacterBuffer.isEmpty {
-            let textNode = GameTag(
-                name: ":text",
-                text: currentCharacterBuffer,
-                attrs: [:],
-                children: [],
-                state: .closed,
-                streamId: inStream ? currentStream : nil
-            )
-
-            if currentTagStack.isEmpty {
-                // At root level - add text node to parsed tags
-                currentParsedTags.append(textNode)
-            } else {
-                // Inside a parent tag - add text node as child of parent
-                var parent = currentTagStack.removeLast()
-                parent.children.append(textNode)
-                currentTagStack.append(parent)
-            }
-        }
-
-        // Create new GameTag with .open state
-        let tag = GameTag(
-            name: elementName,
-            text: nil,
-            attrs: attributeDict,
-            children: [],
-            state: .open,
-            streamId: inStream ? currentStream : nil
-        )
-
-        // Push to tag stack (thread-local state)
-        currentTagStack.append(tag)
-
-        // Clear character buffer for new tag content
-        currentCharacterBuffer = ""
-    }
-
-    /// Called when parser encounters character data
-    /// Accumulates text for the current tag or creates a text node if no tag is active
-    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
-    nonisolated public func parser(_ parser: XMLParser, foundCharacters string: String) {
-        // XMLParser can call this multiple times for a single text node
-        // Accumulate into buffer (thread-local state)
-        currentCharacterBuffer += string
-    }
-
-    /// Called when parser encounters a closing tag
-    /// Pops tag from stack, assigns text/children, and adds to parsedTags or parent's children
-    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
-    nonisolated public func parser(
-        _ parser: XMLParser,
-        didEndElement elementName: String,
-        namespaceURI: String?,
-        qualifiedName qName: String?
-    ) {
-        // Ignore the synthetic root tag
-        if elementName == "__synthetic_root__" {
-            return
-        }
-
-        // STREAM CONTROL: Handle popStream tag
-        // <popStream/> clears the current stream context
-        // This is a control directive, not a game tag, so return early
-        if elementName == "popStream" {
-            currentStream = nil
-            inStream = false
-
-            // Don't process as a normal tag - this is a stream control directive
-            return
-        }
-
-        // STREAM CONTROL: Handle pushStream closing tag (for self-closing tags)
-        // When <pushStream id="X"/> is self-closing, XMLParser calls didEndElement too
-        // We need to ignore it since we already handled it in didStartElement
-        if elementName == "pushStream" {
-            // Don't process as a normal tag - already handled in didStartElement
-            return
-        }
-
-        // STREAM CONTROL: Handle clearStream closing tag (for self-closing tags)
-        // When <clearStream id="X"/> is self-closing, XMLParser calls didEndElement too
-        // We need to ignore it since we already handled it in didStartElement
-        if elementName == "clearStream" {
-            // Don't process as a normal tag - already handled in didStartElement
-            return
-        }
-
-        // Pop the most recent tag from stack (thread-local state)
-        guard var tag = currentTagStack.popLast() else {
-            // Unexpected closing tag with no matching open tag
-            // This shouldn't happen with well-formed XML, but handle gracefully
-            return
-        }
-
-        // Verify tag names match (defensive check)
-        guard tag.name == elementName else {
-            // Tag mismatch - this indicates malformed XML
-            // For now, just discard. Issue #12 will handle error recovery.
-            return
-        }
-
-        // Handle accumulated character data:
-        // - If tag has no children, character data becomes the tag's text
-        // - If tag has children, character data was already added as :text child nodes
-        if tag.children.isEmpty && !currentCharacterBuffer.isEmpty {
-            tag.text = currentCharacterBuffer
-        } else if !tag.children.isEmpty && !currentCharacterBuffer.isEmpty {
-            // Tag has children AND trailing text - add text as final child
-            let textNode = GameTag(
-                name: ":text",
-                text: currentCharacterBuffer,
-                attrs: [:],
-                children: [],
-                state: .closed,
-                streamId: inStream ? currentStream : nil
-            )
-            tag.children.append(textNode)
-        }
-        tag.state = .closed
-
-        // Clear character buffer for next tag
-        currentCharacterBuffer = ""
-
-        // CRITICAL NESTING LOGIC:
-        // If there's a parent tag on the stack, add this tag as a child of the parent
-        // Otherwise, add to the root-level parsed tags
-        if currentTagStack.isEmpty {
-            // No parent - this is a root-level tag
-            currentParsedTags.append(tag)
-        } else {
-            // Has parent - add as child to the parent tag
-            // Parent is at the top of the stack (last element)
-            var parent = currentTagStack.removeLast()
-            parent.children.append(tag)
-            currentTagStack.append(parent) // Put parent back on stack
-        }
-    }
-
-    /// Called when parser encounters a parsing error.
-    ///
-    /// This delegate callback is invoked synchronously during the `parse()` call
-    /// when XMLParser encounters malformed XML. We store the error details for
-    /// error recovery logic in the main `parseChunk()` method.
-    ///
-    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
-    /// - Parameters:
-    ///   - parser: The XMLParser instance
-    ///   - parseError: The error that occurred
-    nonisolated public func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
-        // Store line number for error recovery logging
-        // The main parseChunk() method will call enterErrorRecovery() after parse() returns
-        errorLineNumber = parser.lineNumber
-
-        // Log detailed error information for debugging
-        // Note: Logger is safe to use from nonisolated context (thread-safe by design)
-        let logger = Logger(subsystem: "com.vaalin.parser", category: "XMLStreamParser")
-        logger.error("XML parse error at line \(parser.lineNumber), column \(parser.columnNumber): \(parseError.localizedDescription)")
-    }
-
-    /// Called when parser encounters a validation error.
-    ///
-    /// This is called for DTD/schema validation errors. We treat these the same
-    /// as parse errors - the main `parseChunk()` method will handle recovery.
-    ///
-    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
-    /// - Parameters:
-    ///   - parser: The XMLParser instance
-    ///   - validationError: The validation error that occurred
-    nonisolated public func parser(_ parser: XMLParser, validationErrorOccurred validationError: Error) {
-        // Store line number for error recovery logging
-        errorLineNumber = parser.lineNumber
-
-        // Log validation error
-        let logger = Logger(subsystem: "com.vaalin.parser", category: "XMLStreamParser")
-        logger.error("XML validation error at line \(parser.lineNumber), column \(parser.columnNumber): \(validationError.localizedDescription)")
     }
 }
