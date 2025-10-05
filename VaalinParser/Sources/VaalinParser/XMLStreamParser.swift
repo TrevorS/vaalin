@@ -32,6 +32,14 @@ import VaalinCore
 /// let tags2 = await parser.parse(" about magic.</popStream>")
 /// ```
 public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable:this actor_naming
+    // MARK: - Constants
+
+    /// Maximum buffer size in characters to prevent unbounded memory growth.
+    ///
+    /// If buffer exceeds this size, it will be cleared and parsing will fail gracefully.
+    /// 10KB should handle even extremely fragmented chunks (typical game output is < 1KB).
+    private let maxBufferSize = 10_000
+
     // MARK: - Persistent State
 
     /// The currently active stream ID from the most recent `<pushStream>` tag.
@@ -151,7 +159,16 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         }
 
         // Prepend any buffered XML from previous chunk
-        let combinedXML = xmlBuffer + chunk
+        var combinedXML = xmlBuffer + chunk
+
+        // Protect against unbounded buffer growth
+        if combinedXML.count > maxBufferSize {
+            // Buffer too large - likely malformed XML or attack
+            // Clear buffer and process only current chunk
+            xmlBuffer = ""
+            combinedXML = chunk // Reset to just current chunk
+            // Log warning in production: "XML buffer exceeded max size, clearing"
+        }
 
         // Wrap in synthetic root tag for XMLParser (requires single root element)
         // Using unique tag name to avoid conflicts with game XML
@@ -192,6 +209,11 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         }
 
         // Transfer any incomplete tags to persistent stack for next parse
+        // NOTE: currentTagStack should always be empty here (successful parse = all tags closed)
+        // The synthetic root wrapper ensures XMLParser only succeeds when all tags are properly closed
+        #if DEBUG
+        assert(currentTagStack.isEmpty, "Bug: Successful parse left tags open on stack")
+        #endif
         tagStack = currentTagStack
 
         // Return completed tags
