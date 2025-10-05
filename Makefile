@@ -31,6 +31,7 @@ lint:
 # Run all tests with code coverage
 test:
 	@echo "🧪 Running tests with coverage..."
+	@rm -rf TestResults.xcresult
 	xcodebuild test \
 		-scheme Vaalin \
 		-destination 'platform=macOS' \
@@ -49,7 +50,9 @@ build:
 # Clean build artifacts and derived data
 clean:
 	@echo "🧹 Cleaning build artifacts..."
-	xcodebuild clean -scheme Vaalin
+	xcodebuild clean \
+		-scheme Vaalin \
+		-destination 'platform=macOS'
 	@echo "🧹 Cleaning derived data..."
 	rm -rf ~/Library/Developer/Xcode/DerivedData/Vaalin-*
 	@echo "🧹 Cleaning test results..."
