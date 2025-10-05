@@ -10,6 +10,7 @@ excluded:
   - Carthage
   - Pods
   - "*/Tests/*" # Less strict on test files
+  - TestTools # CLI test tools intentionally use print()
 
 # Enabled rules (beyond defaults)
 opt_in_rules:
