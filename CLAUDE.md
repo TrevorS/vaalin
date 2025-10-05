@@ -27,10 +27,12 @@ Vaalin is a native macOS SwiftUI application for playing GemStone IV (a text-bas
 - **Xcode 16.0+** (required for macOS 26 Liquid Glass APIs and Swift 5.9+)
 - **SwiftLint**: `brew install swiftlint`
 
-**Critical Setup (Post Issue #1):**
-- Ensure Xcode scheme is **Shared** (checked into git)
-- Location: `Vaalin.xcodeproj/xcshareddata/xcschemes/Vaalin.xcscheme`
-- Without shared schemes, CLI builds and CI will fail
+**Build System Architecture:**
+- Uses **pure Swift Package Manager** (no `.xcodeproj` file)
+- Modern approach: `Package.swift` defines all targets and schemes
+- Xcode auto-generates schemes from `Package.swift` (no manual sharing needed)
+- Cleaner git history: no Xcode project file churn
+- Superior CLI/CI compatibility: `swift build` and `xcodebuild` both work seamlessly
 
 ### Project Not Yet Created
 
@@ -92,21 +94,23 @@ xcodebuild archive \
 
 ### Swift Package Manager Commands
 
-For individual package targets (VaalinParser, VaalinNetwork, VaalinCore):
+All package targets are defined in the root `Package.swift`:
 
 ```bash
-# If packages have separate Package.swift files (see Issue #1 for final structure):
-swift build --package-path VaalinParser
-swift test --package-path VaalinParser
-
 # Build all packages
 swift build
 
 # Test all packages
 swift test
+
+# Build in release mode
+swift build -c release
+
+# Run the executable
+swift run Vaalin
 ```
 
-**Note**: The final package structure (separate Package.swift vs embedded in Xcode project) will be determined in Issue #1.
+**Architecture**: Single `Package.swift` at repository root defines all targets (Vaalin, VaalinParser, VaalinNetwork, VaalinCore) with proper dependency relationships.
 
 ### SwiftLint Commands
 
@@ -130,14 +134,15 @@ swiftlint --strict
 ### Xcode GUI Workflows
 
 ```bash
-# Open project
-open Vaalin.xcodeproj
+# Open project in Xcode
+open Package.swift
+# Xcode recognizes Package.swift and opens the workspace automatically
 
-# Open specific file in Xcode
+# Alternative: Open specific file in Xcode
 open -a Xcode Vaalin/VaalinApp.swift
 
 # Run app: Cmd+R in Xcode
-# (Cannot easily launch .app from xcodebuild output)
+# (Select "Vaalin" scheme in Xcode toolbar)
 
 # Run tests: Cmd+U in Xcode
 
@@ -167,18 +172,15 @@ TestResults.xcresult
 ~/Library/Developer/Xcode/DerivedData/Vaalin-{hash}/
 ```
 
-## Project Structure (Planned)
+## Project Structure
 
-**Organization**: Xcode project with modular Swift Package Manager architecture.
+**Organization**: Pure Swift Package Manager architecture (no `.xcodeproj` file).
 
-**Final structure will be determined in GitHub Issue #1**, but the intended organization is:
+**Implemented in Issue #1** - current structure:
 
 ```
 Vaalin/
-├── Vaalin.xcodeproj/              # Main Xcode project
-│   └── xcshareddata/
-│       └── xcschemes/
-│           └── Vaalin.xcscheme    # SHARED scheme (required for CLI/CI)
+├── Package.swift                  # Root package manifest (defines all targets)
 ├── Makefile                       # Standard development commands
 ├── .swiftlint.yml                 # SwiftLint configuration
 ├── .gitignore                     # Git ignore (Xcode, SwiftPM, build artifacts)
@@ -220,14 +222,12 @@ Vaalin/
 │   │   └── TagRenderer.swift      # GameTag → AttributedString
 │   ├── Tests/
 │   │   └── XMLStreamParserTests.swift
-│   └── Package.swift              # (if separate package)
 ├── VaalinNetwork/                 # Swift Package: Lich TCP connection
 │   ├── Sources/
 │   │   ├── LichConnection.swift   # Actor - NWConnection wrapper
 │   │   └── ConnectionState.swift
 │   ├── Tests/
 │   │   └── LichConnectionTests.swift
-│   └── Package.swift              # (if separate package)
 ├── VaalinCore/                    # Swift Package: shared models/utilities
 │   ├── Sources/
 │   │   ├── EventBus.swift         # Actor - pub/sub events
@@ -243,7 +243,6 @@ Vaalin/
 │   │   ├── EventBusTests.swift
 │   │   ├── SettingsTests.swift
 │   │   └── ItemCategorizerTests.swift
-│   └── Package.swift              # (if separate package)
 ├── VaalinTests/                   # Swift Testing framework (app-level tests)
 │   ├── IntegrationTests/
 │   └── PerformanceTests/
@@ -251,13 +250,20 @@ Vaalin/
     └── VaalinUITests.swift
 ```
 
-**Package Structure Options** (Issue #1 will decide):
+**Package Structure** (Implemented in Issue #1):
 
-1. **Option A: Separate SPM Packages** - Each package has its own `Package.swift`, can use `swift build/test`
-2. **Option B: Local Packages in Xcode** - Packages defined via Xcode's SPM integration, no separate `Package.swift`
-3. **Option C: Xcode Targets Only** - All defined as framework targets within `Vaalin.xcodeproj`
+**Single `Package.swift` at repository root** - All targets defined in one manifest:
+- ✅ Modern SPM approach with proper target organization
+- ✅ Clean module boundaries via target dependencies
+- ✅ Works seamlessly with both `swift` CLI and `xcodebuild`
+- ✅ No `.xcodeproj` file - Xcode auto-generates workspace from `Package.swift`
+- ✅ Cleaner git history without Xcode project file churn
 
-**Recommended**: Option A (separate packages) for maximum flexibility and testability.
+**Target organization:**
+- `Vaalin` (executable) → depends on VaalinParser, VaalinNetwork, VaalinCore
+- `VaalinParser` (library) → depends on VaalinCore
+- `VaalinNetwork` (library) → depends on VaalinCore
+- `VaalinCore` (library) → no dependencies
 
 **File Naming Conventions**:
 - Swift files: `PascalCase.swift` (e.g., `GameLogView.swift`)

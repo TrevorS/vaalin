@@ -16,7 +16,6 @@ opt_in_rules:
   - closure_spacing
   - explicit_init
   - redundant_type_annotation
-  - explicit_self
   - multiline_parameters
   - multiline_arguments
   - operator_usage_whitespace
@@ -28,6 +27,10 @@ opt_in_rules:
   - vertical_whitespace_closing_braces
   - vertical_whitespace_opening_braces
   - yoda_condition
+
+# Analyzer rules (require full project analysis)
+analyzer_rules:
+  - explicit_self
 
 # Disabled rules
 disabled_rules:
@@ -75,9 +78,7 @@ type_name:
     error: 60
 
 # Enforce strict concurrency practices
-# (These are enforced via compiler flags in Package.swift, but lint for style)
-explicit_self:
-  severity: warning
+# (These are enforced via compiler flags in Package.swift)
 
 # SwiftUI best practices
 large_tuple:

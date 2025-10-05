@@ -43,6 +43,9 @@ let package = Package(
                 "VaalinCore"
             ],
             path: "Vaalin",
+            exclude: [
+                "Vaalin.entitlements" // Build config, not a source file
+            ],
             resources: [
                 .process("Assets.xcassets")
             ],
