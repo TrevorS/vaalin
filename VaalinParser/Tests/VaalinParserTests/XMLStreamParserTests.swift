@@ -5,6 +5,8 @@ import Testing
 @testable import VaalinCore
 @testable import VaalinParser
 
+// swiftlint:disable file_length type_body_length
+
 /// Test suite for XMLStreamParser actor
 /// Validates actor initialization, delegate conformance, state management, and chunked XML parsing
 ///
@@ -287,6 +289,26 @@ struct XMLStreamParserTests {
         #expect(duration < 0.1)
     }
 
+    /// Test deep nesting performance with high volume
+    /// Validates >10k lines/min performance requirement with complex nested structures
+    @Test func test_deepNestingPerformance() async throws {
+        let parser = XMLStreamParser()
+
+        // 1000 deeply nested structures (5 levels each)
+        var xml = ""
+        for _ in 0..<1000 {
+            xml += "<l1><l2><l3><l4><l5>text</l5></l4></l3></l2></l1>"
+        }
+
+        let start = Date()
+        let tags = await parser.parse(xml)
+        let duration = Date().timeIntervalSince(start)
+
+        // 1000 structures should parse in < 100ms
+        #expect(duration < 0.1, "Deep nesting took \(duration)s, expected < 0.1s")
+        #expect(tags.count == 1000) // Verify parsing succeeded
+    }
+
     // MARK: - Integration Preparation Tests
 
     /// Test parser integrates with GameTag model
@@ -519,7 +541,8 @@ struct XMLStreamParserTests {
     @Test func test_parseMultipleAttributes() async throws {
         let parser = XMLStreamParser()
 
-        let tags = await parser.parse("<progressBar id=\"health\" value=\"100\" left=\"100\" right=\"100\" text=\"100%\"/>")
+        let xml = "<progressBar id=\"health\" value=\"100\" left=\"100\" right=\"100\" text=\"100%\"/>"
+        let tags = await parser.parse(xml)
 
         #expect(tags.count == 1)
         let tag = tags[0]
@@ -729,8 +752,8 @@ struct XMLStreamParserTests {
     @Test func test_parseRealisticGameOutput() async throws {
         let parser = XMLStreamParser()
 
-        let gameOutput = "You see <a exist=\"12345\" noun=\"gem\">a blue gem</a> and <a exist=\"67890\" noun=\"coin\">a gold coin</a>."
-
+        let gameOutput = "You see <a exist=\"12345\" noun=\"gem\">a blue gem</a> and " +
+            "<a exist=\"67890\" noun=\"coin\">a gold coin</a>."
         let tags = await parser.parse(gameOutput)
 
         #expect(tags.count == 5)
@@ -783,5 +806,370 @@ struct XMLStreamParserTests {
         let tag = tags[0]
         #expect(tag.attrs["value"] == "100")
         #expect(tag.attrs["max"] == "150")
+    }
+
+    // MARK: - Issue #8: Nested Tag Parsing Tests
+
+    /// Test parsing basic nested tags
+    /// <outer><inner>text</inner></outer> should create parent-child relationship
+    @Test func test_parseNestedTags() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<outer><inner>text</inner></outer>")
+
+        #expect(tags.count == 1)
+        let outer = tags[0]
+        #expect(outer.name == "outer")
+        #expect(outer.text == nil) // Container has no direct text
+        #expect(outer.children.count == 1)
+        #expect(outer.state == .closed)
+
+        let inner = outer.children[0]
+        #expect(inner.name == "inner")
+        #expect(inner.text == "text")
+        #expect(inner.children.isEmpty)
+        #expect(inner.state == .closed)
+    }
+
+    /// Test parsing deeply nested tags (5+ levels)
+    /// Verifies unlimited nesting depth support
+    @Test func test_deepNesting() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<l1><l2><l3><l4><l5>deep</l5></l4></l3></l2></l1>")
+
+        #expect(tags.count == 1)
+        let l1 = tags[0]
+        #expect(l1.name == "l1")
+        #expect(l1.children.count == 1)
+
+        let l2 = l1.children[0]
+        #expect(l2.name == "l2")
+        #expect(l2.children.count == 1)
+
+        let l3 = l2.children[0]
+        #expect(l3.name == "l3")
+        #expect(l3.children.count == 1)
+
+        let l4 = l3.children[0]
+        #expect(l4.name == "l4")
+        #expect(l4.children.count == 1)
+
+        let l5 = l4.children[0]
+        #expect(l5.name == "l5")
+        #expect(l5.text == "deep")
+        #expect(l5.children.isEmpty)
+    }
+
+    /// Test parsing multiple sibling tags within parent
+    /// <parent><child1/><child2/><child3/></parent> should create 3 children
+    @Test func test_multipleSiblings() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<parent><child1/><child2/><child3/></parent>")
+
+        #expect(tags.count == 1)
+        let parent = tags[0]
+        #expect(parent.name == "parent")
+        #expect(parent.children.count == 3)
+
+        #expect(parent.children[0].name == "child1")
+        #expect(parent.children[1].name == "child2")
+        #expect(parent.children[2].name == "child3")
+    }
+
+    /// Test parsing mixed content with nested tags
+    /// <parent>text<child/>more text</parent> should handle text and children
+    @Test func test_mixedNesting() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<parent>before<child>middle</child>after</parent>")
+
+        #expect(tags.count == 1)
+        let parent = tags[0]
+        #expect(parent.name == "parent")
+        // Parent should have 3 children: :text, child tag, :text
+        #expect(parent.children.count == 3)
+
+        #expect(parent.children[0].name == ":text")
+        #expect(parent.children[0].text == "before")
+
+        #expect(parent.children[1].name == "child")
+        #expect(parent.children[1].text == "middle")
+
+        #expect(parent.children[2].name == ":text")
+        #expect(parent.children[2].text == "after")
+    }
+
+    /// Test nested tags with attributes at multiple levels
+    /// Attributes should be preserved at each nesting level
+    @Test func test_nestedTagsWithAttributes() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<d cmd=\"look\"><a exist=\"123\" noun=\"gem\">blue gem</a></d>")
+
+        #expect(tags.count == 1)
+        let dTag = tags[0]
+        #expect(dTag.name == "d")
+        #expect(dTag.attrs["cmd"] == "look")
+        #expect(dTag.children.count == 1)
+
+        let aTag = dTag.children[0]
+        #expect(aTag.name == "a")
+        #expect(aTag.attrs["exist"] == "123")
+        #expect(aTag.attrs["noun"] == "gem")
+        #expect(aTag.text == "blue gem")
+    }
+
+    /// Test real GemStone IV nested structure
+    /// <d><a>item</a></d> is common pattern for clickable items
+    @Test func test_gemstoneNestedStructure() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<d cmd=\"look at gem\"><a exist=\"12345\" noun=\"gem\">blue gem</a></d>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let dTag = tags[0]
+        #expect(dTag.name == "d")
+        #expect(dTag.attrs["cmd"] == "look at gem")
+        #expect(dTag.children.count == 1)
+
+        let aTag = dTag.children[0]
+        #expect(aTag.name == "a")
+        #expect(aTag.text == "blue gem")
+    }
+
+    /// Test nested self-closing tags
+    /// Self-closing tags within containers should work correctly
+    @Test func test_nestedSelfClosingTags() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<container><item id=\"1\"/><item id=\"2\"/></container>")
+
+        #expect(tags.count == 1)
+        let container = tags[0]
+        #expect(container.children.count == 2)
+        #expect(container.children[0].attrs["id"] == "1")
+        #expect(container.children[1].attrs["id"] == "2")
+    }
+
+    /// Test nested tags across chunk boundaries
+    /// Opening parent in chunk 1, children in chunk 2, closing parent in chunk 3
+    @Test func test_nestedTagsAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Open parent
+        let tags1 = await parser.parse("<parent>")
+        #expect(tags1.isEmpty) // Parent not closed yet
+
+        // Chunk 2: Add child
+        let tags2 = await parser.parse("<child>text</child>")
+        #expect(tags2.isEmpty) // Parent still not closed
+
+        // Chunk 3: Close parent
+        let tags3 = await parser.parse("</parent>")
+        #expect(tags3.count == 1)
+
+        let parent = tags3[0]
+        #expect(parent.name == "parent")
+        #expect(parent.children.count == 1)
+        #expect(parent.children[0].name == "child")
+        #expect(parent.children[0].text == "text")
+    }
+
+    /// Test deep nesting across chunk boundaries
+    /// Complex nesting state must persist correctly
+    @Test func test_deepNestingAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        let tags1 = await parser.parse("<l1><l2>")
+        #expect(tags1.isEmpty)
+
+        let tags2 = await parser.parse("<l3>text</l3>")
+        #expect(tags2.isEmpty)
+
+        let tags3 = await parser.parse("</l2></l1>")
+        #expect(tags3.count == 1)
+
+        let l1 = tags3[0]
+        #expect(l1.children.count == 1)
+        let l2 = l1.children[0]
+        #expect(l2.children.count == 1)
+        let l3 = l2.children[0]
+        #expect(l3.text == "text")
+    }
+
+    /// Test nested tags with text at root level
+    /// Root text followed by nested structure
+    @Test func test_nestedTagsWithRootText() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("You see <d><a exist=\"123\" noun=\"gem\">gem</a></d> here.")
+
+        #expect(tags.count == 3)
+        #expect(tags[0].name == ":text")
+        #expect(tags[0].text == "You see ")
+
+        #expect(tags[1].name == "d")
+        #expect(tags[1].children.count == 1)
+        #expect(tags[1].children[0].name == "a")
+
+        #expect(tags[2].name == ":text")
+        #expect(tags[2].text == " here.")
+    }
+
+    /// Test complex mixed siblings and nesting
+    /// Multiple nested levels with siblings at different depths
+    @Test func test_complexMixedNesting() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<root><a>1</a><b><c>2</c><d>3</d></b><e>4</e></root>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let root = tags[0]
+        #expect(root.children.count == 3)
+
+        #expect(root.children[0].name == "a")
+        #expect(root.children[0].text == "1")
+
+        #expect(root.children[1].name == "b")
+        #expect(root.children[1].children.count == 2)
+        #expect(root.children[1].children[0].name == "c")
+        #expect(root.children[1].children[0].text == "2")
+        #expect(root.children[1].children[1].name == "d")
+        #expect(root.children[1].children[1].text == "3")
+
+        #expect(root.children[2].name == "e")
+        #expect(root.children[2].text == "4")
+    }
+
+    /// Test nested empty tags
+    /// <parent><child></child></parent> with no content
+    @Test func test_nestedEmptyTags() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<parent><child></child></parent>")
+
+        #expect(tags.count == 1)
+        let parent = tags[0]
+        #expect(parent.children.count == 1)
+        #expect(parent.children[0].name == "child")
+        #expect(parent.children[0].text == nil || parent.children[0].text == "")
+    }
+
+    /// Test very deep nesting (10+ levels)
+    /// Performance and stack depth test
+    @Test func test_veryDeepNesting() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<l1><l2><l3><l4><l5><l6><l7><l8><l9><l10>bottom</l10></l9></l8></l7></l6></l5></l4></l3></l2></l1>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+
+        var current = tags[0]
+        for level in 1...10 {
+            #expect(current.name == "l\(level)")
+            if level < 10 {
+                #expect(current.children.count == 1)
+                current = current.children[0]
+            } else {
+                #expect(current.text == "bottom")
+            }
+        }
+    }
+
+    /// Test malformed nesting - closing wrong tag
+    /// Parser should handle mismatched tags gracefully
+    @Test func test_mismatchedNestingTags() async throws {
+        let parser = XMLStreamParser()
+
+        // <a><b></a></b> - mismatched closing
+        let tags = await parser.parse("<a><b></a></b>")
+
+        // Parser should handle gracefully (may discard malformed portion)
+        // This documents current behavior - detailed error recovery in Issue #12
+        // For now, we just verify it doesn't crash
+        _ = tags
+    }
+
+    /// Test unexpected closing tag without matching open tag
+    /// Covers error handling path for closing tag without open tag (lines 296-298)
+    @Test func test_unexpectedClosingTag() async throws {
+        let parser = XMLStreamParser()
+
+        // Closing tag without matching open tag
+        let tags = await parser.parse("text</nonexistent>")
+
+        // Should handle gracefully (exact behavior TBD in Issue #12)
+        // For now, verify it doesn't crash and returns some result
+        _ = tags
+    }
+
+    /// Test tag name mismatch between open and close
+    /// Covers error handling path for mismatched tag names (lines 303-305)
+    @Test func test_tagNameMismatch() async throws {
+        let parser = XMLStreamParser()
+
+        // <a> opened but </b> closed
+        let tags = await parser.parse("<a>text</b>")
+
+        // Should handle gracefully - parser may auto-close unclosed tags
+        // Detailed error recovery specified in Issue #12
+        _ = tags
+    }
+
+    /// Test nested tags with whitespace preservation
+    /// Whitespace in nested content should be maintained
+    @Test func test_nestedTagsWithWhitespace() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<parent>  <child>  text  </child>  </parent>")
+
+        #expect(tags.count == 1)
+        let parent = tags[0]
+        #expect(parent.children.count == 3) // :text, child, :text
+
+        #expect(parent.children[0].name == ":text")
+        #expect(parent.children[0].text == "  ")
+
+        #expect(parent.children[1].name == "child")
+        #expect(parent.children[1].text == "  text  ")
+
+        #expect(parent.children[2].name == ":text")
+        #expect(parent.children[2].text == "  ")
+    }
+
+    /// Test realistic GemStone IV combat output with nesting
+    /// Complex real-world example with multiple nested levels
+    @Test func test_realisticCombatOutput() async throws {
+        let parser = XMLStreamParser()
+
+        let combat = "You swing <d><a exist=\"123\" noun=\"sword\">a silver sword</a></d> at " +
+            "<d><a exist=\"456\" noun=\"orc\">an orc</a></d>!"
+        let tags = await parser.parse(combat)
+
+        #expect(tags.count == 5) // :text, d, :text, d, :text
+
+        #expect(tags[0].name == ":text")
+        #expect(tags[0].text == "You swing ")
+
+        #expect(tags[1].name == "d")
+        #expect(tags[1].children.count == 1)
+        #expect(tags[1].children[0].name == "a")
+        #expect(tags[1].children[0].text == "a silver sword")
+
+        #expect(tags[2].name == ":text")
+        #expect(tags[2].text == " at ")
+
+        #expect(tags[3].name == "d")
+        #expect(tags[3].children.count == 1)
+        #expect(tags[3].children[0].name == "a")
+        #expect(tags[3].children[0].text == "an orc")
+
+        #expect(tags[4].name == ":text")
+        #expect(tags[4].text == "!")
     }
 }
