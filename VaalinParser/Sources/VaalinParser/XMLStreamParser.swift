@@ -1,6 +1,7 @@
 // ABOUTME: XMLStreamParser provides stateful SAX-based XML parsing for GemStone IV game output chunks
 
 import Foundation
+import os
 import VaalinCore
 
 /// Thread-safe actor that parses XML chunks from the GemStone IV game server.
@@ -39,6 +40,15 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// If buffer exceeds this size, it will be cleared and parsing will fail gracefully.
     /// 10KB should handle even extremely fragmented chunks (typical game output is < 1KB).
     private let maxBufferSize = 10_000
+
+    /// Maximum error recovery buffer size (10MB).
+    ///
+    /// If error buffer exceeds this size during recovery, we force a parser reset
+    /// to prevent memory exhaustion. 10MB should handle even massive malformed streams.
+    private let maxErrorBufferSize = 10_000_000
+
+    /// Logger for error recovery and diagnostics.
+    private let logger = Logger(subsystem: "com.vaalin.parser", category: "XMLStreamParser")
 
     // MARK: - Persistent State
 
@@ -99,6 +109,40 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - Chunk 2: `"123">gem</a>` (prepend buffer, parse full tag)
     private var xmlBuffer: String = ""
 
+    // MARK: - Error Recovery State
+
+    /// Whether the parser is currently in error recovery mode.
+    ///
+    /// When true, the parser buffers incoming chunks in `errorBuffer` and searches
+    /// for a `<prompt>` tag to resync. Once resynced, exits recovery mode and resumes
+    /// normal parsing from the prompt onward.
+    private var inErrorRecovery: Bool = false
+
+    /// Buffer for accumulating chunks during error recovery.
+    ///
+    /// Chunks are buffered here until we find a `<prompt>` tag to resync.
+    /// Limited to `maxErrorBufferSize` (10MB) to prevent memory exhaustion.
+    private var errorBuffer: String = ""
+
+    /// Line number where the last error occurred.
+    ///
+    /// Used for diagnostic logging to help identify problematic game output.
+    /// XMLParser provides this via `parser.lineNumber` in error callbacks.
+    nonisolated(unsafe) private var errorLineNumber: Int = 0
+
+    /// The most recent parsing error encountered.
+    ///
+    /// Stores the error for test verification and debugging. Cleared when
+    /// parsing succeeds or parser resyncs successfully.
+    private var lastError: Error?
+
+    /// Count of consecutive parse failures.
+    ///
+    /// Used to distinguish incomplete XML (which may fail once or twice while
+    /// buffering) from truly malformed XML (which keeps failing).
+    /// Reset to 0 on successful parse.
+    private var consecutiveFailures: Int = 0
+
     // MARK: - Per-Parse State (Thread-Local)
 
     /// Temporary storage for current parse operation
@@ -126,23 +170,28 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// State (stream context, nesting) persists across calls, allowing tags that
     /// span multiple chunks to be parsed correctly.
     ///
+    /// ## Error Recovery
+    ///
+    /// When malformed XML is encountered:
+    /// 1. Parser enters error recovery mode (`inErrorRecovery = true`)
+    /// 2. Returns any successfully parsed tags up to the error point
+    /// 3. Buffers subsequent chunks in `errorBuffer` until resync
+    /// 4. Searches for `<prompt>` tag to resync parser state
+    /// 5. Resumes normal parsing from prompt onward
+    ///
     /// ## Buffering Strategy
     ///
     /// The parser maintains multiple buffers to handle TCP fragmentation:
     /// - `xmlBuffer`: Stores incomplete XML from previous chunk
     /// - `tagStack`: Maintains open tags across chunks
     /// - `characterBuffer`: Accumulates character data split across callbacks
+    /// - `errorBuffer`: Accumulates chunks during error recovery
     ///
     /// Incomplete tags at chunk boundaries remain on the stack until
     /// subsequent chunks complete them. Only fully closed tags are returned.
     ///
     /// - Parameter chunk: A string containing XML data (may be incomplete)
     /// - Returns: An array of parsed `GameTag` elements from this chunk
-    ///
-    /// - Note: Returns empty array in skeleton implementation.
-    ///         Actual parsing logic will be added in issues #7-#12.
-    ///         Implementation will prepend `xmlBuffer` to chunk and wrap
-    ///         in `<root>` tag to satisfy XMLParser requirements.
     ///
     /// ## Example
     ///
@@ -156,6 +205,44 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// // Returns [GameTag(name: "a", text: "blue gem", ...)]
     /// ```
     public func parse(_ chunk: String) async -> [GameTag] {
+        // ERROR RECOVERY: If in recovery mode, buffer chunk and attempt resync
+        if inErrorRecovery {
+            // Append chunk to error buffer
+            errorBuffer += chunk
+
+            // Protect against unbounded error buffer growth
+            if errorBuffer.count > maxErrorBufferSize {
+                logger.fault("Error buffer exceeded 10MB limit - forcing parser reset")
+                resetParserState()
+                // Return empty tags - data is lost but we've recovered
+                return []
+            }
+
+            // Try to resync on <prompt> tag
+            if let recoveredChunk = attemptResync() {
+                // Successfully resynced - parse the recovered chunk
+                logger.info("Successfully resynced on <prompt> tag after error")
+                return await parseChunk(recoveredChunk)
+            } else {
+                // No prompt found yet - stay in recovery mode
+                return []
+            }
+        }
+
+        // Normal parsing path
+        return await parseChunk(chunk)
+    }
+
+    // MARK: - Internal Parsing
+
+    /// Internal parsing logic extracted from `parse()` to separate error recovery concerns.
+    ///
+    /// This method performs the actual XML parsing with XMLParser. If parsing fails,
+    /// it enters error recovery mode and returns any tags parsed up to the error point.
+    ///
+    /// - Parameter chunk: The XML chunk to parse
+    /// - Returns: Array of successfully parsed tags
+    private func parseChunk(_ chunk: String) async -> [GameTag] {
         // Reset per-parse state (thread-local, safe because actor serializes calls)
         currentTagStack = []
         currentCharacterBuffer = ""
@@ -175,7 +262,7 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
             // Clear buffer and process only current chunk
             xmlBuffer = ""
             combinedXML = chunk // Reset to just current chunk
-            // Log warning in production: "XML buffer exceeded max size, clearing"
+            logger.warning("XML buffer exceeded \(self.maxBufferSize) chars, clearing buffer")
         }
 
         // Wrap in synthetic root tag for XMLParser (requires single root element)
@@ -193,14 +280,139 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Parse synchronously (delegate callbacks happen during this call)
         let success = xmlParser.parse()
 
-        // If parsing failed, buffer the entire chunk for next parse
+        // If parsing failed, decide whether to buffer or enter error recovery
         if !success {
+            // Strategy for distinguishing incomplete vs truly malformed XML:
+            //
+            // MALFORMED XML (enter error recovery immediately):
+            //   - Same chunk fails 2+ consecutive times → definitely malformed
+            //     (first failure buffers, second confirms it's not just incomplete)
+            //   - Syntax error patterns detected (missing quotes, invalid attributes)
+            //   - Buffer has grown too large (> maxBufferSize)
+            //
+            // INCOMPLETE XML (buffer and wait for more data):
+            //   - Unbalanced tags (more opening than closing)
+            //   - First failure (may just need more data)
+            //   - No obvious syntax errors
+            //   - Examples: "<a exist=", "<parent><child>text</child>", "<prompt>te"
+            //
+            // Priority: consecutiveFailures >= 2 > syntax errors > buffer size > tag balance
+
+            // Check 1: Detect obvious syntax errors (missing quotes, malformed attributes)
+            // Pattern: attribute name followed by => or =< (invalid syntax)
+            // Examples: noun=>, attr=<, id=>
+            // BUT: Don't match incomplete closing tags like "</out" (that's just incomplete, not malformed)
+            // Strategy: Look for = followed by > or < that's NOT part of a closing tag pattern "</"
+            let syntaxErrorPattern = #"=\s*[><]"#
+            let hasSyntaxError: Bool
+            if let range = combinedXML.range(of: syntaxErrorPattern, options: .regularExpression) {
+                // Found potential syntax error - verify it's not an incomplete closing tag
+                // Incomplete closing tag pattern: ends with "</[a-z]+" without the closing >
+                let incompleteClosingTagPattern = #"</[a-zA-Z_][a-zA-Z0-9_]*$"#
+                let isIncompleteClosingTag = combinedXML.range(
+                    of: incompleteClosingTagPattern,
+                    options: .regularExpression
+                ) != nil
+                hasSyntaxError = !isIncompleteClosingTag
+            } else {
+                hasSyntaxError = false
+            }
+
+            if hasSyntaxError {
+                // Definite syntax error - enter recovery immediately
+                let partialTags = currentParsedTags
+                // Don't buffer (single chunk failure, prompt in chunk is suspect)
+                enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: false)
+                // Don't resync in the same parseChunk() call - wait for next parse() call
+                // The top-level parse() method will handle resync on subsequent chunks
+                return partialTags
+            }
+
+            // Check 2: Buffer too large
+            let bufferTooLarge = combinedXML.count > maxBufferSize
+            if bufferTooLarge {
+                // Buffer exceeded limit - enter recovery to prevent unbounded growth
+                let partialTags = currentParsedTags
+                // Don't buffer (discard oversized chunk)
+                enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: false)
+                // Don't resync in the same parseChunk() call - wait for next parse() call
+                // The top-level parse() method will handle resync on subsequent chunks
+                return partialTags
+            }
+
+            // Check 3: Tag balance heuristic
+            let openingTagCount = combinedXML.components(separatedBy: "<").count - 1
+            let closingTagCount = combinedXML.components(separatedBy: "</").count - 1
+            let selfClosingCount = combinedXML.components(separatedBy: "/>").count - 1
+
+            // Rough balance check: if we have as many (or more) closing tags as
+            // opening tags (accounting for self-closing), the chunk looks "complete"
+            // Subtract self-closing from opening count since they don't need closing tags
+            let netOpeningTags = openingTagCount - selfClosingCount
+            let requiredClosingTags = Int(Double(netOpeningTags) * 0.8) // 80% of opening tags should be closed
+            // Chunk looks complete if: has closing tags AND they roughly match opening tags
+            let looksComplete = closingTagCount > 0 && closingTagCount >= requiredClosingTags
+
+            if looksComplete {
+                // Chunk appears complete but failed to parse (malformed syntax)
+                // Enter error recovery mode and return any partial results
+                let partialTags = currentParsedTags
+                // Increment failure counter (this is a real failure, not buffering)
+                consecutiveFailures += 1
+                // Buffer if we had a prior failure (multi-chunk), otherwise discard
+                let shouldBuffer = consecutiveFailures >= 2
+                enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: shouldBuffer)
+                // Don't resync in the same parseChunk() call - wait for next parse() call
+                // The top-level parse() method will handle resync on subsequent chunks
+                return partialTags
+            }
+
+            // Check 4: Multiple buffering failures
+            // If we've buffered before (consecutiveFailures >= 1) and adding new data still fails,
+            // check if this is the second consecutive buffering failure
+            if consecutiveFailures >= 1 && !xmlBuffer.isEmpty {
+                // This is at least the second buffering failure
+                consecutiveFailures += 1
+
+                // Decide whether to enter recovery:
+                // - If combined chunk contains <prompt> tag AND we've failed 2+ times: enter recovery
+                //   (Prompt is a sync point, suggests buffered data + prompt = malformed + resync opportunity)
+                // - If no prompt but 5+ failures: enter recovery
+                //   (Valid incomplete XML shouldn't take more than 5 chunks; if it does, likely stuck)
+                let containsPrompt = combinedXML.contains("<prompt>")
+                let shouldEnterRecovery = (consecutiveFailures >= 2 && containsPrompt) || consecutiveFailures >= 5
+
+                if shouldEnterRecovery {
+                    let partialTags = currentParsedTags
+                    // Buffer the chunk (may contain prompt for resync)
+                    enterErrorRecovery(error: xmlParser.parserError, lineNumber: xmlParser.lineNumber, failedChunk: combinedXML, shouldBufferChunk: true)
+
+                    // Try immediate resync
+                    if let recoveredChunk = attemptResync() {
+                        logger.info("Successfully resynced after multiple buffering failures")
+                        return await parseChunk(recoveredChunk)
+                    }
+
+                    return partialTags
+                }
+
+                // First consecutive failure - keep buffering
+                xmlBuffer = combinedXML
+                return []
+            }
+
+            // First buffering failure - buffer and wait for more data
+            consecutiveFailures += 1
             xmlBuffer = combinedXML
             return []
         }
 
         // Clear buffer on successful parse
         xmlBuffer = ""
+
+        // Clear error state on successful parse
+        lastError = nil
+        consecutiveFailures = 0
 
         // If there's remaining character data at the end and we're at root level,
         // create a final :text node
@@ -229,6 +441,135 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         return currentParsedTags
     }
 
+    // MARK: - Error Recovery
+
+    /// Enters error recovery mode and handles the failed chunk.
+    ///
+    /// Called when XML parsing fails. Sets recovery flag, stores error details,
+    /// and decides whether to buffer the failed chunk for resync attempts.
+    ///
+    /// Strategy for buffering vs discarding:
+    /// - If `consecutiveFailures >= 2`: Multiple chunks combined, buffer the failed chunk
+    ///   (it contains new data that arrived after initial error, may have valid prompt)
+    /// - If `consecutiveFailures == 1`: Single chunk failed, discard it
+    ///   (prompt in this chunk is suspect, part of malformed data)
+    ///
+    /// - Parameters:
+    ///   - error: The parsing error that triggered recovery (may be nil)
+    ///   - lineNumber: The line number where error occurred
+    ///   - failedChunk: The full XML chunk that failed
+    ///   - shouldBufferChunk: Whether to buffer the chunk (true if new data arrived)
+    private func enterErrorRecovery(error: Error?, lineNumber: Int, failedChunk: String, shouldBufferChunk: Bool) {
+        inErrorRecovery = true
+        lastError = error
+        errorLineNumber = lineNumber
+
+        // Buffer strategy: only trust prompts from multi-chunk failures
+        if shouldBufferChunk {
+            // Multiple chunks combined - buffer for potential resync
+            errorBuffer = failedChunk
+            logger.info("Buffering \(failedChunk.count) characters for resync (multi-chunk failure)")
+        } else {
+            // Single chunk failed - discard it (prompt is suspect)
+            errorBuffer = ""
+            logger.warning("Discarding \(failedChunk.count) characters of malformed XML (single-chunk failure)")
+        }
+
+        xmlBuffer = ""
+
+        // Reset consecutive failures counter since we're entering recovery mode
+        consecutiveFailures = 0
+
+        logger.error("Entering error recovery mode at line \(lineNumber): \(String(describing: error))")
+    }
+
+    /// Attempts to resynchronize the parser by finding a `<prompt>` tag.
+    ///
+    /// Searches the error buffer for a `<prompt>` tag. If found:
+    /// 1. Exits error recovery mode
+    /// 2. Resets parser state (stream context, tag stack, buffers)
+    /// 3. Returns XML from prompt onward for parsing
+    ///
+    /// If no prompt found, stays in recovery mode and returns nil.
+    ///
+    /// - Returns: The XML chunk from `<prompt>` onward, or nil if no prompt found
+    private func attemptResync() -> String? {
+        // Search for <prompt> tag in error buffer
+        guard let promptRange = findPromptResyncPoint(in: errorBuffer) else {
+            // No prompt found yet - stay in recovery mode
+            return nil
+        }
+
+        // Extract chunk from prompt onward
+        let recoveredChunk = String(errorBuffer[promptRange.lowerBound...])
+
+        // Exit recovery mode
+        inErrorRecovery = false
+        errorBuffer = ""
+        lastError = nil
+
+        // Reset parser state for clean slate
+        // CRITICAL: Reset stream state too - after an error we can't trust the stream context
+        currentStream = nil
+        inStream = false
+        tagStack = []
+        characterBuffer = ""
+        xmlBuffer = ""
+
+        return recoveredChunk
+    }
+
+    /// Finds the resync point (start of `<prompt>` tag) in the given string.
+    ///
+    /// Uses simple string search to locate `<prompt>`. This is intentionally
+    /// simple - we don't try to parse the malformed XML, just find a known-good
+    /// sync point.
+    ///
+    /// - Parameter string: The string to search
+    /// - Returns: Range of `<prompt>` tag if found, nil otherwise
+    private func findPromptResyncPoint(in string: String) -> Range<String.Index>? {
+        // Simple string search for <prompt> tag
+        guard let range = string.range(of: "<prompt>") else {
+            return nil
+        }
+
+        // Return range starting from <prompt> to end of string
+        return range.lowerBound..<string.endIndex
+    }
+
+    /// Performs a nuclear reset of the parser state.
+    ///
+    /// Called when error buffer exceeds 10MB limit. Clears all state to prevent
+    /// memory exhaustion. This is a last resort - it loses all buffered data.
+    ///
+    /// Reset actions:
+    /// - Clear all buffers (xml, error, character)
+    /// - Reset stream state (currentStream, inStream)
+    /// - Clear tag stack
+    /// - Exit error recovery mode
+    /// - Clear last error
+    /// - Reset consecutive failures counter
+    private func resetParserState() {
+        // Clear all buffers
+        xmlBuffer = ""
+        errorBuffer = ""
+        characterBuffer = ""
+
+        // Reset stream state
+        currentStream = nil
+        inStream = false
+
+        // Clear tag stack
+        tagStack = []
+
+        // Exit recovery mode
+        inErrorRecovery = false
+        lastError = nil
+        consecutiveFailures = 0
+
+        logger.warning("Parser state forcibly reset due to buffer overflow")
+    }
+
     // MARK: - Testing Support
 
     /// Exposes the current stream state for testing purposes.
@@ -243,6 +584,36 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - Returns: True if currently inside a stream context
     public func getInStream() async -> Bool {
         return inStream
+    }
+
+    /// Exposes whether the parser is in error recovery mode (Issue #12).
+    ///
+    /// When the parser encounters malformed XML, it enters error recovery mode
+    /// and buffers incoming chunks until a `<prompt>` tag resyncs the parser.
+    ///
+    /// - Returns: True if parser is in error recovery mode
+    public func isInErrorRecovery() async -> Bool {
+        return inErrorRecovery
+    }
+
+    /// Exposes the size of the error recovery buffer (Issue #12).
+    ///
+    /// Returns the number of characters currently buffered during error recovery.
+    /// Used to verify the 10MB buffer limit is enforced.
+    ///
+    /// - Returns: Number of characters in error recovery buffer
+    public func getErrorBufferSize() async -> Int {
+        return errorBuffer.count
+    }
+
+    /// Exposes the last error encountered during parsing (Issue #12).
+    ///
+    /// Returns the most recent parsing error for test verification and debugging.
+    /// Error is cleared when parsing succeeds or parser resyncs.
+    ///
+    /// - Returns: The last error, or nil if no error occurred
+    public func getLastError() async -> Error? {
+        return lastError
     }
 
     // MARK: - XMLParserDelegate
@@ -438,12 +809,42 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         }
     }
 
-    /// Called when parser encounters an error
-    /// For issue #7, we handle gracefully (detailed recovery in issue #12)
+    /// Called when parser encounters a parsing error.
+    ///
+    /// This delegate callback is invoked synchronously during the `parse()` call
+    /// when XMLParser encounters malformed XML. We store the error details for
+    /// error recovery logic in the main `parseChunk()` method.
+    ///
     /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
+    /// - Parameters:
+    ///   - parser: The XMLParser instance
+    ///   - parseError: The error that occurred
     nonisolated public func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
-        // For now, just let parsing fail
-        // Issue #12 will implement proper error recovery
-        // The parse() method will buffer the chunk for retry
+        // Store line number for error recovery logging
+        // The main parseChunk() method will call enterErrorRecovery() after parse() returns
+        errorLineNumber = parser.lineNumber
+
+        // Log detailed error information for debugging
+        // Note: Logger is safe to use from nonisolated context (thread-safe by design)
+        let logger = Logger(subsystem: "com.vaalin.parser", category: "XMLStreamParser")
+        logger.error("XML parse error at line \(parser.lineNumber), column \(parser.columnNumber): \(parseError.localizedDescription)")
+    }
+
+    /// Called when parser encounters a validation error.
+    ///
+    /// This is called for DTD/schema validation errors. We treat these the same
+    /// as parse errors - the main `parseChunk()` method will handle recovery.
+    ///
+    /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
+    /// - Parameters:
+    ///   - parser: The XMLParser instance
+    ///   - validationError: The validation error that occurred
+    nonisolated public func parser(_ parser: XMLParser, validationErrorOccurred validationError: Error) {
+        // Store line number for error recovery logging
+        errorLineNumber = parser.lineNumber
+
+        // Log validation error
+        let logger = Logger(subsystem: "com.vaalin.parser", category: "XMLStreamParser")
+        logger.error("XML validation error at line \(parser.lineNumber), column \(parser.columnNumber): \(validationError.localizedDescription)")
     }
 }

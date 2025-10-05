@@ -2813,4 +2813,484 @@ struct XMLStreamParserTests {
         let presetChildren = tags[2].children
         #expect(presetChildren.contains { $0.name == "d" })
     }
+
+    // MARK: - Malformed XML Error Recovery Tests (Issue #12)
+
+    /// Test that malformed XML logs error without crashing
+    /// Parser should log errors using os.Logger and continue operation
+    @Test func test_malformedXMLLogsError() async throws {
+        let parser = XMLStreamParser()
+
+        // Malformed XML: missing closing quote in attribute
+        let malformedXML = "<a exist=\"123\" noun=>gem</a>"
+
+        // Parse should not crash - error recovery should handle gracefully
+        let tags = await parser.parse(malformedXML)
+
+        // Should return empty array since parsing failed
+        #expect(tags.isEmpty)
+
+        // Verify error was logged (requires test accessor)
+        let lastError = await parser.getLastError()
+        #expect(lastError != nil, "Expected error to be logged for malformed XML")
+    }
+
+    /// Test parser resyncs on next prompt tag after error
+    /// Critical recovery mechanism: <prompt> tags act as synchronization points
+    @Test func test_resyncOnPrompt() async throws {
+        let parser = XMLStreamParser()
+
+        // First chunk: malformed XML (missing closing quote)
+        let malformedChunk = "<a exist=\"123\" noun=>broken</a>"
+        let tags1 = await parser.parse(malformedChunk)
+
+        // Should return empty array due to error
+        #expect(tags1.isEmpty)
+
+        // Verify parser is in error recovery mode
+        let inErrorRecovery = await parser.isInErrorRecovery()
+        #expect(inErrorRecovery == true, "Parser should enter error recovery mode after malformed XML")
+
+        // Second chunk: valid <prompt> tag should resync
+        let resyncChunk = "<prompt>&gt;</prompt>"
+        let tags2 = await parser.parse(resyncChunk)
+
+        // After resync, parser should recover and parse prompt tag
+        #expect(!tags2.isEmpty, "Parser should recover after <prompt> resync")
+        #expect(tags2[0].name == "prompt")
+
+        // Verify parser exited error recovery mode
+        let stillInErrorRecovery = await parser.isInErrorRecovery()
+        #expect(stillInErrorRecovery == false, "Parser should exit error recovery mode after resync")
+    }
+
+    /// Test parsing continues normally after error recovery
+    /// After resync, parser should process subsequent chunks without issues
+    @Test func test_continuesAfterError() async throws {
+        let parser = XMLStreamParser()
+
+        // First chunk: malformed XML
+        _ = await parser.parse("<a exist=\"123\" noun=>broken</a>")
+
+        // Second chunk: resync on prompt
+        _ = await parser.parse("<prompt>&gt;</prompt>")
+
+        // Third chunk: normal XML should parse correctly
+        let normalChunk = "<output>You see a gem.</output>"
+        let tags = await parser.parse(normalChunk)
+
+        #expect(!tags.isEmpty, "Parser should continue parsing normally after recovery")
+        #expect(tags[0].name == "output")
+        #expect(tags[0].text == "You see a gem.")
+    }
+
+    /// Test parser returns completed tags before error point
+    /// Partial results should be preserved when error occurs mid-chunk
+    @Test func test_partialResultsBeforeError() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk with valid tag followed by malformed tag
+        let mixedChunk = "<output>Valid text</output><a exist=\"123\" noun=>broken</a>"
+
+        let tags = await parser.parse(mixedChunk)
+
+        // Should return the valid tag before the error
+        #expect(!tags.isEmpty, "Expected valid tags before error point to be returned")
+        #expect(tags[0].name == "output")
+        #expect(tags[0].text == "Valid text")
+
+        // Verify parser entered error recovery for the malformed tag
+        let inErrorRecovery = await parser.isInErrorRecovery()
+        #expect(inErrorRecovery == true, "Parser should be in error recovery mode")
+    }
+
+    /// Test parser enters recovery mode on malformed XML
+    /// Verifies state transition to error recovery mode
+    @Test func test_enterRecoveryMode() async throws {
+        let parser = XMLStreamParser()
+
+        // Initially not in error recovery
+        let initialState = await parser.isInErrorRecovery()
+        #expect(initialState == false)
+
+        // Parse malformed XML
+        _ = await parser.parse("<a exist=\"123\" noun=>broken")
+
+        // Should enter recovery mode
+        let afterError = await parser.isInErrorRecovery()
+        #expect(afterError == true, "Parser should enter error recovery mode")
+    }
+
+    /// Test parser recovers from unclosed pushStream tag
+    /// Stream control tags without closing should not break parser permanently
+    @Test func test_unclosedPushStream() async throws {
+        let parser = XMLStreamParser()
+
+        // Malformed: pushStream opened but never closed
+        let malformedStream = "<pushStream id=\"thoughts\">Some text without closing"
+        _ = await parser.parse(malformedStream)
+
+        // Should enter error recovery
+        let inErrorRecovery = await parser.isInErrorRecovery()
+        #expect(inErrorRecovery == true)
+
+        // Resync on prompt
+        let resyncChunk = "<prompt>&gt;</prompt>"
+        let tags = await parser.parse(resyncChunk)
+
+        // Should recover
+        #expect(!tags.isEmpty)
+        #expect(tags[0].name == "prompt")
+
+        // Stream state should be reset after recovery
+        let currentStream = await parser.getCurrentStream()
+        #expect(currentStream == nil, "Stream state should be reset after error recovery")
+    }
+
+    /// Test parser handles multiple errors before resync
+    /// Multiple malformed chunks should be buffered until resync point
+    @Test func test_nestedErrors() async throws {
+        let parser = XMLStreamParser()
+
+        // First malformed chunk
+        _ = await parser.parse("<a exist=\"123\" noun=>broken1</a>")
+
+        // Second malformed chunk (still in error recovery)
+        _ = await parser.parse("<b>unclosed tag")
+
+        // Third malformed chunk (still in error recovery)
+        _ = await parser.parse("<c attr=\"val>missing quote</c>")
+
+        // Should still be in error recovery
+        let inErrorRecovery = await parser.isInErrorRecovery()
+        #expect(inErrorRecovery == true)
+
+        // Resync should clear all buffered errors
+        let resyncChunk = "<prompt>&gt;</prompt>"
+        let tags = await parser.parse(resyncChunk)
+
+        #expect(!tags.isEmpty)
+        #expect(tags[0].name == "prompt")
+
+        // Should be out of error recovery
+        let afterResync = await parser.isInErrorRecovery()
+        #expect(afterResync == false)
+    }
+
+    /// Test error buffer size protection (10MB limit)
+    /// Protects against unbounded memory growth during extended errors
+    @Test func test_errorBufferLimit() async throws {
+        let parser = XMLStreamParser()
+
+        // Create a very large malformed chunk (> 10MB)
+        // This simulates an attack or severely malformed stream
+        let largeGarbage = String(repeating: "<invalid", count: 2_000_000) // ~16MB of garbage
+
+        _ = await parser.parse(largeGarbage)
+
+        // Buffer should not exceed 10MB
+        let bufferSize = await parser.getErrorBufferSize()
+        #expect(bufferSize <= 10_000_000, "Error buffer should not exceed 10MB limit")
+
+        // Parser should force reset on buffer overflow
+        // Next valid chunk should parse without the accumulated garbage
+        let validChunk = "<prompt>&gt;</prompt>"
+        let tags = await parser.parse(validChunk)
+
+        #expect(!tags.isEmpty, "Parser should force reset and parse valid chunk after buffer overflow")
+    }
+
+    /// Test stream state reset on resync
+    /// After error recovery, stream state should be cleared to prevent corruption
+    @Test func test_streamStateResetOnResync() async throws {
+        let parser = XMLStreamParser()
+
+        // Parse valid pushStream to set stream state
+        _ = await parser.parse("<pushStream id=\"thoughts\"/>")
+
+        // Verify stream state is set
+        let streamBefore = await parser.getCurrentStream()
+        #expect(streamBefore == "thoughts")
+
+        // Parse malformed XML
+        _ = await parser.parse("<a exist=\"123\" noun=>broken")
+
+        // Stream state should persist during error
+        let streamDuringError = await parser.getCurrentStream()
+        #expect(streamDuringError == "thoughts", "Stream state should persist during error")
+
+        // Resync on prompt
+        _ = await parser.parse("<prompt>&gt;</prompt>")
+
+        // Stream state should be reset after resync
+        let streamAfterResync = await parser.getCurrentStream()
+        #expect(streamAfterResync == nil, "Stream state should be reset after resync")
+    }
+
+    /// Test error recovery from malformed attribute parsing
+    /// Handles errors that occur mid-attribute (missing quotes, unterminated values)
+    @Test func test_midAttributeError() async throws {
+        let parser = XMLStreamParser()
+
+        // Missing closing quote in attribute value
+        let malformedAttr1 = "<a exist=\"123 noun=\"gem\">text</a>"
+        let tags1 = await parser.parse(malformedAttr1)
+        #expect(tags1.isEmpty, "Malformed attribute should fail to parse")
+
+        // Resync and verify recovery
+        let resync1 = await parser.parse("<prompt>&gt;</prompt>")
+        #expect(!resync1.isEmpty)
+
+        // Unterminated attribute value at chunk boundary
+        let malformedAttr2 = "<a exist=\"123\" noun=\"gem"
+        let tags2 = await parser.parse(malformedAttr2)
+        #expect(tags2.isEmpty)
+
+        // Resync again
+        let resync2 = await parser.parse("<prompt>&gt;</prompt>")
+        #expect(!resync2.isEmpty)
+    }
+
+    /// Test error recovery from invalid entity references
+    /// Handles malformed entity escapes like incomplete &lt; or &#123
+    @Test func test_invalidEntityError() async throws {
+        let parser = XMLStreamParser()
+
+        // Incomplete entity reference (missing semicolon)
+        let malformedEntity1 = "<output>Text with &lt without semicolon</output>"
+        let tags1 = await parser.parse(malformedEntity1)
+
+        // XMLParser may handle this differently - either parse or error
+        // If error, should recover on resync
+        if tags1.isEmpty {
+            let resync = await parser.parse("<prompt>&gt;</prompt>")
+            #expect(!resync.isEmpty, "Should recover from invalid entity error")
+        }
+
+        // Invalid numeric entity
+        let malformedEntity2 = "<output>Text with &#invalid;</output>"
+        let tags2 = await parser.parse(malformedEntity2)
+
+        if tags2.isEmpty {
+            let resync = await parser.parse("<prompt>&gt;</prompt>")
+            #expect(!resync.isEmpty, "Should recover from invalid numeric entity")
+        }
+    }
+
+    /// Test recovery from most common protocol error: malformed item tag
+    /// Item tags with missing quotes are the most frequent real-world error
+    @Test func test_malformedItemTagError() async throws {
+        let parser = XMLStreamParser()
+
+        // Real-world error: missing closing quote in noun attribute
+        // This is the most common malformation seen from GemStone IV server
+        let malformedItem = "<a exist=\"12345\" noun=>a blue gem</a>"
+
+        let tags = await parser.parse(malformedItem)
+
+        // Should fail to parse
+        #expect(tags.isEmpty, "Malformed item tag should not parse")
+
+        // Should be in error recovery
+        let inErrorRecovery = await parser.isInErrorRecovery()
+        #expect(inErrorRecovery == true)
+
+        // Resync on prompt
+        let resyncChunk = "<prompt>&gt;</prompt>"
+        let resyncTags = await parser.parse(resyncChunk)
+
+        #expect(!resyncTags.isEmpty, "Should recover after prompt resync")
+        #expect(resyncTags[0].name == "prompt")
+    }
+
+    /// Test resync discards garbage before prompt tag
+    /// All malformed content buffered during error recovery should be discarded on resync
+    @Test func test_resyncIgnoresGarbageBeforePrompt() async throws {
+        let parser = XMLStreamParser()
+
+        // First chunk: malformed XML
+        let malformed1 = "<a exist=\"123\" noun=>broken</a>"
+        _ = await parser.parse(malformed1)
+
+        // Second chunk: more malformed content
+        let malformed2 = "<random garbage>not xml at all<<<<>>>"
+        _ = await parser.parse(malformed2)
+
+        // Third chunk: even more garbage
+        let malformed3 = "plain text without tags"
+        _ = await parser.parse(malformed3)
+
+        // Fourth chunk: prompt tag should resync and discard all previous garbage
+        let resyncChunk = "<prompt>&gt;</prompt>"
+        let tags = await parser.parse(resyncChunk)
+
+        // Should only return the prompt tag, no garbage
+        #expect(tags.count == 1, "Should only return prompt tag, discarding all buffered garbage")
+        #expect(tags[0].name == "prompt")
+
+        // Next valid chunk should parse normally
+        let validChunk = "<output>Clean slate</output>"
+        let validTags = await parser.parse(validChunk)
+
+        #expect(validTags.count == 1)
+        #expect(validTags[0].name == "output")
+        #expect(validTags[0].text == "Clean slate")
+    }
+
+    /// Test error recovery preserves stream state until resync
+    /// Stream context should persist during error buffering and reset on resync
+    @Test func test_streamStatePreservedDuringError() async throws {
+        let parser = XMLStreamParser()
+
+        // Set up stream context
+        _ = await parser.parse("<pushStream id=\"combat\"/>")
+
+        let streamBefore = await parser.getCurrentStream()
+        #expect(streamBefore == "combat")
+
+        // Parse malformed XML while in stream context
+        _ = await parser.parse("<a exist=\"123\" noun=>broken")
+
+        // Stream state should persist during error
+        let streamDuringError = await parser.getCurrentStream()
+        #expect(streamDuringError == "combat", "Stream state should persist during error buffering")
+
+        // Buffer more errors
+        _ = await parser.parse("more garbage")
+        _ = await parser.parse("<invalid>><<")
+
+        // Stream should still be set
+        let streamStillSet = await parser.getCurrentStream()
+        #expect(streamStillSet == "combat")
+
+        // Resync clears stream state
+        _ = await parser.parse("<prompt>&gt;</prompt>")
+
+        let streamAfterResync = await parser.getCurrentStream()
+        #expect(streamAfterResync == nil, "Stream state should be reset on resync")
+    }
+
+    /// Test multiple resyncs in sequence
+    /// Parser should handle repeated error->resync->error->resync cycles
+    @Test func test_multipleResyncCycles() async throws {
+        let parser = XMLStreamParser()
+
+        // First error-resync cycle
+        _ = await parser.parse("<a exist=\"123\" noun=>error1")
+        let resync1 = await parser.parse("<prompt>&gt;</prompt>")
+        #expect(!resync1.isEmpty)
+
+        // Second error-resync cycle
+        _ = await parser.parse("<b>unclosed error2")
+        let resync2 = await parser.parse("<prompt>&gt;</prompt>")
+        #expect(!resync2.isEmpty)
+
+        // Third error-resync cycle
+        _ = await parser.parse("<c attr=\"val>error3")
+        let resync3 = await parser.parse("<prompt>&gt;</prompt>")
+        #expect(!resync3.isEmpty)
+
+        // After multiple cycles, parser should still work normally
+        let validChunk = "<output>Normal text</output>"
+        let validTags = await parser.parse(validChunk)
+
+        #expect(validTags.count == 1)
+        #expect(validTags[0].name == "output")
+        #expect(validTags[0].text == "Normal text")
+    }
+
+    /// Test error recovery with chunked malformed XML
+    /// Malformed tag split across multiple chunks should still trigger recovery
+    @Test func test_chunkedMalformedXML() async throws {
+        let parser = XMLStreamParser()
+
+        // First chunk: start of malformed tag
+        _ = await parser.parse("<a exist=\"123\" no")
+
+        // Second chunk: completes malformed tag (missing quote in noun)
+        _ = await parser.parse("un=>broken</a>")
+
+        // Should be in error recovery
+        let inErrorRecovery = await parser.isInErrorRecovery()
+        #expect(inErrorRecovery == true, "Should detect error even when split across chunks")
+
+        // Resync
+        let resyncTags = await parser.parse("<prompt>&gt;</prompt>")
+        #expect(!resyncTags.isEmpty)
+    }
+
+    /// Test error logging captures error details
+    /// Last error should contain useful debugging information
+    @Test func test_errorLoggingCapturesDetails() async throws {
+        let parser = XMLStreamParser()
+
+        // Parse malformed XML
+        _ = await parser.parse("<a exist=\"123\" noun=>broken</a>")
+
+        // Get last error
+        let lastError = await parser.getLastError()
+
+        // Error should be captured
+        #expect(lastError != nil, "Error should be logged")
+
+        // Error description should be useful for debugging
+        // (XMLParser errors typically include line/column information)
+        if let error = lastError {
+            let description = error.localizedDescription
+            #expect(!description.isEmpty, "Error description should not be empty")
+        }
+    }
+
+    /// Test prompt tag in error buffer does not resync prematurely
+    /// Only prompt tag from NEW chunk should trigger resync, not buffered prompt
+    @Test func test_bufferedPromptDoesNotResync() async throws {
+        let parser = XMLStreamParser()
+
+        // Malformed XML containing a prompt tag (but prompt itself is part of the error)
+        let malformedWithPrompt = "<a exist=\"123\" noun=>broken<prompt>&gt;</prompt>"
+
+        _ = await parser.parse(malformedWithPrompt)
+
+        // Should be in error recovery (prompt in buffer shouldn't resync)
+        let inErrorRecovery = await parser.isInErrorRecovery()
+        #expect(inErrorRecovery == true, "Buffered prompt should not trigger resync")
+
+        // Only a NEW prompt chunk should resync
+        let newPrompt = "<prompt>&gt;</prompt>"
+        let tags = await parser.parse(newPrompt)
+
+        #expect(!tags.isEmpty)
+        #expect(tags[0].name == "prompt")
+
+        // Should be out of error recovery now
+        let afterResync = await parser.isInErrorRecovery()
+        #expect(afterResync == false)
+    }
+
+    /// Test error recovery clears character buffer
+    /// Accumulated character data during error should be discarded on resync
+    @Test func test_errorRecoveryClearsCharacterBuffer() async throws {
+        let parser = XMLStreamParser()
+
+        // Start parsing a tag
+        _ = await parser.parse("<output>Some text")
+
+        // Introduce error (unclosed tag)
+        _ = await parser.parse(" with more text but no closing tag")
+
+        // Add more garbage
+        _ = await parser.parse("random stuff")
+
+        // Resync
+        let resyncTags = await parser.parse("<prompt>&gt;</prompt>")
+
+        // Only prompt should be returned, no accumulated character data
+        #expect(resyncTags.count == 1)
+        #expect(resyncTags[0].name == "prompt")
+        #expect(resyncTags[0].text == ">")
+
+        // Next parse should start fresh
+        let nextTags = await parser.parse("<output>Fresh start</output>")
+        #expect(nextTags[0].text == "Fresh start", "Character buffer should be cleared after resync")
+    }
 }
