@@ -49,14 +49,22 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - `<popStream>` clears this to `nil`
     ///
     /// Stream IDs include: thoughts, speech, combat, arrivals, deaths, etc.
-    private var currentStream: String?
+    ///
+    /// SAFETY: Although marked nonisolated(unsafe), this is accessed from XMLParserDelegate
+    /// callbacks which are called synchronously during parse(). Since parse() is actor-isolated
+    /// and executes serially, only one parse() can run at a time, making this safe.
+    nonisolated(unsafe) private var currentStream: String?
 
     /// Whether the parser is currently inside a stream context.
     ///
     /// This flag persists across `parse()` calls and is updated by:
     /// - `<pushStream>` sets to `true`
     /// - `<popStream>` sets to `false`
-    private var inStream: Bool = false
+    ///
+    /// SAFETY: Although marked nonisolated(unsafe), this is accessed from XMLParserDelegate
+    /// callbacks which are called synchronously during parse(). Since parse() is actor-isolated
+    /// and executes serially, only one parse() can run at a time, making this safe.
+    nonisolated(unsafe) private var inStream: Bool = false
 
     /// Stack of tags being constructed across parse operations.
     ///
@@ -253,6 +261,42 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
             return
         }
 
+        // STREAM CONTROL: Handle pushStream tag
+        // <pushStream id="X"/> sets the current stream context
+        // This is a control directive, not a game tag, so return early
+        if elementName == "pushStream" {
+            // Extract stream ID from id attribute
+            // If no id attribute, set currentStream to nil (graceful handling)
+            currentStream = attributeDict["id"]
+            inStream = true
+
+            // Don't create a GameTag - this is a stream control directive
+            return
+        }
+
+        // STREAM CONTROL: Handle popStream opening tag (for self-closing tags)
+        // <popStream/> clears the current stream context
+        // For self-closing tags, XMLParser calls didStartElement first
+        // This is a control directive, not a game tag, so return early
+        if elementName == "popStream" {
+            currentStream = nil
+            inStream = false
+
+            // Don't create a GameTag - this is a stream control directive
+            return
+        }
+
+        // STREAM CONTROL: Handle clearStream tag
+        // <clearStream id="X"/> clears the current stream (like popStream)
+        // This is a control directive, not a game tag, so return early
+        if elementName == "clearStream" {
+            currentStream = nil
+            inStream = false
+
+            // Don't create a GameTag - this is a stream control directive
+            return
+        }
+
         // Handle accumulated character data before starting new tag
         if !currentCharacterBuffer.isEmpty {
             let textNode = GameTag(
@@ -310,6 +354,33 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     ) {
         // Ignore the synthetic root tag
         if elementName == "__synthetic_root__" {
+            return
+        }
+
+        // STREAM CONTROL: Handle popStream tag
+        // <popStream/> clears the current stream context
+        // This is a control directive, not a game tag, so return early
+        if elementName == "popStream" {
+            currentStream = nil
+            inStream = false
+
+            // Don't process as a normal tag - this is a stream control directive
+            return
+        }
+
+        // STREAM CONTROL: Handle pushStream closing tag (for self-closing tags)
+        // When <pushStream id="X"/> is self-closing, XMLParser calls didEndElement too
+        // We need to ignore it since we already handled it in didStartElement
+        if elementName == "pushStream" {
+            // Don't process as a normal tag - already handled in didStartElement
+            return
+        }
+
+        // STREAM CONTROL: Handle clearStream closing tag (for self-closing tags)
+        // When <clearStream id="X"/> is self-closing, XMLParser calls didEndElement too
+        // We need to ignore it since we already handled it in didStartElement
+        if elementName == "clearStream" {
+            // Don't process as a normal tag - already handled in didStartElement
             return
         }
 

@@ -1502,4 +1502,434 @@ struct XMLStreamParserTests {
         #expect(tags[0].attrs["exist"] == "123")
         #expect(tags[0].attrs["noun"] == "gem")
     }
+
+    // MARK: - Issue #10: Stream Control Tags Tests
+
+    /// Test pushStream sets currentStream and inStream flag
+    /// <pushStream id="thoughts"> should update persistent stream state
+    @Test func test_pushStream() async throws {
+        let parser = XMLStreamParser()
+
+        // Initial state should be clean
+        let initialStream = await parser.getCurrentStream()
+        let initialInStream = await parser.getInStream()
+        #expect(initialStream == nil)
+        #expect(initialInStream == false)
+
+        // Parse pushStream tag
+        _ = await parser.parse("<pushStream id=\"thoughts\"/>")
+
+        // Stream state should be updated
+        let currentStream = await parser.getCurrentStream()
+        let inStream = await parser.getInStream()
+        #expect(currentStream == "thoughts")
+        #expect(inStream == true)
+    }
+
+    /// Test popStream clears currentStream and inStream flag
+    /// <popStream/> should reset stream state to nil/false
+    @Test func test_popStream() async throws {
+        let parser = XMLStreamParser()
+
+        // First set up stream state with pushStream
+        _ = await parser.parse("<pushStream id=\"speech\"/>")
+
+        // Verify stream is active
+        let beforePop = await parser.getCurrentStream()
+        #expect(beforePop == "speech")
+
+        // Parse popStream tag
+        _ = await parser.parse("<popStream/>")
+
+        // Stream state should be cleared
+        let afterStream = await parser.getCurrentStream()
+        let afterInStream = await parser.getInStream()
+        #expect(afterStream == nil)
+        #expect(afterInStream == false)
+    }
+
+    /// Test stream state persists across multiple parse() calls
+    /// Critical: currentStream and inStream must remain set between chunks
+    @Test func test_streamStateAcrossCalls() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: pushStream
+        _ = await parser.parse("<pushStream id=\"combat\"/>")
+
+        // Verify state is set
+        let stream1 = await parser.getCurrentStream()
+        let inStream1 = await parser.getInStream()
+        #expect(stream1 == "combat")
+        #expect(inStream1 == true)
+
+        // Chunk 2: some game content
+        _ = await parser.parse("<output>You attack the orc!</output>")
+
+        // Stream state should still be active
+        let stream2 = await parser.getCurrentStream()
+        let inStream2 = await parser.getInStream()
+        #expect(stream2 == "combat")
+        #expect(inStream2 == true)
+
+        // Chunk 3: more content
+        _ = await parser.parse("<output>The orc dodges!</output>")
+
+        // Stream state should STILL be active
+        let stream3 = await parser.getCurrentStream()
+        let inStream3 = await parser.getInStream()
+        #expect(stream3 == "combat")
+        #expect(inStream3 == true)
+
+        // Chunk 4: popStream
+        _ = await parser.parse("<popStream/>")
+
+        // Now stream state should be cleared
+        let stream4 = await parser.getCurrentStream()
+        let inStream4 = await parser.getInStream()
+        #expect(stream4 == nil)
+        #expect(inStream4 == false)
+    }
+
+    /// Test nested stream tags (edge case)
+    /// pushStream inside pushStream should replace stream ID (not nest)
+    @Test func test_nestedStreams() async throws {
+        let parser = XMLStreamParser()
+
+        // First stream
+        _ = await parser.parse("<pushStream id=\"outer\"/>")
+        let stream1 = await parser.getCurrentStream()
+        #expect(stream1 == "outer")
+
+        // Second pushStream without popping first (edge case)
+        _ = await parser.parse("<pushStream id=\"inner\"/>")
+
+        // Should replace outer with inner (GemStone IV doesn't nest streams)
+        let stream2 = await parser.getCurrentStream()
+        #expect(stream2 == "inner")
+
+        // Single popStream should clear current stream
+        _ = await parser.parse("<popStream/>")
+        let stream3 = await parser.getCurrentStream()
+        #expect(stream3 == nil)
+    }
+
+    /// Test clearStream tag (if needed for protocol)
+    /// Some stream protocols support <clearStream id="X"/> to clear specific streams
+    @Test func test_clearStream() async throws {
+        let parser = XMLStreamParser()
+
+        // Set up stream
+        _ = await parser.parse("<pushStream id=\"thoughts\"/>")
+        let stream1 = await parser.getCurrentStream()
+        #expect(stream1 == "thoughts")
+
+        // clearStream should behave like popStream (clear current stream)
+        _ = await parser.parse("<clearStream id=\"thoughts\"/>")
+
+        // Stream should be cleared
+        let stream2 = await parser.getCurrentStream()
+        let inStream2 = await parser.getInStream()
+        #expect(stream2 == nil)
+        #expect(inStream2 == false)
+    }
+
+    /// Test tags between pushStream/popStream should be marked with stream ID
+    /// Tags parsed while inStream=true should have their streamId set
+    @Test func test_streamTagMarking() async throws {
+        let parser = XMLStreamParser()
+
+        // Parse complete stream with content
+        let xml = "<pushStream id=\"thoughts\"/><output>You think about magic.</output><popStream/>"
+        let tags = await parser.parse(xml)
+
+        // Should get the output tag (stream control tags don't become GameTags)
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "output")
+        #expect(tag.text == "You think about magic.")
+
+        // Tag should be marked with stream ID
+        // NOTE: This assumes GameTag will have a streamId property added in Issue #10
+        // For now, this test documents the expected behavior
+        // Uncomment when GameTag.streamId is added:
+        // #expect(tag.streamId == "thoughts")
+    }
+
+    /// Test multiple stream cycles work correctly
+    /// Multiple push/pop sequences should work independently
+    @Test func test_multipleStreamCycles() async throws {
+        let parser = XMLStreamParser()
+
+        // First stream cycle
+        _ = await parser.parse("<pushStream id=\"thoughts\"/>")
+        let stream1 = await parser.getCurrentStream()
+        #expect(stream1 == "thoughts")
+
+        _ = await parser.parse("<popStream/>")
+        let stream2 = await parser.getCurrentStream()
+        #expect(stream2 == nil)
+
+        // Second stream cycle
+        _ = await parser.parse("<pushStream id=\"speech\"/>")
+        let stream3 = await parser.getCurrentStream()
+        #expect(stream3 == "speech")
+
+        _ = await parser.parse("<popStream/>")
+        let stream4 = await parser.getCurrentStream()
+        #expect(stream4 == nil)
+
+        // Third stream cycle
+        _ = await parser.parse("<pushStream id=\"combat\"/>")
+        let stream5 = await parser.getCurrentStream()
+        #expect(stream5 == "combat")
+
+        _ = await parser.parse("<popStream/>")
+        let stream6 = await parser.getCurrentStream()
+        #expect(stream6 == nil)
+    }
+
+    /// Test incomplete stream across chunks
+    /// pushStream in chunk1, content in chunk2, popStream in chunk3
+    @Test func test_incompleteStreamAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: pushStream and partial content
+        _ = await parser.parse("<pushStream id=\"arrivals\"/><output>Teej arrives")
+
+        // Stream should be active
+        let stream1 = await parser.getCurrentStream()
+        #expect(stream1 == "arrivals")
+
+        // Chunk 2: More content
+        _ = await parser.parse(" from the north.</output>")
+
+        // Stream should still be active
+        let stream2 = await parser.getCurrentStream()
+        #expect(stream2 == "arrivals")
+
+        // Chunk 3: popStream
+        _ = await parser.parse("<popStream/>")
+
+        // Stream should be cleared
+        let stream3 = await parser.getCurrentStream()
+        #expect(stream3 == nil)
+    }
+
+    /// Test pushStream with different stream IDs
+    /// Verifies all common stream IDs work correctly
+    @Test func test_variousStreamIDs() async throws {
+        let parser = XMLStreamParser()
+
+        // Test common stream IDs from GemStone IV
+        let streamIDs = [
+            "thoughts",
+            "speech",
+            "combat",
+            "arrivals",
+            "deaths",
+            "atmospherics",
+            "whispers",
+            "room",
+            "damage"
+        ]
+
+        for streamID in streamIDs {
+            _ = await parser.parse("<pushStream id=\"\(streamID)\"/>")
+            let current = await parser.getCurrentStream()
+            #expect(current == streamID)
+
+            _ = await parser.parse("<popStream/>")
+            let cleared = await parser.getCurrentStream()
+            #expect(cleared == nil)
+        }
+    }
+
+    /// Test pushStream without id attribute (malformed)
+    /// Parser should handle gracefully - may set stream to empty string or nil
+    @Test func test_pushStreamWithoutID() async throws {
+        let parser = XMLStreamParser()
+
+        // pushStream without id attribute
+        _ = await parser.parse("<pushStream/>")
+
+        // Behavior: Should either set to nil/empty or ignore the tag
+        // Document current behavior (exact behavior TBD in implementation)
+        let stream = await parser.getCurrentStream()
+        let inStream = await parser.getInStream()
+
+        // For now, just verify it doesn't crash
+        // Implementation will decide: ignore tag, or set stream to ""
+        _ = stream
+        _ = inStream
+    }
+
+    /// Test popStream without matching pushStream (malformed)
+    /// Parser should handle gracefully - no-op when no stream is active
+    @Test func test_popStreamWithoutPush() async throws {
+        let parser = XMLStreamParser()
+
+        // Initial state: no stream
+        let initial = await parser.getCurrentStream()
+        #expect(initial == nil)
+
+        // popStream without prior pushStream
+        _ = await parser.parse("<popStream/>")
+
+        // Should remain nil (no-op)
+        let after = await parser.getCurrentStream()
+        #expect(after == nil)
+    }
+
+    /// Test stream control tags mixed with nested content
+    /// Real-world scenario: stream tags around nested game output
+    @Test func test_streamControlWithNestedTags() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<pushStream id=\"thoughts\"/>" +
+            "<output>You think <d><a exist=\"123\" noun=\"gem\">a blue gem</a></d> is valuable.</output>" +
+            "<popStream/>"
+
+        let tags = await parser.parse(xml)
+
+        // Verify stream was active during parse
+        // (After popStream, it should be cleared)
+        let finalStream = await parser.getCurrentStream()
+        #expect(finalStream == nil)
+
+        // Should get the output tag with nested structure
+        #expect(tags.count == 1)
+        let output = tags[0]
+        #expect(output.name == "output")
+        // Verify nesting preserved
+        #expect(output.children.count > 0)
+    }
+
+    /// Test stream control tags split across chunks
+    /// pushStream tag itself can be incomplete at chunk boundary
+    @Test func test_streamControlSplitAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // Chunk 1: Incomplete pushStream tag
+        _ = await parser.parse("<pushStream id=\"tho")
+
+        // Stream should NOT be active yet (tag incomplete)
+        let stream1 = await parser.getCurrentStream()
+        #expect(stream1 == nil)
+
+        // Chunk 2: Complete the pushStream tag
+        _ = await parser.parse("ughts\"/>")
+
+        // Now stream should be active
+        let stream2 = await parser.getCurrentStream()
+        let inStream2 = await parser.getInStream()
+        #expect(stream2 == "thoughts")
+        #expect(inStream2 == true)
+    }
+
+    /// Test realistic GemStone IV stream output
+    /// Complete real-world example with thoughts stream
+    @Test func test_realisticStreamOutput() async throws {
+        let parser = XMLStreamParser()
+
+        let gameOutput = "<pushStream id=\"thoughts\"/>" +
+            "<output>You focus your thoughts on the mystical</output>" +
+            "<output>You sense a powerful magical aura nearby</output>" +
+            "<popStream/>" +
+            "<prompt>&gt;</prompt>"
+
+        let tags = await parser.parse(gameOutput)
+
+        // Verify final state: stream should be cleared after popStream
+        let finalStream = await parser.getCurrentStream()
+        let finalInStream = await parser.getInStream()
+        #expect(finalStream == nil)
+        #expect(finalInStream == false)
+
+        // Should get 2 output tags + 1 prompt tag
+        #expect(tags.count == 3)
+        #expect(tags[0].name == "output")
+        #expect(tags[1].name == "output")
+        #expect(tags[2].name == "prompt")
+    }
+
+    /// Test multiple streams in sequence without interference
+    /// Different stream types should not interfere with each other
+    @Test func test_sequentialDifferentStreams() async throws {
+        let parser = XMLStreamParser()
+
+        // Thoughts stream
+        _ = await parser.parse("<pushStream id=\"thoughts\"/>")
+        let stream1 = await parser.getCurrentStream()
+        #expect(stream1 == "thoughts")
+        _ = await parser.parse("<output>Thinking...</output>")
+        _ = await parser.parse("<popStream/>")
+
+        let after1 = await parser.getCurrentStream()
+        #expect(after1 == nil)
+
+        // Speech stream
+        _ = await parser.parse("<pushStream id=\"speech\"/>")
+        let stream2 = await parser.getCurrentStream()
+        #expect(stream2 == "speech")
+        _ = await parser.parse("<output>Teej says, \"Hello!\"</output>")
+        _ = await parser.parse("<popStream/>")
+
+        let after2 = await parser.getCurrentStream()
+        #expect(after2 == nil)
+
+        // Combat stream
+        _ = await parser.parse("<pushStream id=\"combat\"/>")
+        let stream3 = await parser.getCurrentStream()
+        #expect(stream3 == "combat")
+        _ = await parser.parse("<output>You strike!</output>")
+        _ = await parser.parse("<popStream/>")
+
+        let after3 = await parser.getCurrentStream()
+        #expect(after3 == nil)
+    }
+
+    /// Test stream state with empty content between tags
+    /// Stream should remain active even with no content between push/pop
+    @Test func test_emptyStreamContent() async throws {
+        let parser = XMLStreamParser()
+
+        _ = await parser.parse("<pushStream id=\"test\"/>")
+        let stream1 = await parser.getCurrentStream()
+        #expect(stream1 == "test")
+
+        // Empty content (just whitespace)
+        _ = await parser.parse("   \n   ")
+
+        // Stream should still be active
+        let stream2 = await parser.getCurrentStream()
+        #expect(stream2 == "test")
+
+        _ = await parser.parse("<popStream/>")
+        let stream3 = await parser.getCurrentStream()
+        #expect(stream3 == nil)
+    }
+
+    /// Test stream control with performance (many stream cycles)
+    /// Parser should handle high-frequency stream switching efficiently
+    @Test func test_streamCyclePerformance() async throws {
+        let parser = XMLStreamParser()
+
+        let start = Date()
+
+        // 100 rapid stream cycles
+        for i in 0..<100 {
+            _ = await parser.parse("<pushStream id=\"stream\(i)\"/>")
+            _ = await parser.parse("<output>content</output>")
+            _ = await parser.parse("<popStream/>")
+        }
+
+        let duration = Date().timeIntervalSince(start)
+
+        // 100 stream cycles should complete quickly (< 100ms)
+        #expect(duration < 0.1, "100 stream cycles took \(duration)s, expected < 0.1s")
+
+        // Final state should be clean
+        let finalStream = await parser.getCurrentStream()
+        #expect(finalStream == nil)
+    }
 }
