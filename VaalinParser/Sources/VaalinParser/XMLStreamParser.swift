@@ -50,13 +50,46 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - `<popStream>` sets to `false`
     private var inStream: Bool = false
 
+    /// Stack of tags being constructed across parse operations.
+    ///
+    /// CRITICAL: This must persist across `parse()` calls because tags can
+    /// span multiple TCP chunks. For example:
+    /// - Chunk 1: `<a exist="123" noun="gem">blue`
+    /// - Chunk 2: ` gem</a>`
+    ///
+    /// The incomplete `<a>` tag from chunk 1 must remain on the stack
+    /// until chunk 2 provides the closing tag. Tags are pushed when opened
+    /// and popped when closed. Incomplete tags remain on stack until
+    /// subsequent chunks complete them.
+    private var tagStack: [GameTag] = []
+
+    /// Buffer for accumulating character data across multiple foundCharacters() callbacks.
+    ///
+    /// Foundation's XMLParser can split character data into multiple calls.
+    /// This buffer accumulates all text for the current tag until didEndElement() is called.
+    /// - `didStartElement()` → reset `characterBuffer = ""`
+    /// - `foundCharacters()` → append to `characterBuffer`
+    /// - `didEndElement()` → assign `characterBuffer` to tag's text, then clear
+    private var characterBuffer: String = ""
+
+    /// Buffer for incomplete XML from previous chunk.
+    ///
+    /// When a chunk ends mid-tag (e.g., `<a exist="123" no`), we cannot
+    /// parse it until the next chunk arrives. This buffer stores the incomplete
+    /// XML and prepends it to the next chunk.
+    ///
+    /// Example:
+    /// - Chunk 1: `text<a exist=` (incomplete, buffered)
+    /// - Chunk 2: `"123">gem</a>` (prepend buffer, parse full tag)
+    private var xmlBuffer: String = ""
+
     // MARK: - Per-Parse State
 
-    /// Stack of tags being constructed during the current parse operation.
+    /// Completed tags from the current parse operation.
     ///
-    /// This is reset at the start of each `parse()` call. It tracks the
-    /// nesting hierarchy of tags within a single chunk.
-    private var tagStack: [GameTag] = []
+    /// This is reset at the start of each `parse()` call and returned
+    /// as the result. Only fully closed tags are added here.
+    private var parsedTags: [GameTag] = []
 
     // MARK: - Initialization
 
@@ -73,24 +106,43 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// State (stream context, nesting) persists across calls, allowing tags that
     /// span multiple chunks to be parsed correctly.
     ///
+    /// ## Buffering Strategy
+    ///
+    /// The parser maintains multiple buffers to handle TCP fragmentation:
+    /// - `xmlBuffer`: Stores incomplete XML from previous chunk
+    /// - `tagStack`: Maintains open tags across chunks
+    /// - `characterBuffer`: Accumulates character data split across callbacks
+    ///
+    /// Incomplete tags at chunk boundaries remain on the stack until
+    /// subsequent chunks complete them. Only fully closed tags are returned.
+    ///
     /// - Parameter chunk: A string containing XML data (may be incomplete)
     /// - Returns: An array of parsed `GameTag` elements from this chunk
     ///
     /// - Note: Returns empty array in skeleton implementation.
     ///         Actual parsing logic will be added in issues #7-#12.
+    ///         Implementation will prepend `xmlBuffer` to chunk and wrap
+    ///         in `<root>` tag to satisfy XMLParser requirements.
     ///
     /// ## Example
     ///
     /// ```swift
     /// // First chunk: incomplete tag
-    /// let tags1 = await parser.parse("<pushStream id=\"thoughts\">You")
+    /// let tags1 = await parser.parse("<a exist=\"123\" noun=\"gem\">blue")
+    /// // Returns [] - tag not complete yet
     ///
     /// // Second chunk: completes the tag
-    /// let tags2 = await parser.parse(" think.</popStream>")
+    /// let tags2 = await parser.parse(" gem</a>")
+    /// // Returns [GameTag(name: "a", text: "blue gem", ...)]
     /// ```
     public func parse(_ chunk: String) async -> [GameTag] {
         // TODO: Implement parsing logic in issues #7-#12
-        // For now, return empty array to satisfy type system
+        // Implementation will:
+        // 1. Reset parsedTags = []
+        // 2. Prepend xmlBuffer to chunk
+        // 3. Wrap in <root> tag for XMLParser
+        // 4. Create XMLParser instance and parse
+        // 5. Return parsedTags
         return []
     }
 
