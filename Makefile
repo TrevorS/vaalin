@@ -30,39 +30,26 @@ lint:
 
 # Run all tests with code coverage
 test:
-	@echo "🧪 Running tests with coverage..."
-	@rm -rf TestResults.xcresult
-	xcodebuild test \
-		-scheme Vaalin \
-		-destination 'platform=macOS' \
-		-enableCodeCoverage YES \
-		-resultBundlePath TestResults.xcresult
-	@echo "✅ Tests complete. View coverage: xcrun xccov view --report TestResults.xcresult"
+	@echo "🧪 Running tests..."
+	swift test --enable-code-coverage
+	@echo "✅ Tests complete"
 
 # Build for development (Debug configuration)
 build:
 	@echo "🔨 Building Vaalin (Debug)..."
-	xcodebuild build \
-		-scheme Vaalin \
-		-destination 'platform=macOS' \
-		-configuration Debug
+	swift build
 
 # Clean build artifacts and derived data
 clean:
 	@echo "🧹 Cleaning build artifacts..."
-	xcodebuild clean \
-		-scheme Vaalin \
-		-destination 'platform=macOS'
+	rm -rf .build
 	@echo "🧹 Cleaning derived data..."
 	rm -rf ~/Library/Developer/Xcode/DerivedData/Vaalin-*
-	@echo "🧹 Cleaning test results..."
-	rm -rf TestResults.xcresult
 	@echo "✅ Clean complete"
 
 # Generate DocC documentation
 docs:
 	@echo "📚 Generating DocC documentation..."
-	xcodebuild docbuild \
-		-scheme Vaalin \
-		-destination 'platform=macOS'
-	@echo "✅ Documentation built. Open in Xcode: Product > Build Documentation"
+	@echo "⚠️  DocC generation requires opening Package.swift in Xcode"
+	@echo "    Then: Product > Build Documentation"
+	@echo "    SPM doesn't support DocC from CLI yet"
