@@ -739,3 +739,5 @@ rm -rf .build/
 - `docs/tasks.md` - Detailed task breakdown (source for GitHub issues) (2620 lines)
 - `docs/QUICKSTART.md` - GitHub issues quickstart guide
 - `docs/github-issues-summary.md` - Summary of issue conversion
+- always remember to examine ../illthorn for details and inspiration (that's the application we are porting from electron + typescript to swift ui
+- there are project specific agents available to be used, @.claude/agents/ we should use them during implementation, planning, and testing, where appropriate
