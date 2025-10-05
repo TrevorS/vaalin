@@ -1929,4 +1929,888 @@ struct XMLStreamParserTests {
         let finalStream = await parser.getCurrentStream()
         #expect(finalStream == nil)
     }
+
+    // MARK: - Issue #11: Critical Game Tags Tests
+
+    // MARK: Anchor Tag (<a>) Tests
+
+    /// Test parsing anchor tag with exist and noun attributes
+    /// <a exist="12345" noun="gem">blue gem</a> should capture item data
+    @Test func test_parseAnchorTag() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<a exist=\"12345\" noun=\"gem\">a blue gem</a>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "a")
+        #expect(tag.text == "a blue gem")
+        #expect(tag.attrs["exist"] == "12345")
+        #expect(tag.attrs["noun"] == "gem")
+        #expect(tag.children.isEmpty)
+        #expect(tag.state == .closed)
+    }
+
+    /// Test parsing anchor tag with only exist attribute
+    /// Anchor without noun (flavor text pattern)
+    @Test func test_parseAnchorTagWithOnlyExist() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<a exist=\"99999\">mysterious object</a>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "a")
+        #expect(tag.text == "mysterious object")
+        #expect(tag.attrs["exist"] == "99999")
+        #expect(tag.attrs["noun"] == nil)
+    }
+
+    /// Test parsing anchor tag with all three attributes (exist, noun, coord)
+    /// Clickable item with command coordination
+    @Test func test_parseAnchorTagWithAllAttributes() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<a exist=\"12345\" noun=\"gem\" coord=\"5,10\">blue gem</a>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "a")
+        #expect(tag.text == "blue gem")
+        #expect(tag.attrs["exist"] == "12345")
+        #expect(tag.attrs["noun"] == "gem")
+        #expect(tag.attrs["coord"] == "5,10")
+    }
+
+    /// Test parsing anchor tag without attributes (flavor text)
+    /// <a>some text</a> - used for styling without item semantics
+    @Test func test_parseAnchorTagWithoutAttributes() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<a>ancient runes</a>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "a")
+        #expect(tag.text == "ancient runes")
+        #expect(tag.attrs.isEmpty)
+    }
+
+    /// Test parsing anchor tag nested in bold tag (monster pattern)
+    /// <b><a exist="..." noun="...">monster</a></b> is common for creatures
+    @Test func test_parseAnchorTagNestedInBold() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<b><a exist=\"67890\" noun=\"orc\">a massive orc</a></b>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let boldTag = tags[0]
+        #expect(boldTag.name == "b")
+        #expect(boldTag.children.count == 1)
+
+        let anchorTag = boldTag.children[0]
+        #expect(anchorTag.name == "a")
+        #expect(anchorTag.text == "a massive orc")
+        #expect(anchorTag.attrs["exist"] == "67890")
+        #expect(anchorTag.attrs["noun"] == "orc")
+    }
+
+    /// Test parsing anchor tag nested in dialog tag
+    /// <d><a>item</a></d> - clickable item in dialog context
+    @Test func test_parseAnchorTagNestedInDialog() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<d cmd=\"look at sword\"><a exist=\"111\" noun=\"sword\">silver sword</a></d>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let dialogTag = tags[0]
+        #expect(dialogTag.name == "d")
+        #expect(dialogTag.attrs["cmd"] == "look at sword")
+        #expect(dialogTag.children.count == 1)
+
+        let anchorTag = dialogTag.children[0]
+        #expect(anchorTag.name == "a")
+        #expect(anchorTag.text == "silver sword")
+        #expect(anchorTag.attrs["exist"] == "111")
+        #expect(anchorTag.attrs["noun"] == "sword")
+    }
+
+    /// Test parsing anchor tag with empty text content
+    /// <a exist="123" noun="gem"></a> - item reference without display text
+    @Test func test_parseAnchorTagWithEmptyContent() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<a exist=\"123\" noun=\"gem\"></a>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "a")
+        #expect(tag.text == nil || tag.text == "")
+        #expect(tag.attrs["exist"] == "123")
+        #expect(tag.attrs["noun"] == "gem")
+    }
+
+    /// Test parsing self-closing anchor tag
+    /// <a exist="123" noun="gem"/> - self-closing variant
+    @Test func test_parseAnchorTagSelfClosing() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<a exist=\"456\" noun=\"coin\"/>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "a")
+        #expect(tag.attrs["exist"] == "456")
+        #expect(tag.attrs["noun"] == "coin")
+        #expect(tag.state == .closed)
+    }
+
+    // MARK: Bold Tag (<b>) Tests
+
+    /// Test parsing basic bold tag
+    /// <b>text</b> should mark text as bold
+    @Test func test_parseBoldTag() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<b>important text</b>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "b")
+        #expect(tag.text == "important text")
+        #expect(tag.attrs.isEmpty)
+        #expect(tag.state == .closed)
+    }
+
+    /// Test parsing bold tag with nested anchor (monster pattern)
+    /// <b><a exist="..." noun="...">monster</a></b> - bold monster names
+    @Test func test_parseBoldTagWithNestedAnchor() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<b><a exist=\"777\" noun=\"troll\">a cave troll</a></b>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let boldTag = tags[0]
+        #expect(boldTag.name == "b")
+        #expect(boldTag.children.count == 1)
+
+        let anchorTag = boldTag.children[0]
+        #expect(anchorTag.name == "a")
+        #expect(anchorTag.text == "a cave troll")
+        #expect(anchorTag.attrs["exist"] == "777")
+        #expect(anchorTag.attrs["noun"] == "troll")
+    }
+
+    /// Test parsing empty bold tag
+    /// <b></b> - empty bold container
+    @Test func test_parseBoldTagEmpty() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<b></b>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "b")
+        #expect(tag.text == nil || tag.text == "")
+    }
+
+    /// Test parsing multiple bold sections
+    /// Multiple <b> tags in sequence
+    @Test func test_parseMultipleBoldSections() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<b>first</b> normal <b>second</b> text <b>third</b>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 5) // b, :text, b, :text, b (last :text after "third" is missing)
+        #expect(tags[0].name == "b")
+        #expect(tags[0].text == "first")
+        #expect(tags[1].name == ":text")
+        #expect(tags[1].text == " normal ")
+        #expect(tags[2].name == "b")
+        #expect(tags[2].text == "second")
+        #expect(tags[3].name == ":text")
+        #expect(tags[3].text == " text ")
+        #expect(tags[4].name == "b")
+        #expect(tags[4].text == "third")
+    }
+
+    /// Test parsing bold tag nested in other tags
+    /// <output><b>bold text</b></output>
+    @Test func test_parseBoldTagNestedInOther() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<output><b>bold content</b></output>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let outputTag = tags[0]
+        #expect(outputTag.name == "output")
+        #expect(outputTag.children.count == 1)
+
+        let boldTag = outputTag.children[0]
+        #expect(boldTag.name == "b")
+        #expect(boldTag.text == "bold content")
+    }
+
+    /// Test parsing self-closing bold tag
+    /// <b/> - self-closing variant (should work like opening tag)
+    @Test func test_parseBoldTagSelfClosing() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<b/>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "b")
+        #expect(tag.state == .closed)
+    }
+
+    // MARK: Dialog/Command Tag (<d>) Tests
+
+    /// Test parsing dialog tag with cmd attribute
+    /// <d cmd="look at gem">blue gem</d> - clickable command
+    @Test func test_parseDialogTagWithCmd() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<d cmd=\"look at gem\">blue gem</d>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "d")
+        #expect(tag.text == "blue gem")
+        #expect(tag.attrs["cmd"] == "look at gem")
+        #expect(tag.state == .closed)
+    }
+
+    /// Test parsing dialog tag without cmd attribute
+    /// <d>text</d> - text is the command
+    @Test func test_parseDialogTagWithoutCmd() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<d>north</d>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "d")
+        #expect(tag.text == "north")
+        #expect(tag.attrs["cmd"] == nil)
+    }
+
+    /// Test parsing dialog tag with empty text but cmd attribute
+    /// <d cmd="stand"></d> - command without display text
+    @Test func test_parseDialogTagEmptyTextWithCmd() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<d cmd=\"stand\"></d>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "d")
+        #expect(tag.text == nil || tag.text == "")
+        #expect(tag.attrs["cmd"] == "stand")
+    }
+
+    /// Test parsing movement commands in dialog tags
+    /// Common pattern: <d cmd="go north">north</d>
+    @Test func test_parseDialogTagMovementCommand() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<d cmd=\"go north\">north</d>, <d cmd=\"go south\">south</d>, <d cmd=\"go east\">east</d>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 5) // d, :text, d, :text, d
+        #expect(tags[0].name == "d")
+        #expect(tags[0].text == "north")
+        #expect(tags[0].attrs["cmd"] == "go north")
+
+        #expect(tags[2].name == "d")
+        #expect(tags[2].text == "south")
+        #expect(tags[2].attrs["cmd"] == "go south")
+
+        #expect(tags[4].name == "d")
+        #expect(tags[4].text == "east")
+        #expect(tags[4].attrs["cmd"] == "go east")
+    }
+
+    /// Test parsing action commands in dialog tags
+    /// <d cmd="look at X">look at X</d> pattern
+    @Test func test_parseDialogTagActionCommand() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<d cmd=\"look at altar\">look at altar</d>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "d")
+        #expect(tag.text == "look at altar")
+        #expect(tag.attrs["cmd"] == "look at altar")
+    }
+
+    /// Test parsing dialog tag nested in style tags
+    /// <style id=""><d cmd="...">text</d></style>
+    @Test func test_parseDialogTagNestedInStyle() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<style id=\"\"><d cmd=\"go west\">west</d></style>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let styleTag = tags[0]
+        #expect(styleTag.name == "style")
+        #expect(styleTag.children.count == 1)
+
+        let dialogTag = styleTag.children[0]
+        #expect(dialogTag.name == "d")
+        #expect(dialogTag.text == "west") // Text content, not cmd attribute
+        #expect(dialogTag.attrs["cmd"] == "go west")
+    }
+
+    /// Test parsing self-closing dialog tag with cmd attribute
+    /// <d cmd="stand"/> - self-closing command
+    @Test func test_parseDialogTagSelfClosingWithCmd() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<d cmd=\"kneel\"/>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "d")
+        #expect(tag.attrs["cmd"] == "kneel")
+        #expect(tag.state == .closed)
+    }
+
+    // MARK: Preset Tag Tests
+
+    /// Test parsing preset tag with common preset IDs
+    /// <preset id="speech">You say, "Hello"</preset>
+    @Test func test_parsePresetTagWithSpeech() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset id=\"speech\">You say, \"Hello\"</preset>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.text == "You say, \"Hello\"")
+        #expect(tag.attrs["id"] == "speech")
+    }
+
+    /// Test parsing preset tag with whisper ID
+    /// <preset id="whisper">Teej whispers, "Secret"</preset>
+    @Test func test_parsePresetTagWithWhisper() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset id=\"whisper\">Teej whispers, \"Secret\"</preset>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.text == "Teej whispers, \"Secret\"")
+        #expect(tag.attrs["id"] == "whisper")
+    }
+
+    /// Test parsing preset tag with thought ID
+    /// <preset id="thought">You ponder the situation</preset>
+    @Test func test_parsePresetTagWithThought() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset id=\"thought\">You ponder the situation</preset>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.text == "You ponder the situation")
+        #expect(tag.attrs["id"] == "thought")
+    }
+
+    /// Test parsing preset tag with damage ID
+    /// <preset id="damage">You take 15 points of damage</preset>
+    @Test func test_parsePresetTagWithDamage() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset id=\"damage\">You take 15 points of damage</preset>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.text == "You take 15 points of damage")
+        #expect(tag.attrs["id"] == "damage")
+    }
+
+    /// Test parsing preset tag with heal ID
+    /// <preset id="heal">You feel better!</preset>
+    @Test func test_parsePresetTagWithHeal() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset id=\"heal\">You feel better!</preset>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.text == "You feel better!")
+        #expect(tag.attrs["id"] == "heal")
+    }
+
+    /// Test parsing preset tag with empty id
+    /// <preset id="">text</preset> - empty preset style
+    @Test func test_parsePresetTagWithEmptyId() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset id=\"\">plain text</preset>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.text == "plain text")
+        #expect(tag.attrs["id"] == "")
+    }
+
+    /// Test parsing preset tag without id attribute
+    /// <preset>text</preset> - no styling specified
+    @Test func test_parsePresetTagWithoutId() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset>unstyled text</preset>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.text == "unstyled text")
+        #expect(tag.attrs["id"] == nil)
+    }
+
+    /// Test parsing preset tag with nested tags inside
+    /// <preset id="speech"><b>You shout</b>, "Help!"</preset>
+    @Test func test_parsePresetTagWithNestedTags() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<preset id=\"speech\"><b>You shout</b>, \"Help!\"</preset>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let presetTag = tags[0]
+        #expect(presetTag.name == "preset")
+        #expect(presetTag.attrs["id"] == "speech")
+        #expect(presetTag.children.count == 2) // <b> and :text
+
+        #expect(presetTag.children[0].name == "b")
+        #expect(presetTag.children[0].text == "You shout")
+        #expect(presetTag.children[1].name == ":text")
+        #expect(presetTag.children[1].text == ", \"Help!\"")
+    }
+
+    /// Test parsing multiple sequential preset tags
+    /// Multiple presets in sequence
+    @Test func test_parseMultipleSequentialPresets() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<preset id=\"speech\">Hello</preset><preset id=\"whisper\">Secret</preset>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 2)
+        #expect(tags[0].name == "preset")
+        #expect(tags[0].attrs["id"] == "speech")
+        #expect(tags[0].text == "Hello")
+
+        #expect(tags[1].name == "preset")
+        #expect(tags[1].attrs["id"] == "whisper")
+        #expect(tags[1].text == "Secret")
+    }
+
+    /// Test parsing self-closing preset tag
+    /// <preset id="damage"/> - self-closing variant
+    @Test func test_parsePresetTagSelfClosing() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<preset id=\"damage\"/>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "preset")
+        #expect(tag.attrs["id"] == "damage")
+        #expect(tag.state == .closed)
+    }
+
+    // MARK: Style Tag Tests
+
+    /// Test parsing style tag with id="" (most common)
+    /// <style id="">text</style> - room descriptions
+    @Test func test_parseStyleTagWithEmptyId() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<style id=\"\">Room description text</style>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "style")
+        #expect(tag.text == "Room description text")
+        #expect(tag.attrs["id"] == "")
+    }
+
+    /// Test parsing style tag without id attribute
+    /// <style>text</style> - default styling
+    @Test func test_parseStyleTagWithoutId() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<style>Default styled text</style>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "style")
+        #expect(tag.text == "Default styled text")
+        #expect(tag.attrs["id"] == nil)
+    }
+
+    /// Test parsing style tag with non-empty id
+    /// <style id="roomName">The Great Hall</style>
+    @Test func test_parseStyleTagWithNonEmptyId() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<style id=\"roomName\">The Great Hall</style>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "style")
+        #expect(tag.text == "The Great Hall")
+        #expect(tag.attrs["id"] == "roomName")
+    }
+
+    /// Test parsing style tag with whitespace preservation (critical!)
+    /// Whitespace in style tags must be preserved for room formatting
+    @Test func test_parseStyleTagWithWhitespacePreservation() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<style id=\"\">  You are in a grand hall.  </style>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "style")
+        #expect(tag.text == "  You are in a grand hall.  ")
+    }
+
+    /// Test parsing self-closing style tag (should collect content)
+    /// <style id="" /> - self-closing as mode setter
+    @Test func test_parseStyleTagSelfClosing() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<style id=\"\"/>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "style")
+        #expect(tag.attrs["id"] == "")
+        #expect(tag.state == .closed)
+    }
+
+    /// Test parsing style tag with nested bold and links
+    /// <style id=""><b>Important</b> <a>item</a></style>
+    @Test func test_parseStyleTagWithNestedBoldAndLinks() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<style id=\"\"><b>The vault door</b> is <a exist=\"999\" noun=\"door\">here</a>.</style>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let styleTag = tags[0]
+        #expect(styleTag.name == "style")
+        #expect(styleTag.attrs["id"] == "")
+        #expect(styleTag.children.count == 4) // b, :text, a, :text
+
+        #expect(styleTag.children[0].name == "b")
+        #expect(styleTag.children[0].text == "The vault door")
+        #expect(styleTag.children[1].name == ":text")
+        #expect(styleTag.children[1].text == " is ")
+        #expect(styleTag.children[2].name == "a")
+        #expect(styleTag.children[2].text == "here")
+        #expect(styleTag.children[3].name == ":text")
+        #expect(styleTag.children[3].text == ".")
+    }
+
+    /// Test parsing style tag with multiline content
+    /// Style tags often contain multiline room descriptions
+    @Test func test_parseStyleTagMultilineContent() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<style id=\"\">Line 1\nLine 2\nLine 3</style>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "style")
+        #expect(tag.text == "Line 1\nLine 2\nLine 3")
+    }
+
+    /// Test parsing sequential style tags (room description pattern)
+    /// Multiple style tags for room name, description, exits
+    @Test func test_parseSequentialStyleTags() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<style id=\"roomName\">Great Hall</style>" +
+                  "<style id=\"\">A magnificent chamber with vaulted ceilings.</style>" +
+                  "<style id=\"\">Obvious exits: north, south, east, west.</style>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 3)
+
+        #expect(tags[0].name == "style")
+        #expect(tags[0].attrs["id"] == "roomName")
+        #expect(tags[0].text == "Great Hall")
+
+        #expect(tags[1].name == "style")
+        #expect(tags[1].attrs["id"] == "")
+        #expect(tags[1].text == "A magnificent chamber with vaulted ceilings.")
+
+        #expect(tags[2].name == "style")
+        #expect(tags[2].attrs["id"] == "")
+        #expect(tags[2].text == "Obvious exits: north, south, east, west.")
+    }
+
+    // MARK: Output Tag Tests
+
+    /// Test parsing output tag with class="mono"
+    /// <output class="mono">monospaced text</output>
+    @Test func test_parseOutputTagMonospace() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<output class=\"mono\">  ASCII art  </output>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "output")
+        #expect(tag.text == "  ASCII art  ")
+        #expect(tag.attrs["class"] == "mono")
+    }
+
+    /// Test parsing output tag with class="" (empty class)
+    /// <output class="">normal output</output>
+    @Test func test_parseOutputTagWithEmptyClass() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<output class=\"\">normal output</output>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "output")
+        #expect(tag.text == "normal output")
+        #expect(tag.attrs["class"] == "")
+    }
+
+    /// Test parsing output tag without class attribute
+    /// <output>text</output> - default output
+    @Test func test_parseOutputTagWithoutClass() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<output>Default output text</output>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "output")
+        #expect(tag.text == "Default output text")
+        #expect(tag.attrs["class"] == nil)
+    }
+
+    /// Test parsing output tag with whitespace preservation for mono
+    /// Monospace output must preserve exact spacing (ASCII art, tables)
+    @Test func test_parseOutputTagMonospaceWhitespacePreservation() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<output class=\"mono\">  Col1    Col2    Col3  </output>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "output")
+        #expect(tag.text == "  Col1    Col2    Col3  ")
+        #expect(tag.attrs["class"] == "mono")
+    }
+
+    /// Test parsing self-closing output tag as mode setter
+    /// <output class="mono"/> - sets mode without content
+    @Test func test_parseOutputTagSelfClosing() async throws {
+        let parser = XMLStreamParser()
+
+        let tags = await parser.parse("<output class=\"mono\"/>")
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "output")
+        #expect(tag.attrs["class"] == "mono")
+        #expect(tag.state == .closed)
+    }
+
+    /// Test parsing multiple sequential output tags
+    /// Multiple output sections in sequence
+    @Test func test_parseMultipleSequentialOutputs() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<output>First line</output><output>Second line</output><output>Third line</output>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 3)
+        #expect(tags[0].name == "output")
+        #expect(tags[0].text == "First line")
+        #expect(tags[1].name == "output")
+        #expect(tags[1].text == "Second line")
+        #expect(tags[2].name == "output")
+        #expect(tags[2].text == "Third line")
+    }
+
+    /// Test parsing output tag with nested tags
+    /// <output>You see <a>item</a> here</output>
+    @Test func test_parseOutputTagWithNestedTags() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<output>You see <a exist=\"123\" noun=\"gem\">a gem</a> here.</output>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let outputTag = tags[0]
+        #expect(outputTag.name == "output")
+        #expect(outputTag.children.count == 3) // :text, a, :text
+
+        #expect(outputTag.children[0].name == ":text")
+        #expect(outputTag.children[0].text == "You see ")
+        #expect(outputTag.children[1].name == "a")
+        #expect(outputTag.children[1].text == "a gem")
+        #expect(outputTag.children[2].name == ":text")
+        #expect(outputTag.children[2].text == " here.")
+    }
+
+    /// Test parsing output tag with multiline content
+    /// Output can span multiple lines
+    @Test func test_parseOutputTagMultiline() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<output>Line 1\nLine 2\nLine 3</output>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        let tag = tags[0]
+        #expect(tag.name == "output")
+        #expect(tag.text == "Line 1\nLine 2\nLine 3")
+    }
+
+    /// Test parsing output tag with class attribute variations
+    /// Different class values for styling
+    @Test func test_parseOutputTagVariousClasses() async throws {
+        let parser = XMLStreamParser()
+
+        // Test various class values
+        let classes = ["mono", "bold", "italic", "underline", ""]
+
+        for className in classes {
+            let xml = "<output class=\"\(className)\">text</output>"
+            let tags = await parser.parse(xml)
+
+            #expect(tags.count == 1)
+            let tag = tags[0]
+            #expect(tag.name == "output")
+            #expect(tag.attrs["class"] == className)
+        }
+    }
+
+    // MARK: Complex Cross-Tag Integration Tests
+
+    /// Test realistic GemStone IV room description with all critical tags
+    /// Complete room description using style, d, a, b tags
+    @Test func test_realisticRoomDescriptionWithAllTags() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<style id=\"roomName\"><b>The Great Hall</b></style>" +
+                  "<style id=\"\">You stand in a magnificent hall. " +
+                  "<d cmd=\"go north\">north</d>, <d cmd=\"go south\">south</d>. " +
+                  "You see <a exist=\"123\" noun=\"gem\">a blue gem</a> and " +
+                  "<b><a exist=\"456\" noun=\"troll\">a cave troll</a></b> here.</style>" +
+                  "<output class=\"mono\">  HP: 100/100  </output>"
+
+        let tags = await parser.parse(xml)
+
+        // Should get: 2 style tags + 1 output tag
+        #expect(tags.count == 3)
+
+        // First style tag: room name with bold
+        #expect(tags[0].name == "style")
+        #expect(tags[0].attrs["id"] == "roomName")
+        #expect(tags[0].children.count == 1)
+        #expect(tags[0].children[0].name == "b")
+        #expect(tags[0].children[0].text == "The Great Hall")
+
+        // Second style tag: room description with nested tags
+        #expect(tags[1].name == "style")
+        #expect(tags[1].attrs["id"] == "")
+        // Should have complex nested structure: :text, d, :text, d, :text, a, :text, b, :text
+        #expect(tags[1].children.count > 0)
+
+        // Third tag: output with mono class
+        #expect(tags[2].name == "output")
+        #expect(tags[2].attrs["class"] == "mono")
+        #expect(tags[2].text == "  HP: 100/100  ")
+    }
+
+    /// Test combat output with preset, bold, and anchor tags
+    /// <preset id="damage"><b><a>target</a></b> takes damage!</preset>
+    @Test func test_realisticCombatOutputWithAllTags() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<preset id=\"damage\">You swing at <b><a exist=\"999\" noun=\"orc\">an orc</a></b>!</preset>" +
+                  "<output>The orc takes 25 points of damage.</output>"
+
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 2)
+
+        // Preset tag with nested bold and anchor
+        let presetTag = tags[0]
+        #expect(presetTag.name == "preset")
+        #expect(presetTag.attrs["id"] == "damage")
+        #expect(presetTag.children.count == 3) // :text, b, :text
+
+        let boldTag = presetTag.children[1]
+        #expect(boldTag.name == "b")
+        #expect(boldTag.children.count == 1)
+
+        let anchorTag = boldTag.children[0]
+        #expect(anchorTag.name == "a")
+        #expect(anchorTag.text == "an orc")
+
+        // Output tag
+        let outputTag = tags[1]
+        #expect(outputTag.name == "output")
+        #expect(outputTag.text == "The orc takes 25 points of damage.")
+    }
+
+    /// Test all 6 critical tags in a single complex chunk
+    /// Integration test with anchor, bold, dialog, preset, style, output
+    @Test func test_allSixCriticalTagsInOneChunk() async throws {
+        let parser = XMLStreamParser()
+
+        let xml = "<style id=\"\">You are in <b>The Vault</b>.</style>" +
+                  "<output>You see <a exist=\"111\" noun=\"gem\">a gem</a>.</output>" +
+                  "<preset id=\"speech\">Teej says, \"<d cmd=\"look at gem\">Look here</d>!\"</preset>"
+
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 3)
+
+        // Verify all tag types present
+        #expect(tags[0].name == "style")
+        #expect(tags[1].name == "output")
+        #expect(tags[2].name == "preset")
+
+        // Verify nested structures
+        let styleChildren = tags[0].children
+        #expect(styleChildren.contains { $0.name == "b" })
+
+        let outputChildren = tags[1].children
+        #expect(outputChildren.contains { $0.name == "a" })
+
+        let presetChildren = tags[2].children
+        #expect(presetChildren.contains { $0.name == "d" })
+    }
 }
