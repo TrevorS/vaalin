@@ -1,7 +1,7 @@
 # Vaalin Makefile
 # Standard development commands for SwiftUI macOS project
 
-.PHONY: help format lint test build clean docs
+.PHONY: help format lint test build clean
 
 # Default target
 help:
@@ -12,7 +12,6 @@ help:
 	@echo "  make test      - Run all tests with coverage"
 	@echo "  make build     - Build for development (Debug configuration)"
 	@echo "  make clean     - Clean build artifacts and derived data"
-	@echo "  make docs      - Generate DocC documentation"
 	@echo ""
 	@echo "Requirements:"
 	@echo "  - Xcode 16.0+ (for macOS 26 APIs and Swift 5.9+)"
@@ -46,10 +45,3 @@ clean:
 	@echo "🧹 Cleaning derived data..."
 	rm -rf ~/Library/Developer/Xcode/DerivedData/Vaalin-*
 	@echo "✅ Clean complete"
-
-# Generate DocC documentation
-docs:
-	@echo "📚 Generating DocC documentation..."
-	@echo "⚠️  DocC generation requires opening Package.swift in Xcode"
-	@echo "    Then: Product > Build Documentation"
-	@echo "    SPM doesn't support DocC from CLI yet"

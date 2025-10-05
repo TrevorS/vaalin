@@ -21,18 +21,22 @@ Execute these phases sequentially:
 Use the `gh` CLI to find the next issue to work on:
 
 ```bash
-# Get the next open issue (sorted by issue number, lowest first)
-gh issue list --state open --limit 1 --json number,title,labels,body,milestone
+# Get the next unassigned open issue (sorted by creation date, oldest first)
+gh issue list --state open --search 'no:assignee sort:created-asc' --limit 1 --json number,title,createdAt,labels
 
-# If no issues found, check if there are any open issues at all
-gh issue list --state open --limit 5 --json number,title,labels
+# Get full issue details including body
+gh issue view [NUMBER] --json body,milestone
+
+# If no unassigned issues found, check all open issues
+gh issue list --state open --limit 5 --json number,title,labels,assignees
 ```
 
 **Decision logic:**
-- Prioritize issues in current milestone
-- Follow issue number sequence (lower numbers first)
+- Find oldest unassigned issue first (created-asc sort order)
+- Prioritize issues in current milestone when available
 - Check issue dependencies in body (look for "Depends on #X")
 - Verify no blocking dependencies exist
+- If all issues are assigned, report to Teej for manual selection
 
 **Output:** Store issue details (number, title, labels, body) for use in subsequent phases.
 
