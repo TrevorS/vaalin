@@ -26,7 +26,7 @@ import Foundation
 /// ## Performance
 /// Designed for efficient virtualized scrolling in game log view (60fps target).
 /// AttributedString creation is typically done by TagRenderer before Message creation.
-public struct Message: Identifiable {
+public struct Message: Identifiable, Sendable {
     /// Unique identifier for SwiftUI list rendering and tracking.
     /// Generated on initialization and remains stable.
     public let id: UUID

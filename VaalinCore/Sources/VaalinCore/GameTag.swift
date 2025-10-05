@@ -41,7 +41,7 @@ import Foundation
 /// Two GameTags are considered equal if their content (name, text, attrs, children, state)
 /// is identical, even if their IDs differ. This follows the standard Identifiable pattern
 /// where ID is used for identity tracking in SwiftUI, not logical equality.
-public struct GameTag: Identifiable, Equatable {
+public struct GameTag: Identifiable, Equatable, Sendable {
     /// Unique identifier for SwiftUI list rendering and tracking.
     /// Generated on initialization and remains stable across property mutations.
     public let id: UUID
@@ -133,7 +133,7 @@ public struct GameTag: Identifiable, Equatable {
 /// Used by XMLStreamParser to handle incomplete XML chunks received
 /// over TCP connection. Tags transition from `.open` to `.closed` when
 /// the closing tag is encountered.
-public enum TagState: Equatable {
+public enum TagState: Equatable, Sendable {
     /// Tag has been opened but closing tag not yet received.
     /// Example: After parsing `<stream id="thoughts">` but before `</stream>`
     case open
