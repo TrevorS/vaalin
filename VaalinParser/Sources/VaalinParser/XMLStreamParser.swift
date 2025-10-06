@@ -201,8 +201,8 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // If parsing failed, buffer for next chunk
         if !success {
             xmlBuffer = combinedXML
-            // Return any tags that were successfully parsed before the error
-            return currentParsedTags
+            // Don't return partial results for incomplete XML - it's still being built up
+            return []
         }
 
         // Parse succeeded - clear buffer
@@ -232,7 +232,6 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Return completed tags
         return currentParsedTags
     }
-
 
     // MARK: - Testing Support
 
