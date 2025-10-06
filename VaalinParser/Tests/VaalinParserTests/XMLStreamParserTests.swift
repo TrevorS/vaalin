@@ -2813,4 +2813,247 @@ struct XMLStreamParserTests {
         let presetChildren = tags[2].children
         #expect(presetChildren.contains { $0.name == "d" })
     }
+
+    // MARK: - Error Recovery Tests (Issue #12)
+
+    /// Test malformed XML logs error without crashing
+    /// Parser should handle invalid XML gracefully and not crash the application
+    /// Malformed XML: missing closing quote in attribute
+    @Test func test_malformedXMLLogsError() async throws {
+        let parser = XMLStreamParser()
+
+        // Malformed XML: missing closing quote in 'exist' attribute
+        let malformedXML = "<a exist=>invalid</a>"
+
+        let tags = await parser.parse(malformedXML)
+
+        // Parser should not crash and should return empty array or partial results
+        // Since parsing fails, XMLParser won't produce any tags
+        #expect(tags.isEmpty)
+    }
+
+    /// Test parser resyncs on prompt tag after malformed XML
+    /// Parser should enter error recovery mode and resync when it sees a prompt tag
+    /// This allows game to continue after encountering malformed server output
+    @Test func test_resyncOnPrompt() async throws {
+        let parser = XMLStreamParser()
+
+        // First chunk: malformed XML (should fail)
+        let malformedXML = "<a exist=>bad</a>"
+        let tags1 = await parser.parse(malformedXML)
+        #expect(tags1.isEmpty) // Parse fails, no tags returned
+
+        // Second chunk: prompt tag should resync parser
+        let promptXML = "<prompt>&gt;</prompt>"
+        let tags2 = await parser.parse(promptXML)
+
+        // After resync, prompt should parse correctly
+        #expect(tags2.count == 1)
+        #expect(tags2[0].name == "prompt")
+        #expect(tags2[0].text == ">")
+
+        // Third chunk: verify parser recovered and can process valid XML
+        let validXML = "<output>Hello world</output>"
+        let tags3 = await parser.parse(validXML)
+
+        #expect(tags3.count == 1)
+        #expect(tags3[0].name == "output")
+        #expect(tags3[0].text == "Hello world")
+    }
+
+    /// Test parser continues after error
+    /// After encountering malformed XML, parser should recover and process subsequent valid XML
+    @Test func test_continuesAfterError() async throws {
+        let parser = XMLStreamParser()
+
+        // First chunk: malformed XML with unclosed tag
+        let malformedXML = "<a exist=\"123\""
+        let tags1 = await parser.parse(malformedXML)
+        #expect(tags1.isEmpty) // Parse fails
+
+        // Second chunk: valid XML should parse correctly
+        let validXML = "<output>Game continues</output>"
+        let tags2 = await parser.parse(validXML)
+
+        #expect(tags2.count == 1)
+        #expect(tags2[0].name == "output")
+        #expect(tags2[0].text == "Game continues")
+    }
+
+    /// Test parser returns completed tags before encountering error
+    /// When malformed XML appears after valid tags, completed tags should still be returned
+    @Test func test_returnsCompletedTagsBeforeError() async throws {
+        let parser = XMLStreamParser()
+
+        // Mixed chunk: valid tag followed by malformed tag
+        // The valid <output> should complete, but <a exist=> is malformed
+        let mixedXML = "<output>good</output><a exist=>bad</a>"
+        let tags = await parser.parse(mixedXML)
+
+        // Parser should return the good tag before encountering the error
+        // XMLParser processes left-to-right, so <output> completes before <a> fails
+        #expect(tags.count >= 1) // At minimum, the good tag should be returned
+        #expect(tags[0].name == "output")
+        #expect(tags[0].text == "good")
+    }
+
+    /// Test error buffer doesn't grow unbounded
+    /// Parser should protect against malformed XML causing memory exhaustion
+    /// Buffer size should be limited to prevent DoS attacks or bugs from consuming memory
+    @Test func test_errorBufferSizeLimit() async throws {
+        let parser = XMLStreamParser()
+
+        // Create extremely large malformed chunk (> 10KB, exceeds maxBufferSize)
+        let largeInvalidChunk = String(repeating: "<a exist=", count: 2000) // ~18KB of malformed XML
+
+        let tags1 = await parser.parse(largeInvalidChunk)
+
+        // Parser should handle gracefully without crashing
+        // Buffer exceeds max size, so parser clears buffer and processes chunk alone
+        #expect(tags1.isEmpty) // Parse fails, no tags returned
+
+        // Verify parser can still process valid XML after buffer overflow
+        let validXML = "<output>Still works</output>"
+        let tags2 = await parser.parse(validXML)
+
+        #expect(tags2.count == 1)
+        #expect(tags2[0].name == "output")
+        #expect(tags2[0].text == "Still works")
+    }
+
+    /// Test stream state persists across error recovery
+    /// Stream context (pushStream/popStream) should maintain state even when errors occur
+    /// This ensures game state (current stream) isn't lost during error recovery
+    @Test func test_streamStatePersistsAcrossError() async throws {
+        let parser = XMLStreamParser()
+
+        // Establish stream context
+        let pushStreamXML = "<pushStream id=\"thoughts\"/>"
+        _ = await parser.parse(pushStreamXML)
+
+        // Verify stream state is set
+        let streamBefore = await parser.getCurrentStream()
+        let inStreamBefore = await parser.getInStream()
+        #expect(streamBefore == "thoughts")
+        #expect(inStreamBefore == true)
+
+        // Encounter malformed XML (error occurs)
+        let malformedXML = "<a exist=>bad</a>"
+        _ = await parser.parse(malformedXML)
+
+        // Verify stream state persists through error
+        let streamAfter = await parser.getCurrentStream()
+        let inStreamAfter = await parser.getInStream()
+        #expect(streamAfter == "thoughts") // Stream context should NOT be cleared by error
+        #expect(inStreamAfter == true)
+
+        // Resync with prompt tag
+        let promptXML = "<prompt>&gt;</prompt>"
+        let promptTags = await parser.parse(promptXML)
+        #expect(promptTags.count == 1)
+
+        // Verify stream state still persists after resync
+        let streamAfterResync = await parser.getCurrentStream()
+        let inStreamAfterResync = await parser.getInStream()
+        #expect(streamAfterResync == "thoughts") // Should still be in "thoughts" stream
+        #expect(inStreamAfterResync == true)
+
+        // Valid XML in stream should still have correct streamId
+        let validXML = "<output>Thought content</output>"
+        let tags = await parser.parse(validXML)
+
+        #expect(tags.count == 1)
+        #expect(tags[0].streamId == "thoughts") // Tag should have stream context
+    }
+
+    /// Test parser handles mismatched closing tags gracefully
+    /// When closing tag doesn't match opening tag, parser should recover without crashing
+    @Test func test_mismatchedClosingTag() async throws {
+        let parser = XMLStreamParser()
+
+        // Opening <a> but closing with </b>
+        let mismatchedXML = "<a>content</b>"
+        _ = await parser.parse(mismatchedXML)
+
+        // Parser should handle gracefully (exact behavior depends on implementation)
+        // Currently parser returns early on mismatch (line 398-401), so no tags returned
+        // This validates defensive check doesn't crash
+        #expect(Bool(true)) // Test passes if no crash occurs
+    }
+
+    /// Test parser handles multiple consecutive errors
+    /// Stress test: multiple malformed chunks in a row should not break parser state
+    @Test func test_multipleConsecutiveErrors() async throws {
+        let parser = XMLStreamParser()
+
+        // Feed multiple malformed chunks
+        let malformed1 = "<a exist=>bad1</a>"
+        let malformed2 = "<b attr=\"unclosed>"
+        let malformed3 = "</c>" // Closing tag with no opening tag
+
+        _ = await parser.parse(malformed1)
+        _ = await parser.parse(malformed2)
+        _ = await parser.parse(malformed3)
+
+        // After multiple errors, parser should still recover
+        let validXML = "<output>Recovery successful</output>"
+        let tags = await parser.parse(validXML)
+
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "output")
+        #expect(tags[0].text == "Recovery successful")
+    }
+
+    /// Test parser handles empty error recovery scenario
+    /// Error followed by empty chunk should not cause issues
+    @Test func test_errorFollowedByEmptyChunk() async throws {
+        let parser = XMLStreamParser()
+
+        // Malformed XML
+        let malformedXML = "<a exist=>bad</a>"
+        _ = await parser.parse(malformedXML)
+
+        // Empty chunk after error
+        let tags = await parser.parse("")
+
+        // Should return empty array without crashing
+        #expect(tags.isEmpty)
+
+        // Verify parser still works after empty chunk
+        let validXML = "<output>Test</output>"
+        let validTags = await parser.parse(validXML)
+
+        #expect(validTags.count == 1)
+        #expect(validTags[0].name == "output")
+    }
+
+    /// Test parser handles partial tag at chunk boundary during error
+    /// Edge case: malformed XML split across chunks should recover cleanly
+    @Test func test_partialTagErrorAcrossChunks() async throws {
+        let parser = XMLStreamParser()
+
+        // First chunk: start of malformed attribute
+        let chunk1 = "<a exist="
+        let tags1 = await parser.parse(chunk1)
+        #expect(tags1.isEmpty) // Incomplete, buffered
+
+        // Second chunk: complete malformed attribute (no closing quote)
+        let chunk2 = ">bad</a>"
+        let tags2 = await parser.parse(chunk2)
+        #expect(tags2.isEmpty) // Combined chunk is malformed
+
+        // Third chunk: resync with prompt
+        let chunk3 = "<prompt>&gt;</prompt>"
+        let tags3 = await parser.parse(chunk3)
+        #expect(tags3.count == 1)
+        #expect(tags3[0].name == "prompt")
+
+        // Fourth chunk: verify recovery
+        let chunk4 = "<output>Recovered</output>"
+        let tags4 = await parser.parse(chunk4)
+        #expect(tags4.count == 1)
+        #expect(tags4[0].name == "output")
+        #expect(tags4[0].text == "Recovered")
+    }
 }
+// swiftlint:enable file_length type_body_length

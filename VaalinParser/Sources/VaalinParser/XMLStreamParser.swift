@@ -1,6 +1,7 @@
 // ABOUTME: XMLStreamParser provides stateful SAX-based XML parsing for GemStone IV game output chunks
 
 import Foundation
+import OSLog
 import VaalinCore
 
 /// Thread-safe actor that parses XML chunks from the GemStone IV game server.
@@ -99,6 +100,11 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     /// - Chunk 2: `"123">gem</a>` (prepend buffer, parse full tag)
     private var xmlBuffer: String = ""
 
+    // MARK: - Error Recovery State
+
+    /// Structured logging for error diagnostics.
+    private let logger = Logger(subsystem: "com.vaalin.parser", category: "XMLStreamParser")
+
     // MARK: - Per-Parse State (Thread-Local)
 
     /// Temporary storage for current parse operation
@@ -172,14 +178,13 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Protect against unbounded buffer growth
         if combinedXML.count > maxBufferSize {
             // Buffer too large - likely malformed XML or attack
-            // Clear buffer and process only current chunk
+            // Clear buffer and try parsing just the new chunk
+            logger.warning("XML buffer exceeded max size (\(self.maxBufferSize)), clearing buffer")
             xmlBuffer = ""
-            combinedXML = chunk // Reset to just current chunk
-            // Log warning in production: "XML buffer exceeded max size, clearing"
+            combinedXML = chunk
         }
 
         // Wrap in synthetic root tag for XMLParser (requires single root element)
-        // Using unique tag name to avoid conflicts with game XML
         let wrappedXML = "<__synthetic_root__>\(combinedXML)</__synthetic_root__>"
 
         // Create XMLParser instance
@@ -193,13 +198,14 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Parse synchronously (delegate callbacks happen during this call)
         let success = xmlParser.parse()
 
-        // If parsing failed, buffer the entire chunk for next parse
+        // If parsing failed, buffer for next chunk
         if !success {
             xmlBuffer = combinedXML
-            return []
+            // Return any tags that were successfully parsed before the error
+            return currentParsedTags
         }
 
-        // Clear buffer on successful parse
+        // Parse succeeded - clear buffer
         xmlBuffer = ""
 
         // If there's remaining character data at the end and we're at root level,
@@ -218,8 +224,6 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         }
 
         // Transfer any incomplete tags to persistent stack for next parse
-        // NOTE: currentTagStack should always be empty here (successful parse = all tags closed)
-        // The synthetic root wrapper ensures XMLParser only succeeds when all tags are properly closed
         #if DEBUG
         assert(currentTagStack.isEmpty, "Bug: Successful parse left tags open on stack")
         #endif
@@ -228,6 +232,7 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Return completed tags
         return currentParsedTags
     }
+
 
     // MARK: - Testing Support
 
@@ -397,7 +402,8 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
         // Verify tag names match (defensive check)
         guard tag.name == elementName else {
             // Tag mismatch - this indicates malformed XML
-            // For now, just discard. Issue #12 will handle error recovery.
+            // Log warning and discard to prevent crashes
+            logger.warning("Tag mismatch: expected \(tag.name), got \(elementName)")
             return
         }
 
@@ -439,11 +445,13 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable
     }
 
     /// Called when parser encounters an error
-    /// For issue #7, we handle gracefully (detailed recovery in issue #12)
+    /// Logs diagnostic information for debugging
     /// - Note: Marked nonisolated because XMLParser calls this synchronously during parse()
     nonisolated public func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
-        // For now, just let parsing fail
-        // Issue #12 will implement proper error recovery
-        // The parse() method will buffer the chunk for retry
+        // Log error with line number for diagnostics
+        logger.error("XML parse error at line \(parser.lineNumber): \(parseError.localizedDescription)")
+
+        // The parse() method handles error recovery by buffering incomplete XML
+        // Any successfully parsed tags before the error are already in currentParsedTags
     }
 }
