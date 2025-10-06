@@ -223,10 +223,12 @@ Vaalin/
 │   │   └── XMLStreamParserTests.swift
 ├── VaalinNetwork/                 # Swift Package: Lich TCP connection
 │   ├── Sources/
-│   │   ├── LichConnection.swift   # Actor - NWConnection wrapper
-│   │   └── ConnectionState.swift
+│   │   ├── LichConnection.swift          # Actor - NWConnection wrapper
+│   │   ├── ConnectionState.swift         # Connection state enum
+│   │   └── ParserConnectionBridge.swift  # Actor - integrates connection + parser
 │   ├── Tests/
-│   │   └── LichConnectionTests.swift
+│   │   ├── LichConnectionTests.swift
+│   │   └── ParserConnectionBridgeTests.swift
 ├── VaalinCore/                    # Swift Package: shared models/utilities
 │   ├── Sources/
 │   │   ├── GameTag.swift          # Parsed XML element model (moved from VaalinParser)
@@ -295,6 +297,59 @@ actor XMLStreamParser: NSObject, XMLParserDelegate {
 ```
 
 **Stream control tags** (`<pushStream id="X">`, `<popStream>`) must update `currentStream` and persist across chunks.
+
+### Parser-Connection Integration (Issue #17)
+
+**ParserConnectionBridge** acts as the integration layer between network and parsing:
+
+```swift
+// Architecture
+LichConnection (AsyncStream<Data>)
+       ↓
+ParserConnectionBridge (decode UTF-8, coordinate)
+       ↓
+XMLStreamParser (parse XML chunks)
+       ↓
+[GameTag] (accumulated results)
+```
+
+**Usage pattern**:
+```swift
+let connection = LichConnection()
+let parser = XMLStreamParser()
+let bridge = ParserConnectionBridge(connection: connection, parser: parser)
+
+// Connect to Lich
+try await connection.connect(host: "127.0.0.1", port: 8000)
+
+// Start data flow
+await bridge.start()
+
+// Access parsed tags periodically
+let tags = await bridge.getParsedTags()
+// Process tags in UI...
+
+// Clear processed tags
+await bridge.clearParsedTags()
+
+// Stop when done
+await bridge.stop()
+```
+
+**Key responsibilities**:
+- Iterates `connection.dataStream` (AsyncStream<Data>)
+- Decodes `Data` → `String` (UTF-8) with error handling
+- Calls `parser.parse(chunk)` for each chunk
+- Accumulates resulting `GameTag` arrays
+- Thread-safe via actor isolation
+- Resilient error handling (logs & continues on malformed data)
+
+**Error handling**:
+- Malformed UTF-8: Logged and skipped
+- Parser errors: Logged and continued (returns empty array)
+- Connection errors: Logged and stream finished
+
+**Testing**: See `ParserConnectionBridgeTests.swift` and `TestLichConnection` executable.
 
 ### Event Bus - Cross-Component Communication
 
