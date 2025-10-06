@@ -70,8 +70,8 @@ struct TestLichConnection {
             // Wait a moment for initial data
             try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
 
-            // Show initial parsed tags
-            await showParsedTags(from: bridge, label: "Initial Connection")
+            // Show initial parsed tags (don't clear - let them accumulate)
+            await showParsedTags(from: bridge, label: "Initial Connection", clearAfter: false)
 
             // Send test commands
             header("Sending Test Commands")
@@ -86,15 +86,21 @@ struct TestLichConnection {
                 try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
 
                 // Show parsed tags after command
-                await showParsedTags(from: bridge, label: "After '\(command)'")
+                // Clear after first two commands to demonstrate memory management
+                let shouldClear = command != "info"
+                await showParsedTags(
+                    from: bridge,
+                    label: "After '\(command)'",
+                    clearAfter: shouldClear
+                )
             }
 
             // Keep streaming for a bit longer
             status("Streaming for 5 more seconds...")
             try await Task.sleep(nanoseconds: 5_000_000_000)
 
-            // Show final parsed tags
-            await showParsedTags(from: bridge, label: "Final State")
+            // Show final parsed tags (don't clear - show final state)
+            await showParsedTags(from: bridge, label: "Final State", clearAfter: false)
 
             // Disconnect
             header("Shutting Down")
@@ -112,11 +118,25 @@ struct TestLichConnection {
     }
 
     /// Show parsed tags from the bridge
-    static func showParsedTags(from bridge: ParserConnectionBridge, label: String) async {
+    ///
+    /// - Parameters:
+    ///   - bridge: The bridge to read tags from
+    ///   - label: Section label to display
+    ///   - clearAfter: Whether to clear tags after displaying (demonstrates memory management)
+    static func showParsedTags(from bridge: ParserConnectionBridge, label: String, clearAfter: Bool = false) async {
         let tags = await bridge.getParsedTags()
 
         header(label)
-        status("Total parsed tags: \(Color.yellow.text(String(tags.count)))")
+
+        // Show count with memory limit context (10,000 tag limit)
+        let limitPercent = (Double(tags.count) / 10_000.0) * 100.0
+        let percentText = String(format: "%.1f", limitPercent)
+        status("Total parsed tags: \(Color.yellow.text(String(tags.count))) (\(percentText)% of memory limit)")
+
+        // Warn if approaching limit (> 50% = 5,000 tags)
+        if tags.count > 5_000 {
+            print(Color.yellow.text("⚠️  Tag accumulation > 50% of limit - consider clearing"))
+        }
 
         if !tags.isEmpty {
             // Show last 10 tags
@@ -128,6 +148,12 @@ struct TestLichConnection {
             }
         } else {
             print(Color.gray.text("  (no tags parsed yet)"))
+        }
+
+        // Clear tags if requested (demonstrates memory management best practice)
+        if clearAfter && !tags.isEmpty {
+            await bridge.clearParsedTags()
+            success("Tags cleared - memory freed")
         }
 
         print("")
