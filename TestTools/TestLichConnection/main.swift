@@ -44,11 +44,12 @@ func header(_ message: String) {
 @main
 struct TestLichConnection {
     static func main() async {
-        header("Lich Connection Test")
+        header("Lich Connection Test with Parser Integration")
 
-        // Create connection and parser
+        // Create connection, parser, and bridge
         let connection = LichConnection()
         let parser = XMLStreamParser()
+        let bridge = ParserConnectionBridge(connection: connection, parser: parser)
 
         // Configuration
         let host = "127.0.0.1"
@@ -61,14 +62,16 @@ struct TestLichConnection {
             try await connection.connect(host: host, port: port, autoReconnect: false)
             success("Connected!")
 
-            // Start streaming task
-            let stream = await connection.dataStream
-            let streamTask = Task {
-                await streamData(from: stream, to: parser)
-            }
+            // Start the bridge (handles data flow automatically)
+            status("Starting parser integration bridge...")
+            await bridge.start()
+            success("Bridge started - XML parsing active")
 
             // Wait a moment for initial data
             try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+
+            // Show initial parsed tags (don't clear - let them accumulate)
+            await showParsedTags(from: bridge, label: "Initial Connection", clearAfter: false)
 
             // Send test commands
             header("Sending Test Commands")
@@ -81,15 +84,27 @@ struct TestLichConnection {
 
                 // Wait for response
                 try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
+
+                // Show parsed tags after command
+                // Clear after first two commands to demonstrate memory management
+                let shouldClear = command != "info"
+                await showParsedTags(
+                    from: bridge,
+                    label: "After '\(command)'",
+                    clearAfter: shouldClear
+                )
             }
 
             // Keep streaming for a bit longer
-            status("Streaming for 10 more seconds...")
-            try await Task.sleep(nanoseconds: 10_000_000_000)
+            status("Streaming for 5 more seconds...")
+            try await Task.sleep(nanoseconds: 5_000_000_000)
+
+            // Show final parsed tags (don't clear - show final state)
+            await showParsedTags(from: bridge, label: "Final State", clearAfter: false)
 
             // Disconnect
             header("Shutting Down")
-            streamTask.cancel()
+            await bridge.stop()
             await connection.disconnect()
             success("Disconnected cleanly")
         } catch let connectionError {
@@ -102,45 +117,46 @@ struct TestLichConnection {
         header("Test Complete")
     }
 
-    /// Stream data from connection and parse it
-    static func streamData(from stream: AsyncStream<Data>, to parser: XMLStreamParser) async {
-        var chunkCount = 0
-        var tagCount = 0
+    /// Show parsed tags from the bridge
+    ///
+    /// - Parameters:
+    ///   - bridge: The bridge to read tags from
+    ///   - label: Section label to display
+    ///   - clearAfter: Whether to clear tags after displaying (demonstrates memory management)
+    static func showParsedTags(from bridge: ParserConnectionBridge, label: String, clearAfter: Bool = false) async {
+        let tags = await bridge.getParsedTags()
 
-        header("XML Stream (Ctrl+C to stop)")
+        header(label)
 
-        for await data in stream {
-            chunkCount += 1
+        // Show count with memory limit context (10,000 tag limit)
+        let limitPercent = (Double(tags.count) / 10_000.0) * 100.0
+        let percentText = String(format: "%.1f", limitPercent)
+        status("Total parsed tags: \(Color.yellow.text(String(tags.count))) (\(percentText)% of memory limit)")
 
-            guard let xmlChunk = String(data: data, encoding: .utf8) else {
-                error("Failed to decode chunk as UTF-8")
-                continue
+        // Warn if approaching limit (> 50% = 5,000 tags)
+        if tags.count > 5_000 {
+            print(Color.yellow.text("⚠️  Tag accumulation > 50% of limit - consider clearing"))
+        }
+
+        if !tags.isEmpty {
+            // Show last 10 tags
+            let recentTags = Array(tags.suffix(10))
+            print(Color.green.text("Most Recent Tags (\(recentTags.count)):"))
+
+            for tag in recentTags {
+                printTag(tag, indent: 0)
             }
+        } else {
+            print(Color.gray.text("  (no tags parsed yet)"))
+        }
 
-            // Parse the XML chunk
-            let tags = await parser.parse(xmlChunk)
-            tagCount += tags.count
-
-            // Print raw XML (truncated if too long)
-            let displayXML = xmlChunk.count > 200
-                ? String(xmlChunk.prefix(200)) + "..."
-                : xmlChunk
-
-            print(Color.gray.text("───────────────────────────────────────"))
-            print(Color.cyan.text("Chunk #\(chunkCount)") + Color.gray.text(" (\(xmlChunk.count) bytes, \(tags.count) tags)"))
-            print(Color.yellow.text(displayXML))
-
-            // Print parsed tags
-            if !tags.isEmpty {
-                print(Color.green.text("Parsed Tags:"))
-                for tag in tags {
-                    printTag(tag, indent: 0)
-                }
-            }
+        // Clear tags if requested (demonstrates memory management best practice)
+        if clearAfter && !tags.isEmpty {
+            await bridge.clearParsedTags()
+            success("Tags cleared - memory freed")
         }
 
         print("")
-        success("Stream ended (\(chunkCount) chunks, \(tagCount) total tags)")
     }
 
     /// Pretty-print a GameTag with indentation
