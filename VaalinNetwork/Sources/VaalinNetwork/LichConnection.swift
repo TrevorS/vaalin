@@ -168,20 +168,9 @@ public actor LichConnection { // swiftlint:disable:this actor_naming
         // Append newline to command (Lich protocol expects \n terminated commands)
         let commandData = (command + "\n").data(using: .utf8)!
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(
-                content: commandData,
-                completion: .contentProcessed { error in
-                    if let error = error {
-                        continuation.resume(throwing: LichConnectionError.sendFailed)
-                        self.logger.error("Failed to send command: \(error.localizedDescription)")
-                    } else {
-                        continuation.resume()
-                        self.logger.debug("Sent command: \(command)")
-                    }
-                }
-            )
-        }
+        // Use .idempotent for fire-and-forget semantics (faster, simpler)
+        connection.send(content: commandData, completion: .idempotent)
+        logger.debug("Sent command: \(command)")
     }
 
     /// Stream of incoming data from Lich
