@@ -32,7 +32,7 @@ import VaalinCore
 /// // Parse second chunk - state persists
 /// let tags2 = await parser.parse(" about magic.</popStream>")
 /// ```
-public actor XMLStreamParser: NSObject, XMLParserDelegate { // swiftlint:disable:this actor_naming
+public actor XMLStreamParser: NSObject, XMLParserDelegate {
     // MARK: - Constants
 
     /// Maximum buffer size in characters to prevent unbounded memory growth.

@@ -81,7 +81,7 @@ extension XMLStreamParser: XMLStreamParsing {}
 /// the oldest tags are automatically evicted to prevent unbounded memory growth
 /// during long game sessions. Consumers should call `clearParsedTags()` periodically
 /// after processing tags to maintain optimal memory usage.
-public actor ParserConnectionBridge { // swiftlint:disable:this actor_naming
+public actor ParserConnectionBridge {
     // MARK: - Constants
 
     /// Logger for bridge events and errors

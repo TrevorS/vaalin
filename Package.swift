@@ -133,7 +133,11 @@ let package = Package(
         // UI framework - SwiftUI views and view models
         .target(
             name: "VaalinUI",
-            dependencies: ["VaalinCore"],
+            dependencies: [
+                "VaalinCore",
+                "VaalinNetwork",
+                "VaalinParser"
+            ],
             path: "VaalinUI/Sources/VaalinUI",
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals"),

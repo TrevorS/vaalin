@@ -37,7 +37,7 @@ import os
 /// - 3rd retry: 2s
 /// - 4th retry: 4s
 /// - 5th+ retry: 8s (max)
-public actor LichConnection { // swiftlint:disable:this actor_naming
+public actor LichConnection {
     // MARK: - Constants
 
     /// Maximum reconnection delay (8 seconds)

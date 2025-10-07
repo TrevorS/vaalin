@@ -63,6 +63,17 @@ struct MainView: View {
 // MARK: - Previews
 
 #Preview("Main View") {
+    // Create a simple preview-safe state
+    // Actors initialize fine in previews, but if there are issues,
+    // this minimal setup should work
     MainView()
         .frame(width: 1200, height: 800)
 }
+
+#if DEBUG
+// Alternative preview if MainView has issues
+#Preview("Connection Controls Only") {
+    ConnectionControlsView(appState: AppState())
+        .frame(width: 600, height: 60)
+}
+#endif

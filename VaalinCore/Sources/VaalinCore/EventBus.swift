@@ -2,8 +2,6 @@
 
 import Foundation
 
-// swiftlint:disable actor_naming
-
 /// Thread-safe event bus for cross-component communication using Swift actors.
 ///
 /// EventBus implements a type-safe publish/subscribe pattern that allows components
@@ -222,5 +220,3 @@ public actor EventBus {
         return handlers.values.reduce(0) { $0 + $1.count }
     }
 }
-
-// swiftlint:enable actor_naming
