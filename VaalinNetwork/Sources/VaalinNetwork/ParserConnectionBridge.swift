@@ -3,7 +3,21 @@
 import Foundation
 import OSLog
 import VaalinCore
+
+#if canImport(VaalinParser)
 import VaalinParser
+#endif
+
+/// A minimal abstraction for XML stream parsing that the bridge depends on.
+/// Conformers should parse incoming XML text and return any completed GameTags.
+public protocol XMLStreamParsing: Sendable {
+    func parse(_ text: String) async -> [GameTag]
+}
+
+#if canImport(VaalinParser)
+// When VaalinParser is available, adapt XMLStreamParser to our protocol.
+extension XMLStreamParser: XMLStreamParsing {}
+#endif
 
 /// Thread-safe actor that bridges LichConnection and XMLStreamParser.
 ///
@@ -86,7 +100,7 @@ public actor ParserConnectionBridge { // swiftlint:disable:this actor_naming
     private let connection: LichConnection
 
     /// The XML stream parser
-    private let parser: XMLStreamParser
+    private let parser: XMLStreamParsing
 
     // MARK: - State
 
@@ -116,8 +130,8 @@ public actor ParserConnectionBridge { // swiftlint:disable:this actor_naming
     ///
     /// - Parameters:
     ///   - connection: The LichConnection to read data from
-    ///   - parser: The XMLStreamParser to parse chunks with
-    public init(connection: LichConnection, parser: XMLStreamParser) {
+    ///   - parser: The XML stream parser to parse chunks with
+    public init(connection: LichConnection, parser: XMLStreamParsing) {
         self.connection = connection
         self.parser = parser
         logger.info("ParserConnectionBridge initialized")
