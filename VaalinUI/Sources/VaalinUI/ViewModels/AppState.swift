@@ -4,7 +4,6 @@ import Foundation
 import Observation
 import VaalinCore
 import VaalinNetwork
-import VaalinUI
 
 #if canImport(VaalinParser)
 import VaalinParser

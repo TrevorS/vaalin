@@ -112,11 +112,12 @@ custom_rules:
     message: "Use proper logging instead of print()"
     severity: warning
 
-  actor_naming:
-    name: "Actor Naming Convention"
-    regex: 'actor\s+[A-Z][a-zA-Z0-9]*(?!Actor)'
-    message: "Consider suffixing actor names with 'Actor' for clarity (e.g., 'XMLStreamParserActor')"
-    severity: warning
+  # actor_naming:
+  #   name: "Actor Naming Convention"
+  #   regex: 'actor\s+[A-Z][a-zA-Z0-9]*(?!Actor)'
+  #   message: "Consider suffixing actor names with 'Actor' for clarity (e.g., 'XMLStreamParserActor')"
+  #   severity: warning
+  # Disabled: "Actor" suffix is verbose and not universally adopted. Clean names preferred.
 
 # Reporter format (use 'emoji' for fun, 'xcode' for CI)
 reporter: "xcode"

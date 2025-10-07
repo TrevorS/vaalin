@@ -35,7 +35,7 @@ import os
 ///
 /// ## Performance
 /// Supports multiple concurrent client connections for testing reconnection logic.
-public actor MockLichServer { // swiftlint:disable:this actor_naming
+public actor MockLichServer {
     // MARK: - Constants
 
     /// Logger for server events and debugging
