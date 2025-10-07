@@ -121,6 +121,13 @@ let package = Package(
             name: "VaalinCoreTests",
             dependencies: ["VaalinCore"],
             path: "VaalinCore/Tests/VaalinCoreTests"
+        ),
+
+        // Main application tests
+        .testTarget(
+            name: "VaalinTests",
+            dependencies: ["Vaalin", "VaalinCore"],
+            path: "VaalinAppTests"
         )
     ]
 )
