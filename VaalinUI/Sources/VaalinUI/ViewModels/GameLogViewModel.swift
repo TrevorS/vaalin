@@ -51,6 +51,7 @@ import VaalinCore
 /// Each `GameTag` preserves its `streamId` property (e.g., "thoughts", "speech"),
 /// enabling downstream filtering in stream-specific panels.
 @Observable
+@MainActor
 public final class GameLogViewModel {
     // MARK: - Constants
 
@@ -102,9 +103,9 @@ public final class GameLogViewModel {
     public func appendMessage(_ tag: GameTag) {
         messages.append(tag)
 
-        // Prune oldest message if buffer exceeds capacity
+        // Prune oldest messages if buffer exceeds capacity
         if messages.count > Self.maxBufferSize {
-            messages.removeFirst()
+            messages = Array(messages.suffix(Self.maxBufferSize))
         }
     }
 }
