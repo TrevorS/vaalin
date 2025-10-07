@@ -391,8 +391,8 @@ private extension MockLichServer.Scenario {
       Neck broken.
       The kobold crumples to the ground motionless.
     <popStream/>
-    <progressBar id="health" value="95" text="95%" left="0" right="100"/>
-    <progressBar id="stamina" value="82" text="82%" left="0" right="100"/>
+    <progressBar id="health" value="95" text="health 95" />
+    <progressBar id="stamina" value="82" text="stamina 82" />
     <prompt time="1696550002">&gt;</prompt>
     """
 
@@ -426,12 +426,12 @@ private extension MockLichServer.Scenario {
 
     /// Vitals update (all progress bars)
     static let vitalsUpdateXML = """
-    <progressBar id="health" value="100" text="100%" left="0" right="100"/>
-    <progressBar id="mana" value="87" text="87%" left="0" right="100"/>
-    <progressBar id="stamina" value="95" text="95%" left="0" right="100"/>
-    <progressBar id="spirit" value="10" text="10" left="0" right="10"/>
-    <progressBar id="concentration" value="3" text="3" left="0" right="5"/>
-    <progressBar id="encumbrance" value="25" text="Light" left="0" right="100"/>
+    <progressBar id="health" value="100" text="health 100" />
+    <progressBar id="mana" value="87" text="mana 87" />
+    <progressBar id="stamina" value="95" text="stamina 95" />
+    <progressBar id="spirit" value="10" text="spirit 10" />
+    <progressBar id="concentration" value="3" text="concentration 3" />
+    <progressBar id="encumbrance" value="25" text="encumbrance 25" />
     <prompt time="1696550006">&gt;</prompt>
     """
 
