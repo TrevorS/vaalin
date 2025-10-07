@@ -5,44 +5,43 @@ import VaalinCore
 import VaalinNetwork
 import VaalinParser
 
-/// ANSI color codes for pretty terminal output
-enum Color: String {
-    case reset = "\u{001B}[0m"
-    case red = "\u{001B}[31m"
-    case green = "\u{001B}[32m"
-    case yellow = "\u{001B}[33m"
-    case blue = "\u{001B}[34m"
-    case magenta = "\u{001B}[35m"
-    case cyan = "\u{001B}[36m"
-    case gray = "\u{001B}[90m"
-
-    func text(_ string: String) -> String {
-        return "\(rawValue)\(string)\(Color.reset.rawValue)"
-    }
-}
-
-/// Print colored status message
-func status(_ message: String, color: Color = .cyan) {
-    print(color.text("▸ \(message)"))
-}
-
-/// Print colored error message
-func error(_ message: String) {
-    print(Color.red.text("✗ ERROR: \(message)"))
-}
-
-/// Print colored success message
-func success(_ message: String) {
-    print(Color.green.text("✓ \(message)"))
-}
-
-/// Print section header
-func header(_ message: String) {
-    print("\n" + Color.magenta.text("═══ \(message) ═══"))
-}
-
 @main
 struct TestLichConnection {
+    /// ANSI color codes for pretty terminal output
+    enum Color: String {
+        case reset = "\u{001B}[0m"
+        case red = "\u{001B}[31m"
+        case green = "\u{001B}[32m"
+        case yellow = "\u{001B}[33m"
+        case blue = "\u{001B}[34m"
+        case magenta = "\u{001B}[35m"
+        case cyan = "\u{001B}[36m"
+        case gray = "\u{001B}[90m"
+
+        func text(_ string: String) -> String {
+            return "\(rawValue)\(string)\(Color.reset.rawValue)"
+        }
+    }
+
+    /// Print colored status message
+    static func status(_ message: String, color: Color = .cyan) {
+        print(color.text("▸ \(message)"))
+    }
+
+    /// Print colored error message
+    static func error(_ message: String) {
+        print(Color.red.text("✗ ERROR: \(message)"))
+    }
+
+    /// Print colored success message
+    static func success(_ message: String) {
+        print(Color.green.text("✓ \(message)"))
+    }
+
+    /// Print section header
+    static func header(_ message: String) {
+        print("\n" + Color.magenta.text("═══ \(message) ═══"))
+    }
     static func main() async {
         header("Lich Connection Test with Parser Integration")
 

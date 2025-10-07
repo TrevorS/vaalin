@@ -51,7 +51,7 @@ import VaalinCore
 /// Each `GameTag` preserves its `streamId` property (e.g., "thoughts", "speech"),
 /// enabling downstream filtering in stream-specific panels.
 @Observable
-final class GameLogViewModel {
+public final class GameLogViewModel {
     // MARK: - Constants
 
     /// Maximum number of messages to retain in buffer before pruning oldest.
@@ -67,12 +67,12 @@ final class GameLogViewModel {
     ///
     /// SwiftUI views observing this property will automatically update when messages
     /// are appended via the `@Observable` macro.
-    var messages: [GameTag] = []
+    public var messages: [GameTag] = []
 
     // MARK: - Initialization
 
     /// Creates a new GameLogViewModel with an empty message buffer.
-    init() {
+    public init() {
         // Intentionally empty - messages array initializes to empty
     }
 
@@ -99,7 +99,7 @@ final class GameLogViewModel {
     /// let tag = GameTag(name: "output", text: "The troll swings at you!", state: .closed)
     /// viewModel.appendMessage(tag)
     /// ```
-    func appendMessage(_ tag: GameTag) {
+    public func appendMessage(_ tag: GameTag) {
         messages.append(tag)
 
         // Prune oldest message if buffer exceeds capacity
