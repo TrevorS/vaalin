@@ -94,7 +94,7 @@ let package = Package(
         // Network package
         .target(
             name: "VaalinNetwork",
-            dependencies: ["VaalinCore"],
+            dependencies: ["VaalinCore", "VaalinParser"],
             path: "VaalinNetwork/Sources/VaalinNetwork",
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals"),
