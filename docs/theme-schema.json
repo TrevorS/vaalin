@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Vaalin Theme Schema",
+  "description": "Reference schema for Vaalin color themes. Actual theme file: Vaalin/Resources/themes/catppuccin-mocha.json",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Theme display name",
+      "example": "Catppuccin Mocha"
+    },
+    "palette": {
+      "type": "object",
+      "description": "Base color palette (Catppuccin Mocha colors)",
+      "properties": {
+        "rosewater": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#f5e0dc" },
+        "flamingo": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#f2cdcd" },
+        "pink": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#f5c2e7" },
+        "mauve": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#cba6f7" },
+        "red": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#f38ba8" },
+        "maroon": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#eba0ac" },
+        "peach": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#fab387" },
+        "yellow": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#f9e2af" },
+        "green": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#a6e3a1" },
+        "teal": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#94e2d5" },
+        "sky": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#89dceb" },
+        "sapphire": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#74c7ec" },
+        "blue": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#89b4fa" },
+        "lavender": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#b4befe" },
+        "text": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#cdd6f4" },
+        "subtext1": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#bac2de" },
+        "subtext0": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#a6adc8" },
+        "overlay2": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#9399b2" },
+        "overlay1": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#7f849c" },
+        "overlay0": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#6c7086" },
+        "surface2": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#585b70" },
+        "surface1": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#45475a" },
+        "surface0": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#313244" },
+        "base": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#1e1e2e" },
+        "mantle": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#181825" },
+        "crust": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "example": "#11111b" }
+      },
+      "required": [
+        "rosewater", "flamingo", "pink", "mauve", "red", "maroon", "peach", "yellow",
+        "green", "teal", "sky", "sapphire", "blue", "lavender", "text", "subtext1",
+        "subtext0", "overlay2", "overlay1", "overlay0", "surface2", "surface1",
+        "surface0", "base", "mantle", "crust"
+      ]
+    },
+    "presets": {
+      "type": "object",
+      "description": "Maps GemStone IV preset IDs to palette color names",
+      "properties": {
+        "speech": { "type": "string", "description": "Spoken dialogue", "example": "green" },
+        "whisper": { "type": "string", "description": "Whispered text", "example": "teal" },
+        "thought": { "type": "string", "description": "Character thoughts", "example": "text" },
+        "damage": { "type": "string", "description": "Damage messages", "example": "red" },
+        "heal": { "type": "string", "description": "Healing messages", "example": "green" },
+        "roomName": { "type": "string", "description": "Room names", "example": "mauve" },
+        "roomDesc": { "type": "string", "description": "Room descriptions", "example": "text" },
+        "bold": { "type": "string", "description": "Bold text", "example": "text" },
+        "watching": { "type": "string", "description": "Watching messages", "example": "yellow" },
+        "link": { "type": "string", "description": "Clickable links", "example": "blue" }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "description": "Additional preset IDs map to palette color names"
+      }
+    },
+    "items": {
+      "type": "object",
+      "description": "Maps item categories to palette color names for highlighting",
+      "properties": {
+        "weapon": { "type": "string", "description": "Weapon items", "example": "red" },
+        "armor": { "type": "string", "description": "Armor items", "example": "blue" },
+        "gem": { "type": "string", "description": "Gem items", "example": "yellow" },
+        "jewelry": { "type": "string", "description": "Jewelry items", "example": "pink" },
+        "clothing": { "type": "string", "description": "Clothing items", "example": "green" },
+        "food": { "type": "string", "description": "Food items", "example": "peach" },
+        "reagent": { "type": "string", "description": "Magic reagents", "example": "lavender" },
+        "valuable": { "type": "string", "description": "Valuable items", "example": "rosewater" },
+        "box": { "type": "string", "description": "Containers", "example": "overlay0" },
+        "junk": { "type": "string", "description": "Junk items", "example": "overlay1" }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "description": "UI semantic colors for interface elements",
+      "properties": {
+        "success": { "type": "string", "description": "Success states", "example": "green" },
+        "warning": { "type": "string", "description": "Warning states", "example": "yellow" },
+        "danger": { "type": "string", "description": "Error/danger states", "example": "red" },
+        "info": { "type": "string", "description": "Info states", "example": "blue" },
+        "background": { "type": "string", "description": "App background", "example": "base" },
+        "surface": { "type": "string", "description": "Surface/panel bg", "example": "surface0" },
+        "border": { "type": "string", "description": "Border colors", "example": "overlay0" },
+        "textPrimary": { "type": "string", "description": "Primary text", "example": "text" },
+        "textSecondary": { "type": "string", "description": "Secondary text", "example": "subtext0" }
+      }
+    }
+  },
+  "required": ["name", "palette", "presets", "items", "ui"],
+  "example": {
+    "name": "Catppuccin Mocha",
+    "palette": {
+      "green": "#a6e3a1",
+      "teal": "#94e2d5",
+      "text": "#cdd6f4",
+      "red": "#f38ba8"
+    },
+    "presets": {
+      "speech": "green",
+      "whisper": "teal",
+      "thought": "text",
+      "damage": "red"
+    },
+    "items": {
+      "weapon": "red",
+      "gem": "yellow"
+    },
+    "ui": {
+      "success": "green",
+      "danger": "red"
+    }
+  }
+}

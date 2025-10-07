@@ -604,94 +604,74 @@ test_bufferPruning()
 
 ## Phase 2: Game Log & Command Input
 
-### TASK-P2-01: Implement ANSI Color Parser
+### TASK-P2-01: Implement Theme System with Preset Mapping
 
-**Description**: Parse ANSI escape codes from game text into color/style information.
-
-**Acceptance Criteria**:
-- Swift Regex patterns for ANSI codes
-- Supports: reset (`\033[0m`), 16-color palette, bold, italic, underline
-- Extracts color/style runs from text
-- Returns array of styled text ranges
-
-**Implementation Approach**: TDD - test ANSI parsing
-
-**Required Components**:
-- `VaalinCore/Sources/ANSIParser.swift`
-- `VaalinCore/Tests/ANSIParserTests.swift`
-
-**Test Requirements**:
-```swift
-test_parseResetCode()
-test_parseColorCode()
-test_parseBoldCode()
-test_parseMultipleCodes()
-test_parseComplexString()
-```
-
-**Dependencies**: TASK-F01
-
-**Reference**: `requirements.md:168-186`
-
----
-
-### TASK-P2-02: Load Catppuccin Mocha Color Theme
-
-**Description**: Load theme colors from JSON config and map to SwiftUI colors.
+**Description**: Load Catppuccin Mocha theme and create preset ID to color mapping system.
 
 **Acceptance Criteria**:
-- `themes/catppuccin-mocha.json` created with color palette
-- Theme loader reads JSON, creates SwiftUI Color instances
-- ANSI codes mapped to theme colors
-- Theme accessible via environment/singleton
+- Theme JSON with Catppuccin Mocha palette (26 base colors)
+- Preset ID mappings defined in JSON
+- ThemeManager actor loads and caches theme
+- SwiftUI Color instances created from hex values
+- Environment-accessible theme for views
+- Fallback colors for missing presets
 
-**Implementation Approach**: JSON loading, color mapping
+**Implementation Approach**: TDD - test JSON loading, color lookup
 
 **Required Components**:
 - `Vaalin/Resources/themes/catppuccin-mocha.json`
 - `VaalinCore/Sources/ThemeManager.swift`
-- Tests for theme loading
+- `VaalinCore/Tests/ThemeManagerTests.swift`
 
 **Test Requirements**:
 ```swift
-test_loadTheme()
-test_ansiColorMapping()
+test_loadThemeFromJSON()
+test_presetColorLookup()
+test_catppuccinColorsPresent()
+test_missingPresetFallback()
+test_environmentIntegration()
 ```
 
 **Dependencies**: TASK-F03
 
-**Reference**: `requirements.md:711-727`, Catppuccin palette spec
+**Reference**: `requirements.md:711-727`, Catppuccin spec, Illthorn `_vars.scss`
+
+**Complexity**: Medium (4-8 hours)
 
 ---
 
-### TASK-P2-03: Implement TagRenderer for AttributedString
+### TASK-P2-02: Implement TagRenderer for AttributedString
 
-**Description**: Convert GameTag to AttributedString with ANSI colors applied.
+**Description**: Convert GameTag to AttributedString with preset colors and styles applied.
 
 **Acceptance Criteria**:
-- `TagRenderer` class/actor
-- `render(_ tag: GameTag) -> AttributedString` method
-- Applies ANSI colors from theme
-- Handles nested tags recursively
-- Supports `<a>`, `<b>`, `<d>` tag styling
+- `TagRenderer` class/actor in VaalinParser
+- `render(_ tag: GameTag, theme: ThemeManager) -> AttributedString` method
+- Applies colors from theme based on:
+  - `<preset id="X">` → lookup X in theme
+  - `<b>` → bold attribute
+  - `<a>`, `<d>` → color from theme
+- Handles nested tags recursively with proper style inheritance
+- Performance: < 1ms per tag average
 
-**Implementation Approach**: TDD - test rendering various tag types
+**Implementation Approach**: TDD - test rendering various tag types with theme
 
 **Required Components**:
-- `VaalinParser/Sources/TagRenderer.swift`
-- `VaalinParser/Tests/TagRendererTests.swift`
+- `VaalinParser/Sources/VaalinParser/TagRenderer.swift`
+- `VaalinParser/Tests/VaalinParserTests/TagRendererTests.swift`
 
 **Test Requirements**:
 ```swift
 test_renderPlainText()
-test_renderWithANSI()
+test_renderPresetWithColor()
 test_renderBoldTag()
-test_renderNestedTags()
+test_renderNestedPresetAndBold()
+test_renderAnchorTag()
 ```
 
-**Dependencies**: TASK-P2-01, TASK-P2-02
+**Dependencies**: TASK-P2-01 (needs ThemeManager)
 
-**Reference**: `requirements.md:159-164`
+**Reference**: `requirements.md:159-164`, Illthorn `component-renderer.ts:164-180`
 
 ---
 
@@ -940,7 +920,7 @@ test_streamEventPublished()
 
 **Acceptance Criteria**:
 - User can connect to Lich
-- See game output with ANSI colors
+- See game output with themed colors (presets)
 - Send commands via input
 - Commands echoed correctly
 - Prompt displays correctly
@@ -2068,7 +2048,7 @@ test_debouncedSave()
 **Description**: Complete theme with all color tokens mapped.
 
 **Acceptance Criteria**:
-- All ANSI colors mapped to Catppuccin palette
+- All preset IDs mapped to Catppuccin palette
 - Semantic colors defined for UI elements
 - Item category colors defined
 - Theme JSON complete

@@ -28,7 +28,7 @@ To get a working MUD client, complete these phases in order:
    - ✅ **Checkpoint**: End-to-end integration test
 
 3. **Phase 2** (#21-32) - 12 issues
-   - Add ANSI color rendering
+   - Add preset-based color rendering
    - Build command input system
    - Implement game log
    - ✅ **Checkpoint**: Fully playable game
