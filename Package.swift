@@ -58,7 +58,8 @@ let package = Package(
                 "Vaalin.entitlements" // Build config, not a source file
             ],
             resources: [
-                .process("Assets.xcassets")
+                .process("Assets.xcassets"),
+                .process("Resources")
             ],
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals"),
