@@ -52,6 +52,18 @@ public struct GameLogView: View {
     /// Tracks whether auto-scrolling is enabled (disabled when user scrolls up).
     @State private var shouldAutoScroll: Bool = true
 
+    /// Current scroll content height (total height of all messages).
+    /// Updated via GeometryReader on LazyVStack content.
+    @State private var contentHeight: CGFloat = 0
+
+    /// Current viewport height (visible ScrollView area).
+    /// Updated via GeometryReader on ScrollView frame.
+    @State private var viewportHeight: CGFloat = 0
+
+    /// Current scroll offset (how far user has scrolled from top).
+    /// Updated via preference key on scroll position changes.
+    @State private var scrollOffset: CGFloat = 0
+
     // MARK: - Constants
 
     /// Distance from bottom (in points) to consider user "at bottom" for auto-scroll.
@@ -74,50 +86,112 @@ public struct GameLogView: View {
 
             // Main scrollable game log
             ScrollViewReader { scrollProxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        // Performance: LazyVStack only renders visible rows
-                        // Critical for 10,000 message buffer @ 60fps target
-                        ForEach(viewModel.messages) { message in
-                            messageRow(for: message)
-                        }
+                GeometryReader { viewportGeometry in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 4) {
+                            // Performance: LazyVStack only renders visible rows
+                            // Critical for 10,000 message buffer @ 60fps target
+                            ForEach(viewModel.messages) { message in
+                                messageRow(for: message)
+                            }
 
-                        // Scroll anchor - zero-height spacer at bottom
-                        // Used by ScrollViewReader.scrollTo() for auto-scroll
-                        Spacer(minLength: 0)
-                            .frame(height: 0)
-                            .id("bottom")
+                            // Scroll anchor - zero-height spacer at bottom
+                            // Used by ScrollViewReader.scrollTo() for auto-scroll
+                            Spacer(minLength: 0)
+                                .frame(height: 0)
+                                .id("bottom")
+                        }
+                        .padding(8)
+                        .background(GeometryReader { contentGeometry in
+                            // Capture content height (total height of all messages)
+                            // Positioned inside LazyVStack to measure actual rendered content
+                            Color.clear.preference(
+                                key: ContentHeightPreferenceKey.self,
+                                value: contentGeometry.size.height
+                            )
+                        })
+                        .background(GeometryReader { scrollGeometry in
+                            // Capture scroll offset (current scroll position)
+                            // frame(in: .named("scrollView")) returns coordinates relative to ScrollView
+                            // origin.y is negative when scrolled down (content moves up)
+                            Color.clear.preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: -scrollGeometry.frame(in: .named("scrollView")).minY
+                            )
+                        })
                     }
-                    .padding(8)
-                }
-                .background(GeometryReader { geometry in
-                    // Invisible view to track scroll position
-                    // Updates shouldAutoScroll when user manually scrolls
-                    Color.clear.preference(
-                        key: ScrollOffsetPreferenceKey.self,
-                        value: geometry.frame(in: .named("scrollView")).origin.y
-                    )
-                })
-                .coordinateSpace(name: "scrollView")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { _ in
-                    // TODO: Implement manual scroll detection for auto-scroll state
-                    // When user scrolls up beyond threshold, set shouldAutoScroll = false
-                    // When user scrolls back to bottom, set shouldAutoScroll = true
-                    // Deferred to maintain minimal scope for Issue #19 integration checkpoint
-                }
-                .onChange(of: viewModel.messages.count) { _, newCount in
-                    // New messages arrived - auto-scroll if enabled
-                    if shouldAutoScroll && newCount > 0 {
-                        // Performance: withAnimation(nil) = instant scroll (no 60fps animation overhead)
-                        // Critical for rapid message arrival (combat spam, etc.)
-                        withAnimation(nil) {
-                            scrollProxy.scrollTo("bottom", anchor: .bottom)
+                    .coordinateSpace(name: "scrollView")
+                    .onAppear {
+                        // Capture viewport height when view appears
+                        viewportHeight = viewportGeometry.size.height
+                    }
+                    .onChange(of: viewportGeometry.size.height) { _, newHeight in
+                        // Update viewport height when window resizes
+                        viewportHeight = newHeight
+                    }
+                    .onPreferenceChange(ContentHeightPreferenceKey.self) { newContentHeight in
+                        // Update content height when messages are added/removed
+                        contentHeight = newContentHeight
+                        updateAutoScrollState()
+                    }
+                    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newScrollOffset in
+                        // Update scroll offset when user scrolls
+                        scrollOffset = newScrollOffset
+                        updateAutoScrollState()
+                    }
+                    .onChange(of: viewModel.messages.count) { _, newCount in
+                        // New messages arrived - auto-scroll if enabled
+                        if shouldAutoScroll && newCount > 0 {
+                            // Performance: withAnimation(nil) = instant scroll (no 60fps animation overhead)
+                            // Critical for rapid message arrival (combat spam, etc.)
+                            withAnimation(nil) {
+                                scrollProxy.scrollTo("bottom", anchor: .bottom)
+                            }
                         }
                     }
                 }
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    // MARK: - Auto-Scroll Logic
+
+    /// Updates auto-scroll state based on current scroll position.
+    ///
+    /// Determines if user is "at bottom" by comparing scroll position to content height.
+    /// Matches Illthorn's auto-scroll logic:
+    /// ```
+    /// isAtBottom = scrollOffset + viewportHeight >= contentHeight - threshold
+    /// ```
+    ///
+    /// **Behavior:**
+    /// - **At bottom** (within 100px threshold): `shouldAutoScroll = true`
+    /// - **Scrolled up** (beyond threshold): `shouldAutoScroll = false`
+    ///
+    /// **Edge cases:**
+    /// - Content shorter than viewport: Always at bottom (auto-scroll enabled)
+    /// - Zero dimensions during initial layout: No-op (preserves initial state)
+    private func updateAutoScrollState() {
+        // Guard against invalid dimensions during initial layout
+        guard contentHeight > 0, viewportHeight > 0 else { return }
+
+        // Calculate distance from bottom
+        // scrollOffset = how far scrolled from top (0 = top, max = bottom)
+        // viewportHeight = visible area height
+        // contentHeight = total content height
+        // distanceFromBottom = how many points below current viewport bottom to actual content bottom
+        let distanceFromBottom = contentHeight - (scrollOffset + viewportHeight)
+
+        // User is "at bottom" if within threshold (100px)
+        // Threshold accounts for rounding errors and provides smooth UX (no flickering on/off)
+        let isAtBottom = distanceFromBottom <= Self.autoScrollThreshold
+
+        // Update auto-scroll state
+        // Only modify if state actually changed (avoids unnecessary view updates)
+        if shouldAutoScroll != isAtBottom {
+            shouldAutoScroll = isAtBottom
+        }
     }
 
     // MARK: - Subviews
@@ -142,65 +216,39 @@ public struct GameLogView: View {
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.95))
     }
 
-    /// Renders a single message row from a GameTag.
+    /// Renders a single message row from a Message.
     ///
-    /// Extracts text recursively from tag and all nested children.
+    /// Displays the pre-rendered AttributedString with theme-based colors and formatting.
     /// Uses monospaced font for proper MUD text alignment.
     ///
-    /// - Parameter message: GameTag to render
-    /// - Returns: Text view with extracted content
-    private func messageRow(for message: GameTag) -> some View {
-        Text(extractText(from: message))
+    /// - Parameter message: Message to render
+    /// - Returns: Text view with styled content
+    private func messageRow(for message: Message) -> some View {
+        Text(message.attributedText)
             .font(.system(size: 13, design: .monospaced))
-            .foregroundColor(Color(nsColor: .textColor))
             .textSelection(.enabled) // Allow text selection for copy/paste
             .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    // MARK: - Text Extraction
-
-    /// Recursively extracts all text content from a GameTag and its children.
-    ///
-    /// Traverses the tag tree depth-first, accumulating text from:
-    /// 1. Tag's own `text` property
-    /// 2. All nested children (recursively)
-    ///
-    /// Special handling for common GemStone IV tags:
-    /// - `prompt`: Displayed as-is (e.g., ">")
-    /// - `:text`: Pure text nodes (no tag name rendered)
-    /// - `a`: Interactive objects (just text for now, clickability in later issue)
-    ///
-    /// - Parameter tag: GameTag to extract text from
-    /// - Returns: Concatenated text content with preserved whitespace
-    ///
-    /// ## Performance
-    /// - **Complexity**: O(n) where n = total nodes in tag tree
-    /// - **Typical depth**: 1-3 levels (shallow XML from GemStone IV)
-    /// - **Target**: < 1ms per message for smooth 60fps scrolling
-    private func extractText(from tag: GameTag) -> String {
-        var result = ""
-
-        // Add tag's own text content
-        if let text = tag.text {
-            result += text
-        }
-
-        // Recursively extract text from children
-        for child in tag.children {
-            result += extractText(from: child)
-        }
-
-        return result
-    }
 }
 
-// MARK: - Preference Key
+// MARK: - Preference Keys
 
 /// Preference key for tracking scroll view offset.
 ///
 /// Used to detect when user manually scrolls up (disables auto-scroll)
 /// versus programmatic scroll to bottom (maintains auto-scroll).
 private struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+/// Preference key for tracking total content height.
+///
+/// Used to determine if user is at bottom of scroll view for auto-scroll logic.
+/// Measures the height of LazyVStack content (all rendered messages).
+private struct ContentHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
@@ -241,6 +289,10 @@ struct GameLogView_Previews: PreviewProvider {
     // MARK: - Sample Data
 
     /// Creates a view model with sample game messages for preview.
+    ///
+    /// Note: Uses plain text fallback rendering since preview helpers are synchronous
+    /// and cannot await the async appendMessage() method. In actual app usage,
+    /// messages will have full theme-based styling.
     private static func sampleViewModel() -> GameLogViewModel {
         let viewModel = GameLogViewModel()
 
@@ -269,19 +321,26 @@ struct GameLogView_Previews: PreviewProvider {
             ("prompt", ">")
         ]
 
+        // Populate with plain text messages for preview
+        // Uses Message convenience initializer for GameTag -> plain AttributedString
         for (tagName, text) in sampleMessages {
             let tag = GameTag(
                 name: tagName,
                 text: text,
                 state: .closed
             )
-            viewModel.appendMessage(tag)
+            let message = Message(from: [tag], streamID: nil)
+            viewModel.messages.append(message)
         }
 
         return viewModel
     }
 
     /// Creates a view model with 100+ messages for performance testing.
+    ///
+    /// Note: Uses plain text fallback rendering since preview helpers are synchronous
+    /// and cannot await the async appendMessage() method. In actual app usage,
+    /// messages will have full theme-based styling.
     private static func largeBufferViewModel() -> GameLogViewModel {
         let viewModel = GameLogViewModel()
 
@@ -296,7 +355,8 @@ struct GameLogView_Previews: PreviewProvider {
                 text: messageText,
                 state: .closed
             )
-            viewModel.appendMessage(tag)
+            let message = Message(from: [tag], streamID: nil)
+            viewModel.messages.append(message)
         }
 
         // Add a prompt at the end
@@ -305,7 +365,8 @@ struct GameLogView_Previews: PreviewProvider {
             text: ">",
             state: .closed
         )
-        viewModel.appendMessage(promptTag)
+        let promptMessage = Message(from: [promptTag], streamID: nil)
+        viewModel.messages.append(promptMessage)
 
         return viewModel
     }

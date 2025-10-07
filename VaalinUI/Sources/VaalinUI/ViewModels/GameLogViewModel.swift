@@ -3,27 +3,33 @@
 import Foundation
 import Observation
 import VaalinCore
+import VaalinParser
 
-/// View model for the game log display with automatic buffer management.
+/// View model for the game log display with automatic buffer management and theme-based rendering.
 ///
 /// `GameLogViewModel` maintains a circular buffer of the most recent 10,000 game messages,
 /// automatically pruning older messages to prevent unbounded memory growth during long
-/// play sessions. Messages are stored as `GameTag` values and exposed to SwiftUI views
-/// via the `@Observable` macro for automatic UI updates.
+/// play sessions. Messages are rendered from `GameTag` objects into styled `Message` objects
+/// with AttributedString using TagRenderer and theme-based colors.
 ///
 /// ## Buffer Management
 /// - **Capacity**: 10,000 messages (configurable constant)
 /// - **Pruning Strategy**: FIFO (First-In-First-Out) - oldest messages removed first
 /// - **Trigger**: Automatic pruning when exceeding capacity
-/// - **Performance**: < 1ms average append time, < 10ms pruning operation
+/// - **Performance**: < 1ms average render + append time, < 10ms pruning operation
+///
+/// ## Rendering Architecture
+/// - **TagRenderer**: Actor-based renderer for thread-safe GameTag → AttributedString conversion
+/// - **ThemeManager**: Loads and manages color themes (Catppuccin Mocha default)
+/// - **Fallback**: Plain text rendering if theme not yet loaded (async theme loading)
 ///
 /// ## Thread Safety
-/// **IMPORTANT:** This class is NOT inherently thread-safe. All access must occur on the
-/// main thread (MainActor). SwiftUI automatically ensures this for views bound to this
-/// view model, so no additional synchronization is needed for typical SwiftUI usage.
+/// **IMPORTANT:** This class is isolated to MainActor. All public methods must be called
+/// from the main thread. SwiftUI automatically ensures this for views bound to this view
+/// model. The TagRenderer and ThemeManager actors provide thread-safe rendering services
+/// accessed via async calls.
 ///
-/// The `@Observable` macro provides property observation for SwiftUI reactivity but does
-/// NOT provide actor-like isolation or thread safety guarantees.
+/// The `@Observable` macro provides property observation for SwiftUI reactivity.
 ///
 /// ## Example Usage
 /// ```swift
@@ -31,24 +37,25 @@ import VaalinCore
 /// final class GameLogViewModel {
 ///     let viewModel = GameLogViewModel()
 ///
-///     // Append messages from parser
+///     // Append messages from parser (async due to rendering)
 ///     let tag = GameTag(name: "output", text: "You swing at the troll!", state: .closed)
-///     viewModel.appendMessage(tag)
+///     await viewModel.appendMessage(tag)
 ///
-///     // SwiftUI view automatically updates
+///     // SwiftUI view automatically updates with styled text
 ///     ForEach(viewModel.messages) { message in
-///         GameLogRow(message: message)
+///         Text(message.attributedText)
 ///     }
 /// }
 /// ```
 ///
 /// ## Performance Characteristics
 /// - **Memory**: ~50KB per 1000 messages (typical), 500KB max for full 10,000 buffer
-/// - **Append**: O(1) amortized (array append + occasional O(1) removeFirst)
+/// - **Append**: O(1) amortized (render + array append + occasional pruning)
+/// - **Rendering**: < 1ms per tag average (TagRenderer target)
 /// - **Pruning**: O(1) (single removeFirst operation per message over limit)
 ///
 /// ## Stream Filtering
-/// Each `GameTag` preserves its `streamId` property (e.g., "thoughts", "speech"),
+/// Each `Message` preserves its `streamID` property (e.g., "thoughts", "speech"),
 /// enabling downstream filtering in stream-specific panels.
 @Observable
 @MainActor
@@ -61,35 +68,56 @@ public final class GameLogViewModel {
 
     // MARK: - Properties
 
-    /// Game log messages in chronological order (oldest first, newest last).
+    /// Rendered game log messages in chronological order (oldest first, newest last).
     ///
-    /// Automatically pruned to maintain `maxBufferSize` limit. Each message is a
-    /// parsed `GameTag` from the game server XML protocol.
+    /// Automatically pruned to maintain `maxBufferSize` limit. Each message contains
+    /// styled AttributedString ready for display with theme-based colors.
     ///
     /// SwiftUI views observing this property will automatically update when messages
     /// are appended via the `@Observable` macro.
-    public var messages: [GameTag] = []
+    public var messages: [Message] = []
+
+    /// TagRenderer actor for thread-safe GameTag → AttributedString conversion.
+    private let renderer: TagRenderer
+
+    /// ThemeManager actor for loading and managing color themes.
+    private let themeManager: ThemeManager
+
+    /// Current active theme (Catppuccin Mocha by default).
+    /// `nil` during initialization until theme loads asynchronously.
+    private var currentTheme: Theme?
 
     // MARK: - Initialization
 
     /// Creates a new GameLogViewModel with an empty message buffer.
+    ///
+    /// Initializes the TagRenderer and ThemeManager, then asynchronously loads
+    /// the default Catppuccin Mocha theme. Messages appended before theme loads
+    /// will fall back to plain text rendering.
     public init() {
-        // Intentionally empty - messages array initializes to empty
+        self.renderer = TagRenderer()
+        self.themeManager = ThemeManager()
+
+        // Load default theme asynchronously (Catppuccin Mocha)
+        Task { @MainActor in
+            await loadDefaultTheme()
+        }
     }
 
     // MARK: - Public Methods
 
-    /// Appends a game message to the log buffer.
+    /// Appends a game message to the log buffer with theme-based rendering.
     ///
-    /// Adds the provided `GameTag` to the end of the messages array. If the buffer
-    /// exceeds `maxBufferSize` after appending, the oldest message is automatically
-    /// removed to maintain the size limit.
+    /// Renders the provided `GameTag` into a styled `Message` using TagRenderer and the
+    /// current theme. If the theme is not yet loaded, falls back to plain text rendering.
+    /// If the buffer exceeds `maxBufferSize` after appending, the oldest message is
+    /// automatically removed to maintain the size limit.
     ///
-    /// - Parameter tag: The game tag to append
+    /// - Parameter tag: The game tag to render and append
     ///
     /// ## Performance
-    /// - **Average case**: < 1ms (array append)
-    /// - **Pruning case**: < 10ms (array append + removeFirst)
+    /// - **Average case**: < 1ms (render + array append)
+    /// - **Pruning case**: < 10ms (render + array append + pruning)
     ///
     /// ## Thread Safety
     /// Must be called from the main thread (MainActor). SwiftUI views automatically
@@ -97,15 +125,57 @@ public final class GameLogViewModel {
     ///
     /// ## Example
     /// ```swift
-    /// let tag = GameTag(name: "output", text: "The troll swings at you!", state: .closed)
-    /// viewModel.appendMessage(tag)
+    /// let tag = GameTag(name: "preset", attrs: ["id": "speech"], text: "Hello!", state: .closed)
+    /// await viewModel.appendMessage(tag)
     /// ```
-    public func appendMessage(_ tag: GameTag) {
-        messages.append(tag)
+    public func appendMessage(_ tag: GameTag) async {
+        let message: Message
+
+        if let theme = currentTheme {
+            // Render with theme colors
+            let attributedText = await renderer.render(tag, theme: theme)
+            message = Message(
+                attributedText: attributedText,
+                tags: [tag],
+                streamID: tag.streamId
+            )
+        } else {
+            // Fallback: plain text rendering if theme not yet loaded
+            message = Message(from: [tag], streamID: tag.streamId)
+        }
+
+        messages.append(message)
 
         // Prune oldest messages if buffer exceeds capacity
         if messages.count > Self.maxBufferSize {
             messages = Array(messages.suffix(Self.maxBufferSize))
+        }
+    }
+
+    // MARK: - Private Methods
+
+    /// Loads the default Catppuccin Mocha theme from the app bundle.
+    ///
+    /// Called asynchronously during initialization. If loading fails, logs an error
+    /// and leaves `currentTheme` as `nil`, which triggers plain text fallback rendering.
+    private func loadDefaultTheme() async {
+        do {
+            // Load theme JSON from bundle
+            guard let url = Bundle.main.url(
+                forResource: "catppuccin-mocha",
+                withExtension: "json",
+                subdirectory: "themes"
+            ) else {
+                // Theme not found - fall back to plain text rendering
+                // TODO: Use proper logging framework (os.Logger) in future
+                return
+            }
+
+            let data = try Data(contentsOf: url)
+            currentTheme = try await themeManager.loadTheme(from: data)
+        } catch {
+            // Theme loading failed - fall back to plain text rendering
+            // TODO: Use proper logging framework (os.Logger) in future
         }
     }
 }

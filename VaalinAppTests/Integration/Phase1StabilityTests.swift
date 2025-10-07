@@ -313,7 +313,8 @@ struct Phase1StabilityTests {
 
         // Verify message structure
         let firstMessage = try #require(appState.gameLogViewModel.messages.first)
-        #expect(!firstMessage.name.isEmpty)
+        #expect(!firstMessage.tags.isEmpty)
+        #expect(firstMessage.tags.first?.name.isEmpty == false)
 
         // Send more data to verify continuous operation
         for _ in 0..<10 {
