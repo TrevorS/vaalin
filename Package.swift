@@ -33,6 +33,11 @@ let package = Package(
         .library(
             name: "VaalinCore",
             targets: ["VaalinCore"]
+        ),
+        // UI framework for SwiftUI views and view models
+        .library(
+            name: "VaalinUI",
+            targets: ["VaalinUI"]
         )
     ],
     dependencies: [
@@ -43,6 +48,7 @@ let package = Package(
         .executableTarget(
             name: "Vaalin",
             dependencies: [
+                "VaalinUI",
                 "VaalinParser",
                 "VaalinNetwork",
                 "VaalinCore"
@@ -123,10 +129,21 @@ let package = Package(
             path: "VaalinCore/Tests/VaalinCoreTests"
         ),
 
+        // UI framework - SwiftUI views and view models
+        .target(
+            name: "VaalinUI",
+            dependencies: ["VaalinCore"],
+            path: "VaalinUI/Sources/VaalinUI",
+            swiftSettings: [
+                .enableUpcomingFeature("BareSlashRegexLiterals"),
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+
         // Main application tests
         .testTarget(
             name: "VaalinTests",
-            dependencies: ["Vaalin", "VaalinCore"],
+            dependencies: ["Vaalin", "VaalinUI", "VaalinCore"],
             path: "VaalinAppTests"
         )
     ]

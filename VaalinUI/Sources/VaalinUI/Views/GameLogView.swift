@@ -40,14 +40,14 @@ import VaalinCore
 /// let viewModel = GameLogViewModel()
 /// GameLogView(viewModel: viewModel, isConnected: true)
 /// ```
-struct GameLogView: View {
+public struct GameLogView: View {
     // MARK: - Properties
 
     /// View model providing game messages and buffer management.
-    @Bindable var viewModel: GameLogViewModel
+    @Bindable public var viewModel: GameLogViewModel
 
     /// Connection status indicator (true = connected, false = disconnected).
-    var isConnected: Bool
+    public var isConnected: Bool
 
     /// Tracks whether auto-scrolling is enabled (disabled when user scrolls up).
     @State private var shouldAutoScroll: Bool = true
@@ -58,9 +58,16 @@ struct GameLogView: View {
     /// Matches Illthorn's MIN_SCROLL_BUFFER constant for consistent UX.
     private static let autoScrollThreshold: CGFloat = 100
 
+    // MARK: - Initializer
+
+    public init(viewModel: GameLogViewModel, isConnected: Bool) {
+        self.viewModel = viewModel
+        self.isConnected = isConnected
+    }
+
     // MARK: - Body
 
-    var body: some View {
+    public var body: some View {
         VStack(spacing: 0) {
             // Connection status indicator
             connectionStatusBar

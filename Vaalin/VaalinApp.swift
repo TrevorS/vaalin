@@ -1,6 +1,7 @@
 // ABOUTME: Main entry point for Vaalin native macOS SwiftUI MUD client
 
 import SwiftUI
+import VaalinUI
 
 /// Vaalin - Native macOS client for GemStone IV via Lich 5 detachable mode
 ///
