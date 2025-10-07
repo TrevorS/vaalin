@@ -144,7 +144,11 @@ let package = Package(
         .testTarget(
             name: "VaalinTests",
             dependencies: ["Vaalin", "VaalinUI", "VaalinCore"],
-            path: "VaalinAppTests"
+            path: "VaalinAppTests",
+            resources: [
+                .copy("Mocks/README.md"),
+                .copy("Mocks/IMPLEMENTATION.md")
+            ]
         )
     ]
 )

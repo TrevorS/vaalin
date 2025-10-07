@@ -102,7 +102,7 @@ struct Phase1IntegrationTests {
 
         // Parse
         let xmlString = String(data: allData, encoding: .utf8) ?? ""
-        let tags = await parser.parse(xmlString)
+        _ = await parser.parse(xmlString)
 
         // Verify stream management
         #expect(xmlString.contains("<pushStream id=\"room\"/>"))
@@ -145,7 +145,7 @@ struct Phase1IntegrationTests {
 
         // Parse
         let xmlString = String(data: allData, encoding: .utf8) ?? ""
-        let tags = await parser.parse(xmlString)
+        _ = await parser.parse(xmlString)
 
         // Verify combat content and vitals
         #expect(xmlString.contains("<pushStream id=\"combat\"/>"))
@@ -189,7 +189,7 @@ struct Phase1IntegrationTests {
 
         // Parse
         let xmlString = String(data: allData, encoding: .utf8) ?? ""
-        let tags = await parser.parse(xmlString)
+        _ = await parser.parse(xmlString)
 
         // Verify item tags with attributes
         #expect(xmlString.contains("<a exist=\""))
@@ -289,7 +289,6 @@ struct Phase1IntegrationTests {
 
         let port = await server.port
         let connection = LichConnection()
-        let parser = XMLStreamParser()
 
         try await connection.connect(host: "127.0.0.1", port: port)
 
