@@ -525,7 +525,9 @@ test_parsedTagsAvailable()
 
 ---
 
-### TASK-P1-13: Create Basic GameLogViewModel
+### TASK-P1-13: Create Basic GameLogViewModel ✅
+
+**Status**: COMPLETED (PR #113, Issue #18)
 
 **Description**: Observable view model to hold parsed game messages for display.
 
