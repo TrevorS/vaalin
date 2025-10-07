@@ -18,8 +18,12 @@ import VaalinCore
 /// - **Performance**: < 1ms average append time, < 10ms pruning operation
 ///
 /// ## Thread Safety
-/// All operations are thread-safe via `@Observable` actor isolation. Multiple concurrent
-/// appends are safely serialized by the Swift runtime.
+/// **IMPORTANT:** This class is NOT inherently thread-safe. All access must occur on the
+/// main thread (MainActor). SwiftUI automatically ensures this for views bound to this
+/// view model, so no additional synchronization is needed for typical SwiftUI usage.
+///
+/// The `@Observable` macro provides property observation for SwiftUI reactivity but does
+/// NOT provide actor-like isolation or thread safety guarantees.
 ///
 /// ## Example Usage
 /// ```swift
@@ -87,8 +91,8 @@ final class GameLogViewModel {
     /// - **Pruning case**: < 10ms (array append + removeFirst)
     ///
     /// ## Thread Safety
-    /// Safe to call from multiple concurrent tasks. Operations are serialized via
-    /// `@Observable` actor isolation.
+    /// Must be called from the main thread (MainActor). SwiftUI views automatically
+    /// satisfy this requirement when binding to this view model.
     ///
     /// ## Example
     /// ```swift
