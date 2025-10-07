@@ -4,8 +4,10 @@ import Foundation
 import Testing
 @testable import Vaalin
 @testable import VaalinCore
+@testable import VaalinUI
 
 @Suite("GameLogViewModel Tests")
+@MainActor
 struct GameLogViewModelTests {
     // MARK: - Initial State Tests
 

@@ -7,35 +7,62 @@ import VaalinUI
 ///
 /// This is a complete SwiftUI rewrite of the Illthorn client, targeting macOS 26+
 /// with Liquid Glass design language and Swift concurrency (async/await, actors).
+///
+/// ## Architecture (Phase 1 Integration)
+///
+/// ```
+/// VaalinApp
+///    └─ WindowGroup
+///        └─ MainView
+///            ├─ @State appState: AppState (coordinator)
+///            ├─ ConnectionControlsView (top bar)
+///            └─ GameLogView (main content)
+/// ```
 @main
 struct VaalinApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainView()
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 1200, height: 800)
     }
 }
 
-/// Temporary placeholder view - will be replaced in Phase 1 with proper game UI
-struct ContentView: View {
+/// Main view that integrates connection controls and game log.
+///
+/// `MainView` creates the root AppState and passes it to child views for coordination.
+/// The connection controls sit at the top, with the game log filling the remaining space.
+///
+/// ## Layout
+///
+/// ```
+/// VStack {
+///   ConnectionControlsView [fixed height]
+///   GameLogView [fills remaining space]
+/// }
+/// ```
+struct MainView: View {
+    /// App coordinator managing connection lifecycle and polling
+    @State private var appState = AppState()
+
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Vaalin")
-                .font(.system(size: 48, weight: .bold))
-            Text("Native macOS Client for GemStone IV")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("Project structure initialized - ready for Phase 1 implementation")
-                .font(.body)
-                .foregroundStyle(.tertiary)
+        VStack(spacing: 0) {
+            // Connection controls at top
+            ConnectionControlsView(appState: appState)
+
+            // Game log fills remaining space
+            GameLogView(
+                viewModel: appState.gameLogViewModel,
+                isConnected: appState.isConnected
+            )
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
     }
 }
 
-#Preview {
-    ContentView()
+// MARK: - Previews
+
+#Preview("Main View") {
+    MainView()
+        .frame(width: 1200, height: 800)
 }
