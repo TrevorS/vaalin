@@ -240,8 +240,7 @@ Vaalin/
 │   │   ├── ItemCategory.swift     # Codable category model
 │   │   ├── MacroManager.swift     # Keyboard macro system
 │   │   ├── CommandHistory.swift   # Command history buffer
-│   │   ├── ANSIParser.swift       # ANSI escape code parsing
-│   │   └── ThemeManager.swift     # Color theme loader
+│   │   └── ThemeManager.swift     # Preset color theme loader
 │   ├── Tests/
 │   │   ├── GameTagTests.swift     # GameTag model tests (moved from VaalinParser)
 │   │   ├── MessageTests.swift     # Message model tests
@@ -350,6 +349,42 @@ await bridge.stop()
 - Connection errors: Logged and stream finished
 
 **Testing**: See `ParserConnectionBridgeTests.swift` and `TestLichConnection` executable.
+
+### Preset-Based Color System
+
+The game server sends styled text via XML preset tags, **not ANSI escape codes**.
+
+**Example XML from server**:
+```xml
+<preset id="speech">You say, "Hello!"</preset>
+<preset id="damage">You take 50 damage!</preset>
+<preset id="thought">You ponder the situation</preset>
+```
+
+**Architecture**:
+1. XMLStreamParser extracts `GameTag(name: "preset", attrs: ["id": "speech"])`
+2. ThemeManager loads `Vaalin/Resources/themes/catppuccin-mocha.json` with preset mappings
+3. TagRenderer converts `GameTag` → `AttributedString` with colors:
+   ```swift
+   let presetID = tag.attrs["id"] as? String
+   let color = theme.color(forPreset: presetID)
+   attributedString.foregroundColor = color
+   ```
+
+**Common Preset IDs**:
+- `speech`, `whisper`, `thought` - communication
+- `damage`, `heal` - combat
+- `roomName`, `roomDesc` - navigation
+- `bold`, `watching`, `link` - formatting
+
+**Color Mapping** (Catppuccin Mocha):
+- `speech` → Green (#a6e3a1)
+- `whisper` → Teal (#94e2d5)
+- `thought` → Text (#cdd6f4)
+- `damage` → Red (#f38ba8)
+- `heal` → Green (#a6e3a1)
+
+**Reference**: Illthorn uses same approach - see `src/frontend/styles/_vars.scss` (lines 41-48) for preset-to-color mappings.
 
 ### Event Bus - Cross-Component Communication
 
@@ -561,7 +596,7 @@ Tasks marked "TDD" in GitHub issues follow this workflow:
 TDD is **required** for:
 - All parser logic (TASK-P1 series)
 - Business logic actors (categorizer, settings manager, event bus)
-- Complex algorithms (item categorization, ANSI parsing)
+- Complex algorithms (item categorization, preset color mapping)
 
 ## Critical Dependencies
 
@@ -620,13 +655,13 @@ See GemStone IV Wiki for protocol details: https://gswiki.play.net/Lich_XML_Data
 
 **Example File Structure**:
 ```swift
-// ABOUTME: GameLogView displays the virtualized scrolling game log with ANSI colors
+// ABOUTME: GameLogView displays the virtualized scrolling game log with themed preset colors
 
 import SwiftUI
 import VaalinParser
 import VaalinCore
 
-/// Displays the game log with virtualized scrolling and ANSI color rendering.
+/// Displays the game log with virtualized scrolling and preset color rendering.
 ///
 /// Performance target: 60fps scrolling with 10,000 line buffer
 struct GameLogView: View {

@@ -102,7 +102,7 @@ Vaalin is a native macOS application for playing GemStone IV, a text-based MUD. 
 
 **Acceptance Criteria**:
 - Simple `GameLogView` that renders `GameTag` array
-- Displays text content with basic ANSI color support
+- Displays text content with basic preset color support
 - Auto-scrolls as new content arrives
 - Renders `<a>`, `<d>`, `<b>` tags as styled text (no interaction yet)
 - Shows connection status (connected/disconnected)
@@ -147,7 +147,7 @@ enum TagState {
 
 **Acceptance Criteria**:
 - Uses `LazyVStack` or `List` for virtualization [^8]
-- Renders attributed text with ANSI colors mapped to theme
+- Renders attributed text with preset colors mapped to theme
 - Maintains 10,000 line scrollback buffer (oldest pruned)
 - Auto-scrolls when at bottom, pauses when user scrolls up
 - Smooth 60fps scrolling
@@ -165,22 +165,32 @@ enum TagState {
 
 ---
 
-#### FR-2.2: ANSI Color Rendering
+#### FR-2.2: Preset-Based Color Rendering
 
-**Description**: Map ANSI escape codes to Catppuccin Mocha theme colors.
+**Description**: Map XML preset IDs to Catppuccin Mocha theme colors for styled game text.
+
+**Rationale**: GemStone IV sends `<preset id="speech">` tags for styling, not ANSI codes. Parser already handles these tags.
 
 **Acceptance Criteria**:
-- Parses ANSI codes: `\033[0m` (reset), `\033[31m` (red), `\033[1;32m` (bold green), etc.
-- Maps to semantic color tokens: `--color-red`, `--color-green`, etc.
-- Supports 16-color ANSI palette
+- Parses preset tags via XMLStreamParser (✅ already implemented)
+- Maps preset IDs to theme colors:
+  - `speech` → Catppuccin Green (#a6e3a1)
+  - `whisper` → Catppuccin Teal (#94e2d5)
+  - `thought` → Catppuccin Text (#cdd6f4)
+  - `damage` → Catppuccin Red (#f38ba8)
+  - `heal` → Catppuccin Green (#a6e3a1)
 - Themeable: colors defined in JSON config, mapped at runtime
-- Bold, italic, underline support
+- Bold, italic, underline support via `<b>`, `<i>`, `<u>` tags
+- Falls back to default text color for unknown preset IDs
 
 **Technical Constraints**:
-- Use Swift Regex for ANSI parsing [^10]
-- AttributedString for styled runs
+- Use AttributedString for styled runs [^9]
+- Theme loaded from `Vaalin/Resources/themes/catppuccin-mocha.json`
+- Environment-accessible theme manager for view access
 
-**Dependencies**: FR-2.1
+**Dependencies**: FR-2.1, FR-6.2
+
+**Reference Implementation**: `/Users/trevor/Projects/illthorn/src/frontend/styles/_vars.scss` (lines 41-48, preset colors)
 
 [^10]: https://developer.apple.com/documentation/swift/regex
 
@@ -710,12 +720,17 @@ enum TagState {
 
 #### FR-6.2: Catppuccin Mocha Theme
 
-**Description**: Default color theme using Catppuccin Mocha palette.
+**Description**: Default color theme using Catppuccin Mocha palette with preset ID mappings.
 
 **Acceptance Criteria**:
-- Color tokens defined in theme JSON
+- Color tokens defined in theme JSON (26 Catppuccin colors)
 - Maps to SwiftUI semantic colors
-- ANSI colors mapped to Catppuccin palette [^20]
+- Preset IDs mapped to Catppuccin palette [^20]:
+  - Speech/communication: greens, teals
+  - Damage/danger: reds, maroons
+  - Healing: greens
+  - Thoughts: text colors
+- Item categories mapped (weapons→red, gems→yellow, etc.)
 - User can customize via theme JSON editing
 - Theme applied consistently across all views
 
@@ -1377,7 +1392,7 @@ FR-1.2 (Network)
   └─> FR-1.3 (Basic Rendering)
 
 FR-2.1 (Game Log)
-  ├─> FR-2.2 (ANSI Colors)
+  ├─> FR-2.2 (Preset Colors)
   └─> FR-5.3 (Search)
 
 FR-2.3 (Command Input)
