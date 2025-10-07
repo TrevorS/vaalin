@@ -283,6 +283,14 @@ struct GameLogView_Previews: PreviewProvider {
             )
             .frame(width: 600, height: 400)
             .previewDisplayName("Large Buffer - 100 Messages")
+
+            // Preview 4: Styled text - Shows theme colors (Catppuccin Mocha)
+            GameLogView(
+                viewModel: styledViewModel(),
+                isConnected: true
+            )
+            .frame(width: 600, height: 400)
+            .previewDisplayName("Styled with Theme Colors")
         }
     }
 
@@ -367,6 +375,45 @@ struct GameLogView_Previews: PreviewProvider {
         )
         let promptMessage = Message(from: [promptTag], streamID: nil)
         viewModel.messages.append(promptMessage)
+
+        return viewModel
+    }
+
+    /// Creates a view model with styled messages demonstrating theme colors.
+    ///
+    /// Manually creates AttributedString with Catppuccin Mocha colors to show
+    /// what the actual theme-rendered output looks like (TagRenderer + ThemeManager).
+    private static func styledViewModel() -> GameLogViewModel {
+        let viewModel = GameLogViewModel()
+
+        // Catppuccin Mocha colors
+        let colors = (
+            green: Color(red: 0.65, green: 0.89, blue: 0.63),  // #a6e3a1
+            red: Color(red: 0.95, green: 0.55, blue: 0.66),    // #f38ba8
+            teal: Color(red: 0.58, green: 0.89, blue: 0.84),   // #94e2d5
+            text: Color(red: 0.8, green: 0.84, blue: 0.96)     // #cdd6f4
+        )
+
+        // Sample messages with preset colors
+        let messages: [(String, Color, String)] = [
+            ("You swing a vultite greatsword at a hobgoblin!", colors.red, "damage"),
+            ("  AS: +125 vs DS: +89 with AvD: +35 + d100 roll: +42 = +113", colors.text, "output"),
+            ("   ... and hit for 23 points of damage!", colors.red, "damage"),
+            (">", colors.text, "prompt"),
+            ("You say, \"Hello there!\"", colors.green, "speech"),
+            ("Xanlin whispers, \"Secret message.\"", colors.teal, "whisper"),
+            ("A warm feeling washes over you as your wounds heal!", colors.green, "heal"),
+            (">", colors.text, "prompt")
+        ]
+
+        for (text, color, preset) in messages {
+            var attributed = AttributedString(text)
+            attributed.foregroundColor = color
+            let tag = GameTag(name: preset == "prompt" || preset == "output" ? preset : "preset",
+                              attrs: preset != "prompt" && preset != "output" ? ["id": preset] : [:],
+                              state: .closed)
+            viewModel.messages.append(Message(attributedText: attributed, tags: [tag], streamID: nil))
+        }
 
         return viewModel
     }
