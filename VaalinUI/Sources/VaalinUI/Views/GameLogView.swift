@@ -284,47 +284,52 @@ struct GameLogView_Previews: PreviewProvider {
 
     /// Creates a view model with sample game messages for preview.
     ///
-    /// Note: Uses plain text fallback rendering since preview helpers are synchronous
-    /// and cannot await the async appendMessage() method. In actual app usage,
-    /// messages will have full theme-based styling.
+    /// Demonstrates Catppuccin Mocha theme colors with realistic game output.
+    /// Manually creates AttributedString with theme colors to show what actual
+    /// TagRenderer + ThemeManager output looks like.
     private static func sampleViewModel() -> GameLogViewModel {
         let viewModel = GameLogViewModel()
 
-        // Simulate typical game output
-        let sampleMessages: [(String, String?)] = [
-            ("output", "You swing a vultite greatsword at a hobgoblin!"),
-            ("output", "  AS: +125 vs DS: +89 with AvD: +35 + d100 roll: +42 = +113"),
-            ("output", "   ... and hit for 23 points of damage!"),
-            ("prompt", ">"),
-            ("output", "The hobgoblin swings a short sword at you!"),
-            ("output", "  AS: +95 vs DS: +105 with AvD: +12 + d100 roll: +15 = +17"),
-            ("output", "   A clean miss."),
-            ("prompt", ">"),
-            ("output", "You search the hobgoblin."),
-            ("output", "You discard the hobgoblin's useless equipment."),
-            ("output", "He had 124 silvers on him."),
-            ("output", "You gather the remaining 124 coins."),
-            ("prompt", ">"),
-            ("output", "Roundtime: 3 sec."),
-            ("output", "[Wehnimer's Landing, Town Square]"),
-            ("output", "The bustling town comes alive around you."),
-            ("output", "Obvious exits: north, south, east, west"),
-            ("prompt", ">"),
-            ("output", "Lord Xanlin just arrived."),
-            ("output", "Xanlin waves to you."),
-            ("prompt", ">")
+        // Catppuccin Mocha colors (matching theme preset mappings)
+        let colors = (
+            text: Color(red: 0.8, green: 0.84, blue: 0.96),     // #cdd6f4 - text
+            red: Color(red: 0.95, green: 0.55, blue: 0.66),     // #f38ba8 - damage
+            green: Color(red: 0.65, green: 0.89, blue: 0.63),   // #a6e3a1 - speech/heal
+            teal: Color(red: 0.58, green: 0.89, blue: 0.84),    // #94e2d5 - whisper
+            yellow: Color(red: 0.98, green: 0.83, blue: 0.48)   // #fab387 - warning
+        )
+
+        // Sample messages with theme colors (damage = red, speech = green, etc.)
+        let messages: [(String, Color)] = [
+            ("You swing a vultite greatsword at a hobgoblin!", colors.red),
+            ("  AS: +125 vs DS: +89 with AvD: +35 + d100 roll: +42 = +113", colors.text),
+            ("   ... and hit for 23 points of damage!", colors.red),
+            (">", colors.text),
+            ("You say, \"Nice hit!\"", colors.green),
+            ("Xanlin whispers, \"Watch out behind you!\"", colors.teal),
+            ("The hobgoblin swings a short sword at you!", colors.text),
+            ("  AS: +95 vs DS: +105 with AvD: +12 + d100 roll: +15 = +17", colors.text),
+            ("   A clean miss.", colors.text),
+            (">", colors.text),
+            ("A warm feeling washes over you as your wounds heal!", colors.green),
+            ("You search the hobgoblin.", colors.text),
+            ("You discard the hobgoblin's useless equipment.", colors.text),
+            ("He had 124 silvers on him.", colors.yellow),
+            ("You gather the remaining 124 coins.", colors.yellow),
+            (">", colors.text),
+            ("Roundtime: 3 sec.", colors.text),
+            ("[Wehnimer's Landing, Town Square]", colors.text),
+            ("The bustling town comes alive around you.", colors.text),
+            ("Obvious exits: north, south, east, west", colors.text),
+            (">", colors.text)
         ]
 
-        // Populate with plain text messages for preview
-        // Uses Message convenience initializer for GameTag -> plain AttributedString
-        for (tagName, text) in sampleMessages {
-            let tag = GameTag(
-                name: tagName,
-                text: text,
-                state: .closed
-            )
-            let message = Message(from: [tag], streamID: nil)
-            viewModel.messages.append(message)
+        // Populate with styled messages showing theme colors
+        for (text, color) in messages {
+            var attributed = AttributedString(text)
+            attributed.foregroundColor = color
+            let tag = GameTag(name: "output", state: .closed)
+            viewModel.messages.append(Message(attributedText: attributed, tags: [tag], streamID: nil))
         }
 
         return viewModel
