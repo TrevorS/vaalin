@@ -38,7 +38,8 @@ struct SettingsTests {
         },
         "input": {
             "sendOnEnter": true,
-            "echoPrefix": ">"
+            "echoPrefix": ">",
+            "commandEcho": true
         },
         "theme": {
             "name": "catppuccin-mocha",
@@ -70,7 +71,8 @@ struct SettingsTests {
         },
         "input": {
             "sendOnEnter": false,
-            "echoPrefix": ""
+            "echoPrefix": "",
+            "commandEcho": false
         },
         "theme": {
             "name": "",
@@ -105,7 +107,8 @@ struct SettingsTests {
             ),
             input: Settings.InputSettings(
                 sendOnEnter: true,
-                echoPrefix: ">"
+                echoPrefix: ">",
+                commandEcho: true
             ),
             theme: Settings.ThemeSettings(
                 name: "catppuccin-mocha",
@@ -154,6 +157,7 @@ struct SettingsTests {
         // Verify input
         #expect(settings.input.sendOnEnter == true)
         #expect(settings.input.echoPrefix == ">")
+        #expect(settings.input.commandEcho == true)
 
         // Verify theme
         #expect(settings.theme.name == "catppuccin-mocha")
@@ -184,7 +188,8 @@ struct SettingsTests {
 
         // Input defaults
         #expect(settings.input.sendOnEnter == true)
-        #expect(settings.input.echoPrefix == ">")
+        #expect(settings.input.echoPrefix == "›")
+        #expect(settings.input.commandEcho == true)
 
         // Theme defaults
         #expect(settings.theme.name == "catppuccin-mocha")
@@ -209,7 +214,8 @@ struct SettingsTests {
 
         let input = Settings.InputSettings.makeDefault()
         #expect(input.sendOnEnter == true)
-        #expect(input.echoPrefix == ">")
+        #expect(input.echoPrefix == "›")
+        #expect(input.commandEcho == true)
 
         let theme = Settings.ThemeSettings.makeDefault()
         #expect(theme.name == "catppuccin-mocha")
@@ -243,7 +249,8 @@ struct SettingsTests {
             },
             "input": {
                 "sendOnEnter": false,
-                "echoPrefix": "$"
+                "echoPrefix": "$",
+                "commandEcho": false
             },
             "theme": {
                 "name": "custom-theme",

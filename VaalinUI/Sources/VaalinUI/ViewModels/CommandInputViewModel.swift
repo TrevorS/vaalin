@@ -71,6 +71,12 @@ public final class CommandInputViewModel {
     /// Command history reference for navigation
     private let commandHistory: CommandHistory
 
+    /// Game log view model for command echo (optional - echo disabled if nil)
+    private let gameLogViewModel: GameLogViewModel?
+
+    /// Settings for command echo configuration
+    private let settings: Settings
+
     /// Temporary storage for current draft when navigating history
     /// Preserves what user was typing before pressing up arrow
     private var currentDraft: String = ""
@@ -82,17 +88,26 @@ public final class CommandInputViewModel {
 
     /// Creates a new CommandInputViewModel with command history integration.
     ///
-    /// - Parameter commandHistory: CommandHistory actor for storing and recalling commands
-    public init(commandHistory: CommandHistory) {
+    /// - Parameters:
+    ///   - commandHistory: CommandHistory actor for storing and recalling commands
+    ///   - gameLogViewModel: Optional GameLogViewModel for command echo (default: nil)
+    ///   - settings: Settings for command echo configuration (default: makeDefault())
+    public init(
+        commandHistory: CommandHistory,
+        gameLogViewModel: GameLogViewModel? = nil,
+        settings: Settings = .makeDefault()
+    ) {
         self.commandHistory = commandHistory
+        self.gameLogViewModel = gameLogViewModel
+        self.settings = settings
     }
 
     // MARK: - Public Methods - Command Submission
 
     /// Submits the current command and clears the input.
     ///
-    /// Adds the command to history, resets navigation state, and invokes the
-    /// provided handler to send the command to the game server.
+    /// Echoes the command to game log (if enabled), adds to history, resets navigation
+    /// state, and invokes the provided handler to send the command to the game server.
     ///
     /// - Parameter handler: Closure to execute with the submitted command
     ///
@@ -102,11 +117,25 @@ public final class CommandInputViewModel {
     ///     await connection.send(command)
     /// }
     /// ```
+    ///
+    /// ## Command Echo Flow
+    /// 1. Echo command to game log (if `settings.input.commandEcho` is true)
+    /// 2. Add command to history
+    /// 3. Clear input and reset state
+    /// 4. Execute handler to send command to server
+    ///
+    /// This ensures the echo appears **before** the command is sent to the server
+    /// per Issue #28 acceptance criteria.
     public func submitCommand(handler: (String) -> Void) async {
         let command = currentInput.trimmingCharacters(in: .whitespaces)
 
         // Don't submit empty commands
         guard !command.isEmpty else { return }
+
+        // Echo command to game log if enabled
+        if settings.input.commandEcho, let gameLog = gameLogViewModel {
+            await gameLog.echoCommand(command, prefix: settings.input.echoPrefix)
+        }
 
         // Add to history
         await commandHistory.add(command)

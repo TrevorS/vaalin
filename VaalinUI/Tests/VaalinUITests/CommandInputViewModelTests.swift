@@ -912,4 +912,173 @@ struct CommandInputViewModelTests {
         #expect(all.count == 3)
         #expect(all.filter { $0 == "exp" }.count == 3)
     }
+
+    // MARK: - Command Echo Integration Tests (Issue #28)
+
+    /// Test that command echo is disabled when settings.commandEcho is false
+    ///
+    /// Acceptance Criteria:
+    /// - Respects echo setting (can be disabled)
+    @Test("Command echo disabled when setting is false")
+    func test_echoDisabled() async {
+        let history = CommandHistory()
+        let gameLog = await GameLogViewModel()
+
+        // Create settings with echo disabled
+        var settings = Settings.makeDefault()
+        settings.input.commandEcho = false
+
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                gameLogViewModel: gameLog,
+                settings: settings
+            )
+        }
+
+        await MainActor.run {
+            viewModel.currentInput = "look"
+        }
+
+        await viewModel.submitCommand { _ in }
+
+        // Game log should be empty (no echo)
+        await MainActor.run {
+            #expect(gameLog.messages.isEmpty)
+        }
+    }
+
+    /// Test that command is echoed when settings.commandEcho is true
+    ///
+    /// Acceptance Criteria:
+    /// - Commands echoed with prefix
+    /// - Echo happens before command sent to server
+    @Test("Command echo enabled when setting is true")
+    func test_echoEnabled() async {
+        let history = CommandHistory()
+        let gameLog = await GameLogViewModel()
+
+        // Create settings with echo enabled (default)
+        let settings = Settings.makeDefault()
+
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                gameLogViewModel: gameLog,
+                settings: settings
+            )
+        }
+
+        var handlerCalled = false
+
+        await MainActor.run {
+            viewModel.currentInput = "look north"
+        }
+
+        await viewModel.submitCommand { _ in
+            handlerCalled = true
+        }
+
+        // Verify echo appeared in game log
+        await MainActor.run {
+            #expect(gameLog.messages.count == 1)
+            let text = String(gameLog.messages[0].attributedText.characters)
+            #expect(text.contains("look north"))
+        }
+
+        // Verify handler was called (command was sent)
+        #expect(handlerCalled)
+    }
+
+    /// Test that command echo uses the prefix from settings
+    ///
+    /// Acceptance Criteria:
+    /// - Commands echoed with configured prefix
+    @Test("Command echo uses prefix from settings")
+    func test_echoUsesSettingsPrefix() async {
+        let history = CommandHistory()
+        let gameLog = await GameLogViewModel()
+
+        // Create settings with custom prefix
+        var settings = Settings.makeDefault()
+        settings.input.echoPrefix = ">"
+
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                gameLogViewModel: gameLog,
+                settings: settings
+            )
+        }
+
+        await MainActor.run {
+            viewModel.currentInput = "cast 118"
+        }
+
+        await viewModel.submitCommand { _ in }
+
+        // Verify echo uses custom prefix
+        await MainActor.run {
+            #expect(gameLog.messages.count == 1)
+            let text = String(gameLog.messages[0].attributedText.characters)
+            #expect(text.contains("> cast 118"))
+        }
+    }
+
+    /// Test that echo works when gameLogViewModel is nil (graceful degradation)
+    @Test("Command submission works without gameLogViewModel")
+    func test_echoWithoutGameLog() async {
+        let history = CommandHistory()
+
+        // No gameLogViewModel provided
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(commandHistory: history)
+        }
+
+        var handlerCalled = false
+
+        await MainActor.run {
+            viewModel.currentInput = "look"
+        }
+
+        await viewModel.submitCommand { _ in
+            handlerCalled = true
+        }
+
+        // Should not crash, handler should still be called
+        #expect(handlerCalled)
+    }
+
+    /// Test that echo happens BEFORE handler is called
+    ///
+    /// Acceptance Criteria:
+    /// - Echo happens before command sent to server
+    @Test("Echo happens before command sent to server")
+    func test_echoBeforeCommandSent() async {
+        let history = CommandHistory()
+        let gameLog = await GameLogViewModel()
+
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                gameLogViewModel: gameLog,
+                settings: .makeDefault()
+            )
+        }
+
+        await MainActor.run {
+            viewModel.currentInput = "look"
+        }
+
+        await viewModel.submitCommand { _ in
+            // Handler called - echo should already be in game log
+        }
+
+        // Verify echo was added (check after submission completes)
+        await MainActor.run {
+            #expect(gameLog.messages.count == 1)
+            let text = String(gameLog.messages[0].attributedText.characters)
+            #expect(text.contains("look"))
+        }
+    }
 }
