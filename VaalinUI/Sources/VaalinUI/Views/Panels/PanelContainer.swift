@@ -102,10 +102,6 @@ public struct PanelContainer<Content: View>: View {
                 content()
                     .frame(height: height)
                     .background(Color(nsColor: .controlBackgroundColor))
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .top).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
@@ -150,6 +146,7 @@ public struct PanelContainer<Content: View>: View {
                         Circle()
                             .fill(Color(nsColor: .controlColor))
                             .opacity(isHovering ? 0.5 : 0.35)
+                            .frame(width: 20, height: 20)
                     )
             }
             .buttonStyle(.plain)
