@@ -24,6 +24,10 @@ struct SettingsTests {
             "collapsed": {
                 "hands": false,
                 "vitals": false
+            },
+            "panelVisibility": {
+                "hands": true,
+                "compass": false
             }
         },
         "streams": {
@@ -60,7 +64,8 @@ struct SettingsTests {
             "right": [],
             "colWidth": {},
             "streamsHeight": 100.0,
-            "collapsed": {}
+            "collapsed": {},
+            "panelVisibility": {}
         },
         "streams": {
             "mirrorFilteredToMain": false,
@@ -96,7 +101,8 @@ struct SettingsTests {
                 right: ["compass"],
                 colWidth: ["hands": 200.0],
                 streamsHeight: 150.0,
-                collapsed: ["hands": false]
+                collapsed: ["hands": false],
+                panelVisibility: ["hands": true, "vitals": false]
             ),
             streams: Settings.StreamSettings(
                 mirrorFilteredToMain: true,
@@ -147,6 +153,8 @@ struct SettingsTests {
         #expect(settings.layout.colWidth["hands"] == 200.0)
         #expect(settings.layout.streamsHeight == 150.0)
         #expect(settings.layout.collapsed["hands"] == false)
+        #expect(settings.layout.panelVisibility["hands"] == true)
+        #expect(settings.layout.panelVisibility["compass"] == false)
 
         // Verify streams
         #expect(settings.streams.mirrorFilteredToMain == true)
@@ -180,6 +188,7 @@ struct SettingsTests {
         #expect(settings.layout.streamsHeight == 200.0)
         #expect(settings.layout.colWidth.isEmpty)
         #expect(settings.layout.collapsed.isEmpty)
+        #expect(settings.layout.panelVisibility.isEmpty)
 
         // Streams defaults
         #expect(settings.streams.mirrorFilteredToMain == true)
@@ -238,7 +247,8 @@ struct SettingsTests {
                 "right": [],
                 "colWidth": {},
                 "streamsHeight": 100.0,
-                "collapsed": {}
+                "collapsed": {},
+                "panelVisibility": {}
             },
             "streams": {
                 "mirrorFilteredToMain": false,
@@ -325,7 +335,8 @@ struct SettingsTests {
             right: [],
             colWidth: ["test": 100.0],
             streamsHeight: 50.0,
-            collapsed: ["test": true]
+            collapsed: ["test": true],
+            panelVisibility: ["test": false]
         )
 
         let encoder = JSONEncoder()
@@ -337,6 +348,7 @@ struct SettingsTests {
         #expect(decoded.left == ["test"])
         #expect(decoded.colWidth["test"] == 100.0)
         #expect(decoded.collapsed["test"] == true)
+        #expect(decoded.panelVisibility["test"] == false)
     }
 
     /// Test TimestampSettings nested structure
@@ -355,5 +367,65 @@ struct SettingsTests {
         #expect(decoded.gameLog == true)
         #expect(decoded.perStream["thoughts"] == false)
         #expect(decoded.perStream["speech"] == true)
+    }
+
+    // MARK: - Panel Visibility Tests
+
+    /// Test panelVisibility encoding and decoding
+    @Test func test_panelVisibilityEncoding() throws {
+        let layout = Settings.Layout(
+            left: ["hands", "vitals"],
+            right: ["compass"],
+            colWidth: [:],
+            streamsHeight: 200.0,
+            collapsed: [:],
+            panelVisibility: ["hands": true, "vitals": false, "compass": true]
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(layout)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Settings.Layout.self, from: data)
+
+        #expect(decoded.panelVisibility["hands"] == true)
+        #expect(decoded.panelVisibility["vitals"] == false)
+        #expect(decoded.panelVisibility["compass"] == true)
+    }
+
+    /// Test panelVisibility defaults to empty dictionary
+    @Test func test_panelVisibilityDefault() {
+        let layout = Settings.Layout.makeDefault()
+
+        #expect(layout.panelVisibility.isEmpty)
+        #expect(layout.panelVisibility["hands"] == nil)
+        #expect(layout.panelVisibility["vitals"] == nil)
+    }
+
+    /// Test panelVisibility persists through round-trip encoding
+    @Test func test_panelVisibilityRoundTrip() throws {
+        let original = Settings(
+            layout: Settings.Layout(
+                left: ["hands"],
+                right: ["compass"],
+                colWidth: [:],
+                streamsHeight: 200.0,
+                collapsed: [:],
+                panelVisibility: ["hands": false, "compass": true]
+            ),
+            streams: .makeDefault(),
+            input: .makeDefault(),
+            theme: .makeDefault(),
+            network: .makeDefault()
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(original)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Settings.self, from: data)
+
+        #expect(decoded.layout.panelVisibility["hands"] == false)
+        #expect(decoded.layout.panelVisibility["compass"] == true)
     }
 }

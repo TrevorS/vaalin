@@ -55,7 +55,7 @@ public struct Settings: Codable, Sendable {
     /// Panel layout configuration
     ///
     /// Defines which panels appear in left/right columns, column widths,
-    /// stream filtering bar height, and collapsed panel state.
+    /// stream filtering bar height, collapsed panel state, and panel visibility.
     public struct Layout: Codable, Sendable {
         /// Panel IDs displayed in left column (e.g., ["hands", "vitals"])
         public var left: [String]
@@ -74,18 +74,25 @@ public struct Settings: Codable, Sendable {
         /// Key: panel ID, Value: true if collapsed
         public var collapsed: [String: Bool]
 
+        /// Panel visibility overrides per panel ID
+        /// Key: panel ID, Value: true if visible
+        /// If not present, falls back to PanelInfo.defaultVisible
+        public var panelVisibility: [String: Bool]
+
         public init(
             left: [String],
             right: [String],
             colWidth: [String: CGFloat],
             streamsHeight: CGFloat,
-            collapsed: [String: Bool]
+            collapsed: [String: Bool],
+            panelVisibility: [String: Bool]
         ) {
             self.left = left
             self.right = right
             self.colWidth = colWidth
             self.streamsHeight = streamsHeight
             self.collapsed = collapsed
+            self.panelVisibility = panelVisibility
         }
 
         /// Default layout: hands/vitals on left, compass/spells on right
@@ -95,7 +102,8 @@ public struct Settings: Codable, Sendable {
                 right: ["compass", "spells"],
                 colWidth: [:],
                 streamsHeight: 200.0,
-                collapsed: [:]
+                collapsed: [:],
+                panelVisibility: [:]
             )
         }
     }
