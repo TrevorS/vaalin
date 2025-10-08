@@ -856,26 +856,38 @@ test_inputCleared()
 
 ---
 
-### TASK-P2-10: Implement Prompt Display
+### TASK-P2-10: Implement Prompt Display ✅ **COMPLETED**
 
-**Description**: Parse and display server prompt above command input.
+**Description**: Parse and display server prompt to the left of command input.
+
+**Status**: ✅ Completed (Issue #30, PR #124)
 
 **Acceptance Criteria**:
-- Listens for `<prompt>` tags via EventBus
-- Displays prompt text (e.g., `>`) above input
-- Updates in real-time
-- Readonly display
+- ✅ Listens for `<prompt>` tags via EventBus
+- ✅ Displays prompt text (e.g., `>`) to LEFT of input (44x44px compact box)
+- ✅ Updates in real-time
+- ✅ Readonly display
 
 **Implementation Approach**: EventBus subscription
 
-**Required Components**:
-- `Vaalin/Views/PromptView.swift`
-- `Vaalin/ViewModels/PromptViewModel.swift`
+**Implemented Components**:
+- `VaalinUI/Sources/VaalinUI/Views/PromptView.swift` - Compact Liquid Glass view
+- `VaalinUI/Sources/VaalinUI/ViewModels/PromptViewModel.swift` - @Observable with EventBus
+- `VaalinUI/Tests/VaalinUITests/PromptViewModelTests.swift` - 11 comprehensive tests
 
-**Test Requirements**:
+**Test Results**:
 ```swift
-test_promptUpdate()
-test_promptRendering()
+✅ test_initializationSetsDefaultPrompt()
+✅ test_subscriptionIdSetAfterSetup()
+✅ test_promptTextUpdatesFromEvent()
+✅ test_multiplePromptUpdates()
+✅ test_emptyPromptTextAccepted()
+✅ test_nilPromptTextIgnored()
+✅ test_promptWithSpecialCharacters()
+✅ test_promptWithUnicodeCharacters()
+✅ test_wrongTagNameIgnored()
+✅ test_multipleViewModelsOnSameEventBus()
+✅ test_cleanupOnDeinit()
 ```
 
 **Dependencies**: TASK-F04, TASK-P1-06

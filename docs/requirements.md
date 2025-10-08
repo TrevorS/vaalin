@@ -240,9 +240,15 @@ enum TagState {
 
 **Acceptance Criteria**:
 - Parses `<prompt>` tags from server
-- Displays prompt text above command input
+- Displays prompt text to the LEFT of command input (compact 44x44px box)
 - Updates in real-time as server sends new prompts
 - Supports inline status widgets (future enhancement)
+
+**Implementation Details** (Issue #30, PR #124):
+- `VaalinUI/Sources/VaalinUI/ViewModels/PromptViewModel.swift` - @Observable view model with EventBus subscription
+- `VaalinUI/Sources/VaalinUI/Views/PromptView.swift` - Compact SwiftUI view with Liquid Glass design
+- `VaalinUI/Tests/VaalinUITests/PromptViewModelTests.swift` - 11 comprehensive tests (100% coverage)
+- Positioned in HStack to left of CommandInputView (horizontal layout)
 
 **Dependencies**: FR-1.1, FR-2.1
 
