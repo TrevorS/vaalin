@@ -199,11 +199,10 @@ public final class AppState {
 
                 // Process tags if any arrived
                 if !tags.isEmpty {
-                    // Convert GameTags to Messages and append to view model
+                    // Render GameTags to Messages and append to view model
                     for tag in tags {
-                        // For now, append tags directly to view model
-                        // Future: Use TagRenderer to create styled AttributedString
-                        gameLogViewModel.appendMessage(tag)
+                        // appendMessage() now renders with TagRenderer + ThemeManager
+                        await gameLogViewModel.appendMessage(tag)
                     }
 
                     // Clear processed tags from bridge
