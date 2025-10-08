@@ -102,6 +102,7 @@ public struct PanelContainer<Content: View>: View {
                 content()
                     .frame(height: height)
                     .background(Color(nsColor: .controlBackgroundColor))
+                    .transition(.slide)
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
