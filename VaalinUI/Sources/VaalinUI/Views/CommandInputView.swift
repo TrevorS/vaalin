@@ -447,6 +447,7 @@ struct CommandInputView_Previews: PreviewProvider {
     // MARK: - Sample Data
 
     /// Creates a view model with pre-filled text for preview.
+    @MainActor
     private static func prefilledViewModel() -> CommandInputViewModel {
         let history = CommandHistory()
         let viewModel = CommandInputViewModel(commandHistory: history)
@@ -455,6 +456,7 @@ struct CommandInputView_Previews: PreviewProvider {
     }
 
     /// Helper view for displaying keyboard shortcut rows.
+    @MainActor
     private static func shortcutRow(_ key: String, _ description: String) -> some View {
         HStack {
             Text(key)

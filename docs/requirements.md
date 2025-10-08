@@ -196,29 +196,35 @@ enum TagState {
 
 ---
 
-#### FR-2.3: Command Input with History
+#### FR-2.3: Command Input with History ✅ IMPLEMENTED (Issue #27, PR #121)
 
 **Description**: Single-line text input with readline-style navigation and command history.
 
 **Acceptance Criteria**:
-- SwiftUI `TextField` with custom key handling
-- Up/Down arrows navigate command history (500 item buffer)
-- Prefix-based history search (type "look", up arrow shows matching)
-- Readline shortcuts:
-  - `Ctrl-A`: Beginning of line
-  - `Ctrl-E`: End of line
-  - `Ctrl-U`: Delete to beginning
-  - `Ctrl-K`: Delete to end
-  - `Ctrl-W`: Delete word backward
-  - `Option-B/F`: Word backward/forward
-  - `Option-Delete`: Delete word backward
-- Enter sends command, clears input
-- Shift-Enter for multiline (future enhancement, not Phase 2)
-- Command echo to game log (styled, dimmed, prefix `›`)
+- ✅ SwiftUI `TextField` with custom key handling (`VaalinUI/Sources/VaalinUI/Views/CommandInputView.swift`)
+- ✅ Up/Down arrows navigate command history (500 item buffer) via `CommandHistory` actor
+- ⏸️ Prefix-based history search (deferred to future enhancement)
+- ✅ Readline shortcuts:
+  - ✅ `Ctrl-A`: Beginning of line
+  - ✅ `Ctrl-E`: End of line
+  - ✅ `Ctrl-U`: Delete to beginning
+  - ✅ `Ctrl-K`: Delete to end
+  - ✅ `Ctrl-W`: Delete word backward
+  - ✅ `Option-B/F`: Word backward/forward
+  - ✅ `Option-Delete`: Delete word backward
+- ✅ Enter sends command, clears input
+- ⏸️ Shift-Enter for multiline (future enhancement, not Phase 2)
+- ⏸️ Command echo to game log (future enhancement, requires game log integration)
 
 **Technical Constraints**:
-- Use SwiftUI `.onKeyPress()` for custom key handling [^11]
-- History persisted to JSON on disk
+- ✅ Use SwiftUI `.onKeyPress()` for custom key handling [^11]
+- ✅ History persisted to JSON on disk (via `CommandHistory.save()`)
+
+**Implementation Details** (Issue #27, PR #121):
+- `VaalinUI/Sources/VaalinUI/ViewModels/CommandInputViewModel.swift` - @Observable view model with readline operations
+- `VaalinUI/Sources/VaalinUI/Views/CommandInputView.swift` - SwiftUI view with Liquid Glass design
+- `VaalinUI/Tests/VaalinUITests/CommandInputViewModelTests.swift` - 49 comprehensive tests (100% coverage)
+- Integrated into `AppState` with `commandInputViewModel` and `sendCommand()` method
 
 **Dependencies**: FR-2.1 (echo requires game log)
 
