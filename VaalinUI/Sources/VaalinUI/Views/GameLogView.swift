@@ -260,37 +260,23 @@ private struct ContentHeightPreferenceKey: PreferenceKey {
 struct GameLogView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            // Preview 1: Empty state - Disconnected
+            // Preview 1: Empty state
             GameLogView(
                 viewModel: GameLogViewModel(),
                 isConnected: false
             )
             .frame(width: 600, height: 400)
-            .previewDisplayName("Empty - Disconnected")
+            .previewDisplayName("Empty")
+            .preferredColorScheme(.dark)
 
-            // Preview 2: Populated state - Connected with sample messages
+            // Preview 2: Populated state with sample messages
             GameLogView(
                 viewModel: sampleViewModel(),
                 isConnected: true
             )
             .frame(width: 600, height: 400)
-            .previewDisplayName("Populated - Connected")
-
-            // Preview 3: Large buffer state - Performance testing
-            GameLogView(
-                viewModel: largeBufferViewModel(),
-                isConnected: true
-            )
-            .frame(width: 600, height: 400)
-            .previewDisplayName("Large Buffer - 100 Messages")
-
-            // Preview 4: Styled text - Shows theme colors (Catppuccin Mocha)
-            GameLogView(
-                viewModel: styledViewModel(),
-                isConnected: true
-            )
-            .frame(width: 600, height: 400)
-            .previewDisplayName("Styled with Theme Colors")
+            .previewDisplayName("Populated")
+            .preferredColorScheme(.dark)
         }
     }
 
@@ -339,80 +325,6 @@ struct GameLogView_Previews: PreviewProvider {
             )
             let message = Message(from: [tag], streamID: nil)
             viewModel.messages.append(message)
-        }
-
-        return viewModel
-    }
-
-    /// Creates a view model with 100+ messages for performance testing.
-    ///
-    /// Note: Uses plain text fallback rendering since preview helpers are synchronous
-    /// and cannot await the async appendMessage() method. In actual app usage,
-    /// messages will have full theme-based styling.
-    private static func largeBufferViewModel() -> GameLogViewModel {
-        let viewModel = GameLogViewModel()
-
-        // Generate 100 messages to test LazyVStack virtualization
-        for i in 1...100 {
-            let messageText = """
-                [\(String(format: "%03d", i))] Game message line with some typical combat spam and \
-                room description text that wraps across multiple lines when the window is narrow.
-                """
-            let tag = GameTag(
-                name: "output",
-                text: messageText,
-                state: .closed
-            )
-            let message = Message(from: [tag], streamID: nil)
-            viewModel.messages.append(message)
-        }
-
-        // Add a prompt at the end
-        let promptTag = GameTag(
-            name: "prompt",
-            text: ">",
-            state: .closed
-        )
-        let promptMessage = Message(from: [promptTag], streamID: nil)
-        viewModel.messages.append(promptMessage)
-
-        return viewModel
-    }
-
-    /// Creates a view model with styled messages demonstrating theme colors.
-    ///
-    /// Manually creates AttributedString with Catppuccin Mocha colors to show
-    /// what the actual theme-rendered output looks like (TagRenderer + ThemeManager).
-    private static func styledViewModel() -> GameLogViewModel {
-        let viewModel = GameLogViewModel()
-
-        // Catppuccin Mocha colors
-        let colors = (
-            green: Color(red: 0.65, green: 0.89, blue: 0.63),  // #a6e3a1
-            red: Color(red: 0.95, green: 0.55, blue: 0.66),    // #f38ba8
-            teal: Color(red: 0.58, green: 0.89, blue: 0.84),   // #94e2d5
-            text: Color(red: 0.8, green: 0.84, blue: 0.96)     // #cdd6f4
-        )
-
-        // Sample messages with preset colors
-        let messages: [(String, Color, String)] = [
-            ("You swing a vultite greatsword at a hobgoblin!", colors.red, "damage"),
-            ("  AS: +125 vs DS: +89 with AvD: +35 + d100 roll: +42 = +113", colors.text, "output"),
-            ("   ... and hit for 23 points of damage!", colors.red, "damage"),
-            (">", colors.text, "prompt"),
-            ("You say, \"Hello there!\"", colors.green, "speech"),
-            ("Xanlin whispers, \"Secret message.\"", colors.teal, "whisper"),
-            ("A warm feeling washes over you as your wounds heal!", colors.green, "heal"),
-            (">", colors.text, "prompt")
-        ]
-
-        for (text, color, preset) in messages {
-            var attributed = AttributedString(text)
-            attributed.foregroundColor = color
-            let tag = GameTag(name: preset == "prompt" || preset == "output" ? preset : "preset",
-                              attrs: preset != "prompt" && preset != "output" ? ["id": preset] : [:],
-                              state: .closed)
-            viewModel.messages.append(Message(attributedText: attributed, tags: [tag], streamID: nil))
         }
 
         return viewModel

@@ -345,7 +345,7 @@ private struct OptionKeyHandlers: ViewModifier {
 struct CommandInputView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            // Preview 1: Empty state - Light mode
+            // Preview 1: Empty state
             CommandInputView(
                 viewModel: makeEmptyViewModel(),
                 onSubmit: { command in
@@ -355,23 +355,10 @@ struct CommandInputView_Previews: PreviewProvider {
             .frame(width: 600, height: 80)
             .padding()
             .background(Color(nsColor: .controlBackgroundColor))
-            .previewDisplayName("Empty - Light")
-            .preferredColorScheme(.light)
-
-            // Preview 2: Empty state - Dark mode
-            CommandInputView(
-                viewModel: makeEmptyViewModel(),
-                onSubmit: { command in
-                    print("Submitted: \(command)")
-                }
-            )
-            .frame(width: 600, height: 80)
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .previewDisplayName("Empty - Dark")
+            .previewDisplayName("Empty")
             .preferredColorScheme(.dark)
 
-            // Preview 3: With text - Shows typing state
+            // Preview 2: With text - Shows typing state
             CommandInputView(
                 viewModel: prefilledViewModel(),
                 onSubmit: { command in
@@ -381,78 +368,13 @@ struct CommandInputView_Previews: PreviewProvider {
             .frame(width: 600, height: 80)
             .padding()
             .background(Color(nsColor: .controlBackgroundColor))
-            .previewDisplayName("With Text - Dark")
+            .previewDisplayName("With Text")
             .preferredColorScheme(.dark)
 
-            // Preview 4: Focused state demonstration with shortcuts guide
-            VStack(spacing: 20) {
-                Text("Command Input - Liquid Glass Design")
-                    .font(.headline)
-
-                CommandInputView(
-                    viewModel: makeEmptyViewModel(),
-                    onSubmit: { command in
-                        print("Submitted: \(command)")
-                    }
-                )
-                .padding(.horizontal, 20)
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Keyboard Shortcuts:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        shortcutRow("Ctrl-A", "Beginning of line")
-                        shortcutRow("Ctrl-E", "End of line")
-                        shortcutRow("Ctrl-K", "Delete to end")
-                        shortcutRow("Option-B/F", "Word backward/forward")
-                        shortcutRow("Option-Delete", "Delete word backward")
-                        shortcutRow("Ctrl-P", "Previous command")
-                        shortcutRow("Ctrl-N", "Next command")
-                        shortcutRow("Up/Down", "Command history")
-                        shortcutRow("Escape", "Clear input")
-                    }
-                    .font(.system(size: 11, design: .monospaced))
-                }
-                .padding(.horizontal, 20)
-            }
-            .frame(width: 600, height: 450)
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .previewDisplayName("Shortcuts Guide - Dark")
-            .preferredColorScheme(.dark)
-
-            // Preview 5: Command Echo Demo - NEW!
+            // Preview 3: Command Echo Demo
             CommandEchoPreview()
-                .previewDisplayName("Command Echo Demo - Dark")
+                .previewDisplayName("Command Echo Demo")
                 .preferredColorScheme(.dark)
-
-            // Preview 6: Integrated with game log context
-            VStack(spacing: 0) {
-                // Simulated game log area
-                ZStack {
-                    Color(nsColor: .controlBackgroundColor)
-                    Text("Game Log Area\n(Sample game output appears here)")
-                        .font(.system(size: 13, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-
-                // Command input at bottom
-                CommandInputView(
-                    viewModel: makeEmptyViewModel(),
-                    onSubmit: { command in
-                        print("Submitted: \(command)")
-                    }
-                )
-                .padding(12)
-                .background(Color(nsColor: .windowBackgroundColor))
-            }
-            .frame(width: 700, height: 500)
-            .previewDisplayName("Integrated Layout - Dark")
-            .preferredColorScheme(.dark)
         }
     }
 
@@ -558,17 +480,6 @@ struct CommandInputView_Previews: PreviewProvider {
             settings: .makeDefault()
         )
         return (viewModel, gameLog)
-    }
-
-    /// Helper view for displaying keyboard shortcut rows.
-    @MainActor
-    private static func shortcutRow(_ key: String, _ description: String) -> some View {
-        HStack {
-            Text(key)
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
-            Text(description)
-        }
     }
 }
 // swiftlint:enable no_print_statements
