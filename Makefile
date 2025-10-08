@@ -1,12 +1,13 @@
 # Vaalin Makefile
 # Standard development commands for SwiftUI macOS project
 
-.PHONY: help format lint test build clean
+.PHONY: help format lint test build clean run
 
 # Default target
 help:
 	@echo "Vaalin Development Commands:"
 	@echo ""
+	@echo "  make run       - Build and launch Vaalin.app"
 	@echo "  make format    - Auto-fix SwiftLint issues"
 	@echo "  make lint      - Check SwiftLint compliance (CI mode)"
 	@echo "  make test      - Run all tests with coverage"
@@ -45,3 +46,7 @@ clean:
 	@echo "🧹 Cleaning derived data..."
 	rm -rf ~/Library/Developer/Xcode/DerivedData/Vaalin-*
 	@echo "✅ Clean complete"
+
+# Build and launch Vaalin.app
+run:
+	@./scripts/run-app.sh
