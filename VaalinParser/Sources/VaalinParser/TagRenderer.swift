@@ -47,9 +47,16 @@ public actor TagRenderer {
     /// Bold variant of default font
     private let boldFont: Font = .system(size: 14).bold()
 
+    /// Cached DateFormatter for timestamp rendering (performance optimization)
+    private let timestampFormatter: DateFormatter
+
     /// Initializes a new TagRenderer with its own ThemeManager instance
     public init() {
         self.themeManager = ThemeManager()
+
+        // Initialize cached DateFormatter for timestamp rendering
+        self.timestampFormatter = DateFormatter()
+        self.timestampFormatter.dateFormat = "HH:mm:ss"
     }
 
     /// Renders a GameTag into a styled AttributedString.
@@ -60,9 +67,27 @@ public actor TagRenderer {
     /// - Parameters:
     ///   - tag: The GameTag to render
     ///   - theme: Theme containing color and preset mappings
+    ///   - timestamp: Optional timestamp to prepend as `[HH:MM:SS] ` prefix
+    ///   - timestampSettings: Optional settings controlling timestamp display
     /// - Returns: Styled AttributedString with colors, fonts, and formatting applied
-    public func render(_ tag: GameTag, theme: Theme) async -> AttributedString {
-        await renderTag(tag, theme: theme, inheritedBold: false)
+    public func render(
+        _ tag: GameTag,
+        theme: Theme,
+        timestamp: Date? = nil,
+        timestampSettings: VaalinCore.Settings.StreamSettings.TimestampSettings? = nil
+    ) async -> AttributedString {
+        // Render the tag content
+        var result = await renderTag(tag, theme: theme, inheritedBold: false)
+
+        // Prepend timestamp if enabled and timestamp is provided
+        if let timestamp = timestamp,
+           let settings = timestampSettings,
+           settings.gameLog {
+            let timestampPrefix = await renderTimestamp(timestamp, theme: theme)
+            result = timestampPrefix + result
+        }
+
+        return result
     }
 
     // MARK: - Private Rendering Methods
@@ -276,5 +301,32 @@ public actor TagRenderer {
         }
 
         return result
+    }
+
+    /// Renders a timestamp as a styled prefix.
+    ///
+    /// Formats the timestamp as `[HH:MM:SS] ` and applies semantic timestamp color.
+    /// Uses cached DateFormatter for performance.
+    ///
+    /// - Parameters:
+    ///   - timestamp: The date to format
+    ///   - theme: Theme for semantic color lookup
+    /// - Returns: AttributedString with formatted timestamp and dimmed color
+    private func renderTimestamp(
+        _ timestamp: Date,
+        theme: Theme
+    ) async -> AttributedString {
+        // Format timestamp using cached formatter
+        let timeString = timestampFormatter.string(from: timestamp)
+        let timestampText = "[\(timeString)] "
+
+        var attributed = AttributedString(timestampText)
+
+        // Apply semantic timestamp color (dimmed/gray)
+        if let timestampColor = await themeManager.semanticColor(for: "timestamp", theme: theme) {
+            attributed.foregroundColor = timestampColor
+        }
+
+        return attributed
     }
 }

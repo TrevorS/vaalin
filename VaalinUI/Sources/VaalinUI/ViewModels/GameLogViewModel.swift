@@ -2,6 +2,7 @@
 
 import Foundation
 import Observation
+import os
 import VaalinCore
 import VaalinParser
 
@@ -87,6 +88,17 @@ public final class GameLogViewModel {
     /// `nil` during initialization until theme loads asynchronously.
     private var currentTheme: Theme?
 
+    /// Timestamp display settings for game log messages.
+    /// Timestamps are enabled by default to help track conversation and combat timing.
+    private var timestampSettings =
+        Settings.StreamSettings.TimestampSettings(
+            gameLog: true,  // Enabled by default
+            perStream: [:]
+        )
+
+    /// Logger for GameLogViewModel events and errors
+    private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "GameLogViewModel")
+
     // MARK: - Initialization
 
     /// Creates a new GameLogViewModel with an empty message buffer.
@@ -130,18 +142,25 @@ public final class GameLogViewModel {
     /// ```
     public func appendMessage(_ tag: GameTag) async {
         let message: Message
+        let timestamp = Date()  // Capture current timestamp
 
         if let theme = currentTheme {
-            // Render with theme colors
-            let attributedText = await renderer.render(tag, theme: theme)
+            // Render with theme colors and timestamp
+            let attributedText = await renderer.render(
+                tag,
+                theme: theme,
+                timestamp: timestamp,
+                timestampSettings: timestampSettings
+            )
             message = Message(
+                timestamp: timestamp,
                 attributedText: attributedText,
                 tags: [tag],
                 streamID: tag.streamId
             )
         } else {
             // Fallback: plain text rendering if theme not yet loaded
-            message = Message(from: [tag], streamID: tag.streamId)
+            message = Message(from: [tag], streamID: tag.streamId, timestamp: timestamp)
         }
 
         messages.append(message)
@@ -152,6 +171,22 @@ public final class GameLogViewModel {
         }
     }
 
+    /// Toggles timestamp display for game log messages.
+    ///
+    /// When enabled, messages will be prefixed with `[HH:MM:SS]` timestamp in dimmed color.
+    /// This helps players track conversation and combat timing.
+    ///
+    /// - Parameter enabled: true to show timestamps, false to hide
+    ///
+    /// ## Example
+    /// ```swift
+    /// viewModel.setTimestampsEnabled(true)  // Show timestamps
+    /// viewModel.setTimestampsEnabled(false) // Hide timestamps
+    /// ```
+    public func setTimestampsEnabled(_ enabled: Bool) {
+        timestampSettings.gameLog = enabled
+    }
+
     // MARK: - Private Methods
 
     /// Loads the default Catppuccin Mocha theme from the app bundle.
@@ -160,22 +195,28 @@ public final class GameLogViewModel {
     /// and leaves `currentTheme` as `nil`, which triggers plain text fallback rendering.
     private func loadDefaultTheme() async {
         do {
-            // Load theme JSON from bundle
-            guard let url = Bundle.main.url(
+            // Load theme JSON from SPM resource bundle
+            // SPM creates a separate bundle for package resources (Vaalin_Vaalin.bundle)
+            // We need to load it explicitly instead of using Bundle.main
+            guard let resourceBundleURL = Bundle.main.url(
+                forResource: "Vaalin_Vaalin",
+                withExtension: "bundle"
+            ),
+            let resourceBundle = Bundle(url: resourceBundleURL),
+            let url = resourceBundle.url(
                 forResource: "catppuccin-mocha",
-                withExtension: "json",
-                subdirectory: "themes"
+                withExtension: "json"
             ) else {
                 // Theme not found - fall back to plain text rendering
-                // TODO: Use proper logging framework (os.Logger) in future
+                logger.warning("Failed to load theme: resource bundle or theme file not found")
                 return
             }
 
             let data = try Data(contentsOf: url)
             currentTheme = try await themeManager.loadTheme(from: data)
+            logger.info("Successfully loaded Catppuccin Mocha theme")
         } catch {
-            // Theme loading failed - fall back to plain text rendering
-            // TODO: Use proper logging framework (os.Logger) in future
+            logger.error("Failed to load theme: \(error.localizedDescription)")
         }
     }
 }

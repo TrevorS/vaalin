@@ -806,4 +806,508 @@ struct TagRendererTests {
             #expect(hasColor, "Preset \(preset.id) should have color applied")
         }
     }
+
+    // MARK: - Timestamp Tests (Issue #25)
+
+    /// Test rendering with timestamp enabled
+    /// Verifies timestamp format [HH:MM:SS] and proper color application
+    @Test func test_timestampRendering() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        // Create a known timestamp: 2:30:45 PM (14:30:45)
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 10
+        components.day = 7
+        components.hour = 14
+        components.minute = 30
+        components.second = 45
+        let calendar = Calendar.current
+        guard let timestamp = calendar.date(from: components) else {
+            Issue.record("Failed to create test timestamp")
+            return
+        }
+
+        // Create a message with the known timestamp
+        let textTag = GameTag(
+            name: ":text",
+            text: "You say, \"Hello!\"",
+            attrs: [:],
+            children: [],
+            state: .closed
+        )
+
+        // Create timestamp settings with timestamps enabled
+        let timestampSettings = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        let result = await renderer.render(
+            textTag,
+            theme: theme,
+            timestamp: timestamp,
+            timestampSettings: timestampSettings
+        )
+
+        let resultString = String(result.characters)
+
+        // Verify timestamp prefix is present with correct format
+        #expect(resultString.hasPrefix("[14:30:45] "), "Expected timestamp prefix [14:30:45], got: \(resultString)")
+
+        // Verify message content follows timestamp
+        #expect(resultString.contains("You say, \"Hello!\""))
+
+        // Verify timestamp has dimmed/timestamp color applied
+        let expectedDimmedColor = Color(hex: "#888888") // Gray color from test theme
+        #expect(expectedDimmedColor != nil)
+
+        let runs = result.runs
+        var foundTimestampColor = false
+        for run in runs {
+            if let color = run.foregroundColor, color == expectedDimmedColor {
+                foundTimestampColor = true
+                break
+            }
+        }
+        #expect(foundTimestampColor, "Timestamp should have dimmed color applied")
+    }
+
+    /// Test timestamp toggle functionality
+    /// Verifies that timestamps can be enabled/disabled via settings
+    @Test func test_timestampToggle() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        // Create a test timestamp
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 10
+        components.day = 7
+        components.hour = 9
+        components.minute = 15
+        components.second = 30
+        let calendar = Calendar.current
+        guard let timestamp = calendar.date(from: components) else {
+            Issue.record("Failed to create test timestamp")
+            return
+        }
+
+        let textTag = GameTag(
+            name: ":text",
+            text: "Test message",
+            attrs: [:],
+            children: [],
+            state: .closed
+        )
+
+        // Test with timestamps OFF (default)
+        let timestampsOff = Settings.StreamSettings.TimestampSettings(
+            gameLog: false,
+            perStream: [:]
+        )
+
+        let resultOff = await renderer.render(
+            textTag,
+            theme: theme,
+            timestamp: timestamp,
+            timestampSettings: timestampsOff
+        )
+
+        let resultOffString = String(resultOff.characters)
+        #expect(!resultOffString.contains("[09:15:30]"), "Timestamp should not be present when disabled")
+        #expect(resultOffString == "Test message", "Should only contain message text when timestamps off")
+
+        // Test with timestamps ON
+        let timestampsOn = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        let resultOn = await renderer.render(
+            textTag,
+            theme: theme,
+            timestamp: timestamp,
+            timestampSettings: timestampsOn
+        )
+
+        let resultOnString = String(resultOn.characters)
+        #expect(resultOnString.hasPrefix("[09:15:30] "), "Timestamp should be present when enabled")
+        #expect(resultOnString.contains("Test message"))
+    }
+
+    /// Test timestamp with empty message
+    /// Edge case: timestamp should still render correctly even if message is empty
+    @Test func test_timestampWithEmptyMessage() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 10
+        components.day = 7
+        components.hour = 0
+        components.minute = 0
+        components.second = 0
+        let calendar = Calendar.current
+        guard let timestamp = calendar.date(from: components) else {
+            Issue.record("Failed to create test timestamp")
+            return
+        }
+
+        let emptyTag = GameTag(
+            name: ":text",
+            text: "",
+            attrs: [:],
+            children: [],
+            state: .closed
+        )
+
+        let timestampSettings = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        let result = await renderer.render(
+            emptyTag,
+            theme: theme,
+            timestamp: timestamp,
+            timestampSettings: timestampSettings
+        )
+
+        let resultString = String(result.characters)
+
+        // Should have timestamp even with empty message
+        #expect(resultString.hasPrefix("[00:00:00] "), "Timestamp should be present even with empty message")
+    }
+
+    /// Test midnight timestamp formatting
+    /// Edge case: verify midnight (00:00:00) formats correctly
+    @Test func test_midnightTimestamp() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 10
+        components.day = 7
+        components.hour = 0
+        components.minute = 0
+        components.second = 0
+        let calendar = Calendar.current
+        guard let timestamp = calendar.date(from: components) else {
+            Issue.record("Failed to create test timestamp")
+            return
+        }
+
+        let textTag = GameTag(
+            name: ":text",
+            text: "Midnight message",
+            attrs: [:],
+            children: [],
+            state: .closed
+        )
+
+        let timestampSettings = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        let result = await renderer.render(
+            textTag,
+            theme: theme,
+            timestamp: timestamp,
+            timestampSettings: timestampSettings
+        )
+
+        let resultString = String(result.characters)
+        #expect(resultString.hasPrefix("[00:00:00] "), "Midnight timestamp should format as [00:00:00]")
+    }
+
+    /// Test timestamp doesn't affect message colors/formatting
+    /// Verify that timestamp rendering preserves the original message styling
+    @Test func test_timestampPreservesMessageFormatting() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 10
+        components.day = 7
+        components.hour = 12
+        components.minute = 30
+        components.second = 15
+        let calendar = Calendar.current
+        guard let timestamp = calendar.date(from: components) else {
+            Issue.record("Failed to create test timestamp")
+            return
+        }
+
+        // Test with colored preset tag
+        let presetTag = GameTag(
+            name: "preset",
+            text: nil,
+            attrs: ["id": "speech"],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: "Colored speech",
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
+            state: .closed
+        )
+
+        let timestampSettings = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        let result = await renderer.render(
+            presetTag,
+            theme: theme,
+            timestamp: timestamp,
+            timestampSettings: timestampSettings
+        )
+
+        let resultString = String(result.characters)
+
+        // Verify timestamp is present
+        #expect(resultString.hasPrefix("[12:30:15] "))
+
+        // Verify message content is present
+        #expect(resultString.contains("Colored speech"))
+
+        // Verify message still has its color applied (green for speech)
+        let expectedGreen = Color(hex: "#00ff00")
+        #expect(expectedGreen != nil)
+
+        let runs = result.runs
+        var foundGreenColor = false
+        for run in runs {
+            if let color = run.foregroundColor, color == expectedGreen {
+                foundGreenColor = true
+                break
+            }
+        }
+        #expect(foundGreenColor, "Message color should be preserved with timestamp")
+    }
+
+    /// Test timestamp with bold formatting
+    /// Verify timestamp rendering works correctly with bold tags
+    @Test func test_timestampWithBoldTag() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 10
+        components.day = 7
+        components.hour = 18
+        components.minute = 45
+        components.second = 22
+        let calendar = Calendar.current
+        guard let timestamp = calendar.date(from: components) else {
+            Issue.record("Failed to create test timestamp")
+            return
+        }
+
+        let boldTag = GameTag(
+            name: "b",
+            text: nil,
+            attrs: [:],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: "Bold message",
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
+            state: .closed
+        )
+
+        let timestampSettings = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        let result = await renderer.render(
+            boldTag,
+            theme: theme,
+            timestamp: timestamp,
+            timestampSettings: timestampSettings
+        )
+
+        let resultString = String(result.characters)
+
+        // Verify timestamp and content
+        #expect(resultString.hasPrefix("[18:45:22] "))
+        #expect(resultString.contains("Bold message"))
+
+        // Verify bold formatting is still applied (checking for font attribute presence)
+        let runs = result.runs
+        var foundFontAttribute = false
+        for run in runs where run.font != nil {
+            foundFontAttribute = true
+            break
+        }
+        #expect(foundFontAttribute, "Bold formatting should be preserved in message")
+    }
+
+    /// Test multiple messages with different timestamps
+    /// Verify each message gets its own timestamp
+    @Test func test_multipleMessagesWithDifferentTimestamps() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        let timestampSettings = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        // Create three messages with different timestamps
+        let messages = [
+            (hour: 10, minute: 15, second: 30, text: "First message"),
+            (hour: 10, minute: 16, second: 45, text: "Second message"),
+            (hour: 10, minute: 17, second: 0, text: "Third message")
+        ]
+
+        for msg in messages {
+            var components = DateComponents()
+            components.year = 2025
+            components.month = 10
+            components.day = 7
+            components.hour = msg.hour
+            components.minute = msg.minute
+            components.second = msg.second
+
+            let calendar = Calendar.current
+            guard let timestamp = calendar.date(from: components) else {
+                Issue.record("Failed to create test timestamp")
+                continue
+            }
+
+            let textTag = GameTag(
+                name: ":text",
+                text: msg.text,
+                attrs: [:],
+                children: [],
+                state: .closed
+            )
+
+            let result = await renderer.render(
+                textTag,
+                theme: theme,
+                timestamp: timestamp,
+                timestampSettings: timestampSettings
+            )
+
+            let resultString = String(result.characters)
+
+            // Verify correct timestamp for each message
+            let expectedPrefix = String(format: "[%02d:%02d:%02d] ", msg.hour, msg.minute, msg.second)
+            #expect(resultString.hasPrefix(expectedPrefix), "Expected \(expectedPrefix) for \(msg.text)")
+            #expect(resultString.contains(msg.text))
+        }
+    }
+
+    /// Test timestamp rendering performance
+    /// Timestamps should not significantly degrade rendering performance (still < 1ms/tag)
+    @Test func test_timestampRenderingPerformance() async throws {
+        let renderer = TagRenderer()
+        let theme = Self.createTestThemeWithTimestamp()
+
+        let timestampSettings = Settings.StreamSettings.TimestampSettings(
+            gameLog: true,
+            perStream: [:]
+        )
+
+        // Generate 1000 test tags with timestamps
+        let tagCount = 1000
+        var tags: [(tag: GameTag, timestamp: Date)] = []
+
+        let calendar = Calendar.current
+        var baseComponents = DateComponents()
+        baseComponents.year = 2025
+        baseComponents.month = 10
+        baseComponents.day = 7
+        baseComponents.hour = 10
+        baseComponents.minute = 0
+        baseComponents.second = 0
+
+        guard let baseDate = calendar.date(from: baseComponents) else {
+            Issue.record("Failed to create base date")
+            return
+        }
+
+        for i in 0..<tagCount {
+            let tag = GameTag(
+                name: ":text",
+                text: "Message \(i)",
+                attrs: [:],
+                children: [],
+                state: .closed
+            )
+            // Increment timestamp by 1 second for each message
+            let timestamp = baseDate.addingTimeInterval(TimeInterval(i))
+            tags.append((tag, timestamp))
+        }
+
+        // Measure rendering time with timestamps
+        let start = Date()
+        for (tag, timestamp) in tags {
+            _ = await renderer.render(
+                tag,
+                theme: theme,
+                timestamp: timestamp,
+                timestampSettings: timestampSettings
+            )
+        }
+        let duration = Date().timeIntervalSince(start)
+
+        // Performance target: < 1 second for 1000 tags (< 1ms average per tag)
+        let averageTime = duration / Double(tagCount)
+        #expect(
+            duration < 1.0,
+            "Rendering \(tagCount) tags with timestamps took \(duration)s (avg \(averageTime * 1000)ms/tag), expected < 1.0s"
+        )
+    }
+
+    // MARK: - Test Helper Methods
+
+    /// Create a test theme with timestamp color support
+    static func createTestThemeWithTimestamp() -> Theme {
+        Theme(
+            name: "Test Theme with Timestamp",
+            palette: [
+                "green": "#00ff00",
+                "red": "#ff0000",
+                "blue": "#0000ff",
+                "yellow": "#ffff00",
+                "teal": "#00ffff",
+                "gray": "#888888"
+            ],
+            presets: [
+                "speech": "green",
+                "damage": "red",
+                "heal": "green",
+                "thought": "blue",
+                "whisper": "teal"
+            ],
+            categories: [
+                "gem": "blue",
+                "weapon": "red"
+            ],
+            semantic: [
+                "link": "yellow",
+                "command": "teal",
+                "timestamp": "gray"
+            ]
+        )
+    }
 }

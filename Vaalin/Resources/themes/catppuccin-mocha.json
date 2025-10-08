@@ -61,6 +61,7 @@
     "success": "green",
     "warning": "yellow",
     "danger": "red",
-    "info": "blue"
+    "info": "blue",
+    "timestamp": "overlay0"
   }
 }
