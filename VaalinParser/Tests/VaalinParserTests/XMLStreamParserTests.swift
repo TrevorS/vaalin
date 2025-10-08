@@ -3264,13 +3264,23 @@ struct XMLStreamParserTests {
         let eventBus = EventBus()
         let parser = XMLStreamParser(eventBus: eventBus)
 
-        // No subscription needed - just verify no crash
+        var eventReceived = false
+        await eventBus.subscribe("metadata/progressBar") { (_: GameTag) in
+            eventReceived = true
+        }
+
         let xml = "<progressBar value=\"100\"/>"
         let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver (if it incorrectly publishes)
+        try await Task.sleep(for: .milliseconds(50))
 
         // Should return tag without crashing
         #expect(tags.count == 1)
         #expect(tags[0].name == "progressBar")
+
+        // Should NOT publish event (missing id attribute)
+        #expect(eventReceived == false)
     }
 
     /// Test multiple progress bars publish to different events
@@ -3414,12 +3424,51 @@ struct XMLStreamParserTests {
         let eventBus = EventBus()
         let parser = XMLStreamParser(eventBus: eventBus)
 
-        // No subscription needed - just verify no crash
+        var eventReceived = false
+        await eventBus.subscribe("stream/") { (_: GameTag) in
+            eventReceived = true
+        }
+
         let xml = "<pushStream/>"
         let tags = await parser.parse(xml)
 
+        // Give event bus time to deliver (if it incorrectly publishes)
+        try await Task.sleep(for: .milliseconds(50))
+
         // Should handle gracefully without crashing
-        #expect(true) // If we reach here, no crash occurred
+        #expect(tags.isEmpty) // pushStream is control directive, not content
+
+        // Should NOT publish event (missing id attribute)
+        #expect(eventReceived == false)
+    }
+
+    /// Test popStream does not publish event
+    /// popStream is a control directive that clears stream context but doesn't publish events
+    @Test func test_popStreamDoesNotPublishEvent() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        // Subscribe to any possible stream event pattern
+        await eventBus.subscribe("stream/popStream") { (_: GameTag) in
+            eventReceived = true
+        }
+        await eventBus.subscribe("metadata/popStream") { (_: GameTag) in
+            eventReceived = true
+        }
+
+        // Setup: Push a stream, then pop it
+        let xml = "<pushStream id=\"thoughts\"/><popStream/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // popStream is control directive - doesn't create content
+        #expect(tags.isEmpty)
+
+        // popStream should NOT publish any events (it's just a state change)
+        #expect(eventReceived == false)
     }
 
     // MARK: - Multiple Event Publishing Tests
