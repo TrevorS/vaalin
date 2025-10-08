@@ -9,64 +9,6 @@ import VaalinCore
 @Suite("CommandInputViewModel Tests")
 struct CommandInputViewModelTests {
 
-    // MARK: - Readline Operations - Delete to Start (Ctrl-U)
-
-    @Test("Delete to start removes text before cursor")
-    func deleteToStart_removesTextBeforeCursor() async {
-        let history = CommandHistory()
-
-        await MainActor.run {
-            let viewModel = CommandInputViewModel(commandHistory: history)
-            viewModel.currentInput = "look north"
-            let newPosition = viewModel.deleteToStart(cursorPosition: 5) // After "look "
-
-            #expect(viewModel.currentInput == "north")
-            #expect(newPosition == 0)
-        }
-    }
-
-    @Test("Delete to start with cursor at beginning is no-op")
-    func deleteToStart_cursorAtBeginning() async {
-        let history = CommandHistory()
-
-        await MainActor.run {
-            let viewModel = CommandInputViewModel(commandHistory: history)
-            viewModel.currentInput = "look north"
-            let newPosition = viewModel.deleteToStart(cursorPosition: 0)
-
-            #expect(viewModel.currentInput == "look north")
-            #expect(newPosition == 0)
-        }
-    }
-
-    @Test("Delete to start with cursor at end removes entire string")
-    func deleteToStart_cursorAtEnd() async {
-        let history = CommandHistory()
-
-        await MainActor.run {
-            let viewModel = CommandInputViewModel(commandHistory: history)
-            viewModel.currentInput = "look north"
-            let newPosition = viewModel.deleteToStart(cursorPosition: 10)
-
-            #expect(viewModel.currentInput == "")
-            #expect(newPosition == 0)
-        }
-    }
-
-    @Test("Delete to start with empty input is no-op")
-    func deleteToStart_emptyInput() async {
-        let history = CommandHistory()
-
-        await MainActor.run {
-            let viewModel = CommandInputViewModel(commandHistory: history)
-            viewModel.currentInput = ""
-            let newPosition = viewModel.deleteToStart(cursorPosition: 0)
-
-            #expect(viewModel.currentInput == "")
-            #expect(newPosition == 0)
-        }
-    }
-
     // MARK: - Readline Operations - Delete to End (Ctrl-K)
 
     @Test("Delete to end removes text after cursor")

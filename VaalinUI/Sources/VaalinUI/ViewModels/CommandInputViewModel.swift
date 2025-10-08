@@ -181,20 +181,6 @@ public final class CommandInputViewModel {
         // Implementation handled by view
     }
 
-    /// Deletes text from cursor to beginning of line (Ctrl-U).
-    ///
-    /// - Parameter cursorPosition: Current cursor position in the text
-    /// - Returns: New cursor position after deletion
-    @discardableResult
-    public func deleteToStart(cursorPosition: Int) -> Int {
-        guard cursorPosition > 0 else { return 0 }
-
-        let index = currentInput.index(currentInput.startIndex, offsetBy: cursorPosition)
-        currentInput.removeSubrange(currentInput.startIndex..<index)
-
-        return 0 // Move cursor to start
-    }
-
     /// Deletes text from cursor to end of line (Ctrl-K).
     ///
     /// - Parameter cursorPosition: Current cursor position in the text

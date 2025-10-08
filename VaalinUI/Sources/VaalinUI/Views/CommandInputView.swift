@@ -284,14 +284,20 @@ private struct CtrlKeyHandlers: ViewModifier {
                 case "e":
                     moveCursorToEnd()
                     return .handled
-                case "u":
-                    cursorPosition = viewModel.deleteToStart(cursorPosition: cursorPosition)
-                    return .handled
                 case "k":
                     cursorPosition = viewModel.deleteToEnd(cursorPosition: cursorPosition)
                     return .handled
-                case "w":
-                    cursorPosition = viewModel.deleteWordBackward(cursorPosition: cursorPosition)
+                case "p":
+                    Task { @MainActor in
+                        await viewModel.navigateUp()
+                        cursorPosition = viewModel.currentInput.count
+                    }
+                    return .handled
+                case "n":
+                    Task { @MainActor in
+                        await viewModel.navigateDown()
+                        cursorPosition = viewModel.currentInput.count
+                    }
                     return .handled
                 default:
                     return .ignored
@@ -401,10 +407,11 @@ struct CommandInputView_Previews: PreviewProvider {
                     VStack(alignment: .leading, spacing: 4) {
                         shortcutRow("Ctrl-A", "Beginning of line")
                         shortcutRow("Ctrl-E", "End of line")
-                        shortcutRow("Ctrl-U", "Delete to beginning")
                         shortcutRow("Ctrl-K", "Delete to end")
-                        shortcutRow("Ctrl-W", "Delete word backward")
                         shortcutRow("Option-B/F", "Word backward/forward")
+                        shortcutRow("Option-Delete", "Delete word backward")
+                        shortcutRow("Ctrl-P", "Previous command")
+                        shortcutRow("Ctrl-N", "Next command")
                         shortcutRow("Up/Down", "Command history")
                         shortcutRow("Escape", "Clear input")
                     }

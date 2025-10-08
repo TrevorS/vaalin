@@ -207,9 +207,9 @@ enum TagState {
 - ✅ Readline shortcuts:
   - ✅ `Ctrl-A`: Beginning of line
   - ✅ `Ctrl-E`: End of line
-  - ✅ `Ctrl-U`: Delete to beginning
   - ✅ `Ctrl-K`: Delete to end
-  - ✅ `Ctrl-W`: Delete word backward
+  - ✅ `Ctrl-P`: Previous command (history up)
+  - ✅ `Ctrl-N`: Next command (history down)
   - ✅ `Option-B/F`: Word backward/forward
   - ✅ `Option-Delete`: Delete word backward
 - ✅ Enter sends command, clears input
