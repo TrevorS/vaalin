@@ -101,51 +101,82 @@ public struct PromptView: View {
 struct PromptView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            // Preview 1: Default state (">") - compact 44x44 box
-            PromptView(viewModel: makeDefaultViewModel())
+            // Scenario 1: Normal idle state
+            PromptView(viewModel: makeViewModel(">"))
                 .padding()
                 .background(Color(nsColor: .controlBackgroundColor))
-                .previewDisplayName("Default Prompt (>)")
+                .previewDisplayName("Normal (>)")
                 .preferredColorScheme(.dark)
 
-            // Preview 2: Dollar sign prompt
-            PromptView(viewModel: makeDollarViewModel())
+            // Scenario 2: Roundtime
+            PromptView(viewModel: makeViewModel("R>"))
                 .padding()
                 .background(Color(nsColor: .controlBackgroundColor))
-                .previewDisplayName("Dollar Prompt ($)")
+                .previewDisplayName("Roundtime (R>)")
                 .preferredColorScheme(.dark)
 
-            // Preview 3: Light mode
-            PromptView(viewModel: makeDefaultViewModel())
+            // Scenario 3: Casting spell
+            PromptView(viewModel: makeViewModel("C>"))
+                .padding()
+                .background(Color(nsColor: .controlBackgroundColor))
+                .previewDisplayName("Casting (C>)")
+                .preferredColorScheme(.dark)
+
+            // Scenario 4: Hidden + invisible + roundtime
+            PromptView(viewModel: makeViewModel("HiR>"))
+                .padding()
+                .background(Color(nsColor: .controlBackgroundColor))
+                .previewDisplayName("Hidden/Invis/RT (HiR>)")
+                .preferredColorScheme(.dark)
+
+            // Scenario 5: Kneeling + sitting + poisoned
+            PromptView(viewModel: makeViewModel("KsP>"))
+                .padding()
+                .background(Color(nsColor: .controlBackgroundColor))
+                .previewDisplayName("Kneeling/Sit/Poison (KsP>)")
+                .preferredColorScheme(.dark)
+
+            // Scenario 6: Bleeding + stunned + prone
+            PromptView(viewModel: makeViewModel("!Sp>"))
+                .padding()
+                .background(Color(nsColor: .controlBackgroundColor))
+                .previewDisplayName("Bleed/Stun/Prone (!Sp>)")
+                .preferredColorScheme(.dark)
+
+            // Scenario 7: Complex multi-status
+            PromptView(viewModel: makeViewModel("DHJKPRSW>"))
+                .padding()
+                .background(Color(nsColor: .controlBackgroundColor))
+                .previewDisplayName("Many Status (DHJKPRSW>)")
+                .preferredColorScheme(.dark)
+
+            // Scenario 8: Light mode (normal)
+            PromptView(viewModel: makeViewModel(">"))
                 .padding()
                 .background(Color(nsColor: .controlBackgroundColor))
                 .previewDisplayName("Light Mode")
                 .preferredColorScheme(.light)
 
-            // Preview 4: Horizontal layout with CommandInput (integration)
+            // Scenario 9: Horizontal layout with CommandInput
             PromptWithInputPreview()
                 .previewDisplayName("With Command Input (HStack)")
+                .preferredColorScheme(.dark)
+
+            // Scenario 10: Story board - all prompts together
+            PromptStoryBoard()
+                .previewDisplayName("📖 Story Board - All Scenarios")
                 .preferredColorScheme(.dark)
         }
     }
 
     // MARK: - Sample Data
 
-    /// Creates a view model with default prompt (">")
+    /// Creates a view model with specified prompt text
     @MainActor
-    private static func makeDefaultViewModel() -> PromptViewModel {
+    private static func makeViewModel(_ promptText: String) -> PromptViewModel {
         let eventBus = EventBus()
         let viewModel = PromptViewModel(eventBus: eventBus)
-        // Default promptText is ">" - no setup needed for preview
-        return viewModel
-    }
-
-    /// Creates a view model with dollar sign prompt
-    @MainActor
-    private static func makeDollarViewModel() -> PromptViewModel {
-        let eventBus = EventBus()
-        let viewModel = PromptViewModel(eventBus: eventBus)
-        viewModel.promptText = "$"
+        viewModel.promptText = promptText
         return viewModel
     }
 
@@ -207,6 +238,71 @@ struct PromptView_Previews: PreviewProvider {
                 .background(Color(nsColor: .windowBackgroundColor))
             }
             .frame(width: 700, height: 400)
+        }
+    }
+
+    // MARK: - Story Board Preview
+
+    /// Story board showing all realistic GemStone IV prompt scenarios in a grid
+    struct PromptStoryBoard: View {
+        @State private var scenarios: [(label: String, prompt: String)] = [
+            ("Normal", ">"),
+            ("Roundtime", "R>"),
+            ("Casting", "C>"),
+            ("Hidden/Invis/RT", "HiR>"),
+            ("Kneel/Sit/Poison", "KsP>"),
+            ("Bleed/Stun/Prone", "!Sp>"),
+            ("Joined/Webbed", "JW>"),
+            ("Disease/Immobile", "DI>"),
+            ("Unconscious", "U>"),
+            ("Kitchen Sink", "!DHIJKPRSW>")
+        ]
+
+        var body: some View {
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 8) {
+                    Text("GemStone IV Prompt Scenarios")
+                        .font(.headline)
+                    Text("Testing 44x44px box with realistic status combinations")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(nsColor: .controlBackgroundColor))
+
+                Divider()
+
+                ScrollView {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ],
+                        spacing: 20
+                    ) {
+                        ForEach(scenarios, id: \.label) { scenario in
+                            VStack(spacing: 8) {
+                                Text(scenario.label)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                PromptView(viewModel: makeViewModel(scenario.prompt))
+
+                                Text("'\(scenario.prompt)'")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .fontDesign(.monospaced)
+                            }
+                        }
+                    }
+                    .padding(20)
+                }
+                .background(Color(nsColor: .windowBackgroundColor))
+            }
+            .frame(width: 800, height: 600)
         }
     }
 }
