@@ -34,9 +34,12 @@ Vaalin is a native macOS SwiftUI application for playing GemStone IV (a text-bas
 - Cleaner git history: no Xcode project file churn
 - Superior CLI/CI compatibility: `swift build` and `xcodebuild` both work seamlessly
 
-### Project Not Yet Created
+### Project Status
 
-Start with **GitHub Issue #1: Create Xcode Project Structure**.
+**Current State:** Active development (29 issues completed, 64 remaining)
+- Foundation complete (Issue #1-19)
+- Phase 1 complete (Parser + Network + Basic UI)
+- Currently in Phase 2 (MVP development)
 
 ### Standard Commands (via Makefile)
 
@@ -225,6 +228,7 @@ Vaalin/
 │   ├── Sources/
 │   │   ├── LichConnection.swift          # Actor - NWConnection wrapper
 │   │   ├── ConnectionState.swift         # Connection state enum
+│   │   ├── CommandSending.swift          # Protocol - dependency injection for commands (Issue #29)
 │   │   └── ParserConnectionBridge.swift  # Actor - integrates connection + parser
 │   ├── Tests/
 │   │   ├── LichConnectionTests.swift
@@ -296,6 +300,42 @@ actor XMLStreamParser: NSObject, XMLParserDelegate {
 ```
 
 **Stream control tags** (`<pushStream id="X">`, `<popStream>`) must update `currentStream` and persist across chunks.
+
+### Command Sending Integration (Issue #29)
+
+**CommandSending Protocol** enables dependency injection for sending commands:
+
+```swift
+/// Protocol for actors that can send commands to the game server
+public protocol CommandSending: Actor {
+    /// Send a command to the server
+    /// - Parameter command: The command string to send
+    /// - Throws: Connection errors if send fails
+    func send(command: String) async throws
+}
+```
+
+**Usage in ViewModels**:
+```swift
+@Observable
+@MainActor
+class CommandInputViewModel {
+    private let connection: (any CommandSending)?
+
+    func submitCommand(handler: (String) -> Void) async {
+        // Send via connection if available
+        if let connection = connection {
+            try? await connection.send(command: command)
+        }
+        handler(command)
+    }
+}
+```
+
+**Benefits**:
+- Clean dependency injection (real connection in production, mock in tests)
+- Actor constraint enforces thread safety at compile time
+- Testable without network calls
 
 ### Parser-Connection Integration (Issue #17)
 
@@ -826,11 +866,40 @@ rm -rf .build/
 3. Review Apple documentation for Xcode errors
 4. Check SwiftLint rules: `swiftlint rules`
 
+## Specialized Agents
+
+Project-specific agents in `.claude/agents/` provide domain expertise:
+
+- **gemstone-xml-expert** - GemStone IV protocol, XML parsing, Lich 5 integration
+- **swiftui-macos-expert** - SwiftUI views, macOS 26 Liquid Glass design
+- **macos-glass-designer** - UI/UX decisions, visual design, aesthetic reviews
+- **swift-test-specialist** - Test writing, coverage analysis, TDD workflow
+
+**When to use:**
+- `component:parser` or `component:xml` → gemstone-xml-expert
+- `component:ui` or `component:view` → swiftui-macos-expert + macos-glass-designer
+- `type:test` or TDD tasks → swift-test-specialist
+- Use multiple agents in sequence for comprehensive quality
+
+## Workflow Automation
+
+**`/next-issue` command** - Complete development workflow:
+1. Finds next unassigned issue (oldest first)
+2. Plans implementation with appropriate agents
+3. Writes tests (TDD when specified)
+4. Implements feature with specialized agents
+5. Runs validation (format, lint, test, build)
+6. Creates PR with git-message-crafter agent
+7. QA review with domain experts
+8. Updates documentation
+9. Generates comprehensive summary
+
+Use this for systematic, high-quality issue completion.
+
 ## Documentation Files
 
 - `docs/requirements.md` - Complete functional and technical requirements (1438 lines)
 - `docs/tasks.md` - Detailed task breakdown (source for GitHub issues) (2620 lines)
 - `docs/QUICKSTART.md` - GitHub issues quickstart guide
 - `docs/github-issues-summary.md` - Summary of issue conversion
-- always remember to examine ../illthorn for details and inspiration (that's the application we are porting from electron + typescript to swift ui
-- there are project specific agents available to be used, @.claude/agents/ we should use them during implementation, planning, and testing, where appropriate
+- `/Users/trevor/Projects/illthorn/` - TypeScript reference implementation (consult for behavior, reimplement in Swift)

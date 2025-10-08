@@ -182,7 +182,7 @@ Include:
 
 ### 5.1 Code Review
 
-Launch appropriate QA agents based on changes:
+Launch appropriate QA agents based on changes (agents will check project configs as needed):
 
 **SwiftUI changes:**
 ```
@@ -282,103 +282,9 @@ gh issue comment [RELATED-NUMBER] --body "Issue #[NUMBER] has been completed. Th
 
 ## Phase 7: Summary Generation
 
-Generate comprehensive summary document with these sections:
+Use the template at `.claude/templates/issue-summary.md` to generate a comprehensive summary.
 
-### 7.1 Executive Summary
-```
-## Issue #[NUMBER]: [TITLE]
-
-**Status:** ✅ Completed
-**PR:** #[PR-NUMBER]
-**Branch:** feature/issue-[NUMBER]-[slug]
-**Agents Used:** [LIST]
-
-Brief 2-3 sentence summary of what was accomplished.
-```
-
-### 7.2 Implementation Details
-```
-## What Was Built
-
-[Detailed description of implementation]
-
-**Files Created:**
-- path/to/file.swift - [purpose]
-
-**Files Modified:**
-- path/to/file.swift - [changes]
-
-**Key Technical Decisions:**
-1. [Decision] - [Rationale]
-2. [Decision] - [Rationale]
-```
-
-### 7.3 Quality Metrics
-```
-## Quality Assurance
-
-**Test Coverage:**
-- Unit tests: [X files, Y tests]
-- Integration tests: [X files, Y tests]
-- Coverage: [X%]
-
-**Validation Results:**
-✅ SwiftLint compliance
-✅ All tests passing
-✅ Build successful
-✅ Performance targets met
-
-**Agent Reviews:**
-- swiftui-macos-expert: [Summary]
-- macos-glass-designer: [Summary]
-- swift-test-specialist: [Summary]
-```
-
-### 7.4 Documentation Updates
-```
-## Documentation Changes
-
-**CLAUDE.md:**
-- [Changes made or "No updates needed"]
-
-**docs/requirements.md:**
-- [Requirements marked complete]
-
-**docs/tasks.md:**
-- [Tasks updated]
-
-**Related Issues:**
-- #[NUMBER]: [Comment added]
-```
-
-### 7.5 Next Steps
-```
-## Recommended Next Steps
-
-**Immediate:**
-1. [Next issue to work on]
-2. [Any follow-up tasks]
-
-**Integration Checkpoints:**
-- [ ] Phase checkpoint #[NUMBER] - [X/Y issues complete]
-
-**Dependencies Unblocked:**
-- Issue #[NUMBER] can now proceed
-```
-
-### 7.6 Lessons Learned
-```
-## Insights & Improvements
-
-**What Went Well:**
-- [Positive aspects]
-
-**Challenges Encountered:**
-- [Challenge] - [How resolved]
-
-**Process Improvements:**
-- [Suggestions for future issues]
-```
+Fill in all placeholders ({{VARIABLE}}) with actual data from the completed work.
 
 ## Output Format
 
