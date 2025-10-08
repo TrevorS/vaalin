@@ -272,21 +272,29 @@ enum TagState {
 
 **Purpose**: Display game state (health, items in hands, room exits, etc.) in dedicated panels.
 
-#### FR-3.1: Panel Container System
+#### FR-3.1: Panel Container System ✅ Implemented (Issue #33, PR #126)
 
 **Description**: Reusable panel chrome for left/right columns with Liquid Glass styling.
 
 **Acceptance Criteria**:
-- SwiftUI view: `PanelContainer(title:content:)`
-- Liquid Glass material for panel header [^5]
-- Collapse/expand toggle (persistent state)
-- Fixed height per panel (configurable in settings)
-- Drag handle for reordering (Phase 3: no drag, just static layout)
-- Panel registry system: panels declare themselves and can be shown/hidden
+- ✅ SwiftUI view: `PanelContainer(title:content:)`
+- ✅ Liquid Glass material for panel header [^5] (`.ultraThinMaterial`)
+- ✅ Collapse/expand toggle (persistent state via `Settings.layout.collapsed`)
+- ✅ Fixed height per panel (configurable in settings)
+- ⏭️ Drag handle for reordering (Phase 3: no drag, just static layout - Deferred)
+- ⏭️ Panel registry system: panels declare themselves and can be shown/hidden (Deferred to Phase 3)
 
 **Technical Constraints**:
-- Use `.containerBackground(.glass)` or similar Liquid Glass modifiers
-- Fixed heights: Hands 140pt, Room 160pt, Vitals 160pt, Injuries 180pt, Spells 180pt
+- ✅ Use `.containerBackground(.glass)` or similar Liquid Glass modifiers (implemented with `.ultraThinMaterial`)
+- ✅ Fixed heights: Hands 140pt, Room 160pt, Vitals 160pt, Injuries 180pt, Spells 180pt
+
+**Implementation Notes** (Issue #33):
+- Generic SwiftUI view with `@ViewBuilder` content
+- `@Binding<Bool>` for collapsed state persistence
+- Smooth 0.3s ease-in-out animation
+- Accessibility: VoiceOver labels and button traits
+- Tests: 12 tests with 65% structural coverage
+- File: `VaalinUI/Sources/VaalinUI/Views/Panels/PanelContainer.swift`
 
 **Dependencies**: None
 
