@@ -162,22 +162,28 @@ public struct Settings: Codable, Sendable {
         /// If true, Enter key sends command (false = Cmd+Enter required)
         public var sendOnEnter: Bool
 
-        /// Prefix displayed before echoed commands (e.g., ">")
+        /// Prefix displayed before echoed commands (e.g., "›")
         public var echoPrefix: String
+
+        /// If true, echo sent commands to game log (can be disabled)
+        public var commandEcho: Bool
 
         public init(
             sendOnEnter: Bool,
-            echoPrefix: String
+            echoPrefix: String,
+            commandEcho: Bool
         ) {
             self.sendOnEnter = sendOnEnter
             self.echoPrefix = echoPrefix
+            self.commandEcho = commandEcho
         }
 
-        /// Default: send on Enter, ">" prefix
+        /// Default: send on Enter, "›" prefix, echo enabled
         public static func makeDefault() -> InputSettings {
             InputSettings(
                 sendOnEnter: true,
-                echoPrefix: ">"
+                echoPrefix: "›",
+                commandEcho: true
             )
         }
     }

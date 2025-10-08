@@ -187,6 +187,47 @@ public final class GameLogViewModel {
         timestampSettings.gameLog = enabled
     }
 
+    /// Echoes a sent command to the game log with dimmed styling.
+    ///
+    /// Displays the command with a prefix (e.g., "›") in a dimmed color to distinguish
+    /// it from game output. This happens **before** the command is sent to the server
+    /// per the command echo flow requirements.
+    ///
+    /// - Parameters:
+    ///   - command: The command text to echo
+    ///   - prefix: The prefix to display before the command (default: "›")
+    ///
+    /// ## Example
+    /// ```swift
+    /// await viewModel.echoCommand("look", prefix: "›")
+    /// // Displays: › look (dimmed)
+    /// ```
+    ///
+    /// ## Styling
+    /// Command echoes use `.secondary` foreground color to visually distinguish them
+    /// from game output while maintaining readability.
+    public func echoCommand(_ command: String, prefix: String = "›") async {
+        // Create attributed string with dimmed styling
+        var attributedText = AttributedString("\(prefix) \(command)")
+        attributedText.foregroundColor = .secondary
+
+        // Create message with echo styling
+        let timestamp = Date()
+        let message = Message(
+            timestamp: timestamp,
+            attributedText: attributedText,
+            tags: [],
+            streamID: nil  // Command echoes don't belong to a stream
+        )
+
+        messages.append(message)
+
+        // Prune oldest messages if buffer exceeds capacity
+        if messages.count > Self.maxBufferSize {
+            messages = Array(messages.suffix(Self.maxBufferSize))
+        }
+    }
+
     // MARK: - Private Methods
 
     /// Loads the default Catppuccin Mocha theme from the app bundle.
