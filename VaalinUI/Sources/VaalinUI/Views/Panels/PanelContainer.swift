@@ -61,6 +61,9 @@ public struct PanelContainer<Content: View>: View {
     /// Panel content view (provided via @ViewBuilder).
     private let content: () -> Content
 
+    /// Tracks hover state for collapse button visual feedback.
+    @State private var isHovering: Bool = false
+
     // MARK: - Constants
 
     /// Header height including padding (title + padding + border).
@@ -99,6 +102,10 @@ public struct PanelContainer<Content: View>: View {
                 content()
                     .frame(height: height)
                     .background(Color(nsColor: .controlBackgroundColor))
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
@@ -138,9 +145,17 @@ public struct PanelContainer<Content: View>: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isCollapsed ? -90 : 0))
-                    .frame(width: 24, height: 24)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(Color(nsColor: .controlColor))
+                            .opacity(isHovering ? 0.5 : 0.35)
+                    )
             }
             .buttonStyle(.plain)
+            .onHover { hovering in
+                isHovering = hovering
+            }
             .accessibilityLabel(isCollapsed ? "Expand \(title)" : "Collapse \(title)")
             .accessibilityAddTraits(.isButton)
             .padding(.trailing, 8)
