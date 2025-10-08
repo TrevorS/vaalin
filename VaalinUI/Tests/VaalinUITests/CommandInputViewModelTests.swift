@@ -2,7 +2,41 @@
 
 import Testing
 import VaalinCore
+import VaalinNetwork
 @testable import VaalinUI
+
+// MARK: - Mock LichConnection for Testing
+
+/// Mock LichConnection actor that tracks send() calls for testing
+actor MockLichConnection: CommandSending {
+    /// Commands that were sent via send()
+    private(set) var sentCommands: [String] = []
+
+    /// Whether the next send() call should throw an error
+    var shouldThrowError: Bool = false
+
+    /// The error to throw when shouldThrowError is true
+    var errorToThrow: Error = LichConnectionError.sendFailed
+
+    /// Sends a command (mock implementation that records the command)
+    func send(command: String) async throws {
+        if shouldThrowError {
+            throw errorToThrow
+        }
+        sentCommands.append(command)
+    }
+
+    /// Clears the recorded commands (for test cleanup)
+    func clearSentCommands() {
+        sentCommands = []
+    }
+
+    /// Configures the mock to throw an error on next send()
+    func configureSendError(shouldThrow: Bool, error: Error = LichConnectionError.sendFailed) {
+        shouldThrowError = shouldThrow
+        errorToThrow = error
+    }
+}
 
 /// Test suite for CommandInputViewModel
 /// Validates readline-style text editing, command history integration, and edge cases
@@ -1080,5 +1114,205 @@ struct CommandInputViewModelTests {
             let text = String(gameLog.messages[0].attributedText.characters)
             #expect(text.contains("look"))
         }
+    }
+
+    // MARK: - LichConnection Integration Tests (Issue #29)
+
+    /// Test that command is sent to LichConnection when available
+    ///
+    /// Acceptance Criteria:
+    /// - Command sent via connection.send()
+    /// - Command matches user input (trimmed)
+    @Test("Send command to server via LichConnection")
+    func test_sendCommandToServer() async {
+        let history = CommandHistory()
+        let mockConnection = MockLichConnection()
+
+        // This will fail until Issue #29 is implemented
+        // CommandInputViewModel needs to accept a connection parameter
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                connection: mockConnection  // NOT YET IMPLEMENTED
+            )
+        }
+
+        await MainActor.run {
+            viewModel.currentInput = "look north"
+        }
+
+        await viewModel.submitCommand { _ in }
+
+        // Verify command was sent to connection
+        let sentCommands = await mockConnection.sentCommands
+        #expect(sentCommands.count == 1)
+        #expect(sentCommands[0] == "look north")
+    }
+
+    /// Test that command is still added to history when sent to server
+    ///
+    /// Acceptance Criteria:
+    /// - Command added to history (existing behavior preserved)
+    /// - Input cleared after send (existing behavior preserved)
+    @Test("Command added to history when sent to server")
+    func test_commandAddedToHistory() async {
+        let history = CommandHistory()
+        let mockConnection = MockLichConnection()
+
+        // This will fail until Issue #29 is implemented
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                connection: mockConnection  // NOT YET IMPLEMENTED
+            )
+        }
+
+        await MainActor.run {
+            viewModel.currentInput = "exp"
+        }
+
+        await viewModel.submitCommand { _ in }
+
+        // Verify command was added to history
+        let all = await history.getAll()
+        #expect(all.contains("exp"))
+    }
+
+    /// Test that input is cleared after sending command to server
+    ///
+    /// Acceptance Criteria:
+    /// - Input cleared after send (existing behavior preserved)
+    @Test("Input cleared after send to server")
+    func test_inputCleared() async {
+        let history = CommandHistory()
+        let mockConnection = MockLichConnection()
+
+        // This will fail until Issue #29 is implemented
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                connection: mockConnection  // NOT YET IMPLEMENTED
+            )
+        }
+
+        await MainActor.run {
+            viewModel.currentInput = "info"
+        }
+
+        await viewModel.submitCommand { _ in }
+
+        // Verify input was cleared
+        await MainActor.run {
+            #expect(viewModel.currentInput == "")
+        }
+    }
+
+    /// Test error handling when send fails
+    ///
+    /// Acceptance Criteria:
+    /// - Graceful error handling (logs error, doesn't crash)
+    /// - Command still added to history (best effort)
+    /// - Input still cleared (user can retry)
+    ///
+    /// BONUS TEST: Not explicitly required but demonstrates good error handling
+    @Test("Send error handling does not crash")
+    func test_sendErrorHandling() async {
+        let history = CommandHistory()
+        let mockConnection = MockLichConnection()
+
+        // Configure mock to throw error on send
+        await mockConnection.configureSendError(shouldThrow: true, error: LichConnectionError.notConnected)
+
+        // This will fail until Issue #29 is implemented
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                connection: mockConnection  // NOT YET IMPLEMENTED
+            )
+        }
+
+        await MainActor.run {
+            viewModel.currentInput = "look"
+        }
+
+        // Should not crash when send fails
+        await viewModel.submitCommand { _ in }
+
+        // Verify command was still added to history (best effort)
+        let all = await history.getAll()
+        #expect(all.contains("look"))
+
+        // Verify input was still cleared (user can retry)
+        await MainActor.run {
+            #expect(viewModel.currentInput == "")
+        }
+    }
+
+    /// Test that connection parameter is optional (backward compatibility)
+    ///
+    /// Acceptance Criteria:
+    /// - CommandInputViewModel works without connection (existing tests)
+    /// - Handler is still called when connection is nil
+    @Test("Submit works without connection (backward compatibility)")
+    func test_submitWithoutConnection() async {
+        let history = CommandHistory()
+
+        // Create view model WITHOUT connection (existing behavior)
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(commandHistory: history)
+        }
+
+        var handlerCalled = false
+
+        await MainActor.run {
+            viewModel.currentInput = "look"
+        }
+
+        await viewModel.submitCommand { _ in
+            handlerCalled = true
+        }
+
+        // Handler should still be called
+        #expect(handlerCalled)
+
+        // Command still added to history
+        let all = await history.getAll()
+        #expect(all.contains("look"))
+    }
+
+    /// Test that both connection.send() AND handler are called
+    ///
+    /// Acceptance Criteria:
+    /// - Connection.send() is called when connection is available
+    /// - Handler is ALSO called (for backward compatibility)
+    @Test("Both connection send and handler are called")
+    func test_bothConnectionAndHandlerCalled() async {
+        let history = CommandHistory()
+        let mockConnection = MockLichConnection()
+
+        // This will fail until Issue #29 is implemented
+        let viewModel = await MainActor.run {
+            CommandInputViewModel(
+                commandHistory: history,
+                connection: mockConnection  // NOT YET IMPLEMENTED
+            )
+        }
+
+        var handlerCalled = false
+
+        await MainActor.run {
+            viewModel.currentInput = "cast 401"
+        }
+
+        await viewModel.submitCommand { _ in
+            handlerCalled = true
+        }
+
+        // Verify BOTH connection.send() was called
+        let sentCommands = await mockConnection.sentCommands
+        #expect(sentCommands.count == 1)
+
+        // AND handler was called
+        #expect(handlerCalled)
     }
 }

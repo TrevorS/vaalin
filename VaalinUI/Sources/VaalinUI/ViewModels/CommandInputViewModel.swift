@@ -4,6 +4,7 @@
 import Foundation
 import Observation
 import VaalinCore
+import VaalinNetwork
 
 /// View model for command input with readline-style text editing and history navigation.
 ///
@@ -77,6 +78,11 @@ public final class CommandInputViewModel {
     /// Settings for command echo configuration
     private let settings: Settings
 
+    /// Optional connection for sending commands to the server (Issue #29)
+    /// When provided, commands are sent via connection.send() in addition to handler callback
+    /// Uses CommandSending protocol to allow both real and mock connections
+    private let connection: (any CommandSending)?
+
     /// Temporary storage for current draft when navigating history
     /// Preserves what user was typing before pressing up arrow
     private var currentDraft: String = ""
@@ -92,14 +98,18 @@ public final class CommandInputViewModel {
     ///   - commandHistory: CommandHistory actor for storing and recalling commands
     ///   - gameLogViewModel: Optional GameLogViewModel for command echo (default: nil)
     ///   - settings: Settings for command echo configuration (default: makeDefault())
+    ///   - connection: Optional connection for sending commands to server (default: nil)
+    ///                Accepts any actor conforming to CommandSending protocol
     public init(
         commandHistory: CommandHistory,
         gameLogViewModel: GameLogViewModel? = nil,
-        settings: Settings = .makeDefault()
+        settings: Settings = .makeDefault(),
+        connection: (any CommandSending)? = nil
     ) {
         self.commandHistory = commandHistory
         self.gameLogViewModel = gameLogViewModel
         self.settings = settings
+        self.connection = connection
     }
 
     // MARK: - Public Methods - Command Submission
@@ -107,7 +117,7 @@ public final class CommandInputViewModel {
     /// Submits the current command and clears the input.
     ///
     /// Echoes the command to game log (if enabled), adds to history, resets navigation
-    /// state, and invokes the provided handler to send the command to the game server.
+    /// state, sends to LichConnection (if available), and invokes the provided handler.
     ///
     /// - Parameter handler: Closure to execute with the submitted command
     ///
@@ -118,11 +128,12 @@ public final class CommandInputViewModel {
     /// }
     /// ```
     ///
-    /// ## Command Echo Flow
+    /// ## Command Flow (Issue #29)
     /// 1. Echo command to game log (if `settings.input.commandEcho` is true)
     /// 2. Add command to history
     /// 3. Clear input and reset state
-    /// 4. Execute handler to send command to server
+    /// 4. Send to LichConnection (if available, gracefully handle errors)
+    /// 5. Execute handler (for backward compatibility)
     ///
     /// This ensures the echo appears **before** the command is sent to the server
     /// per Issue #28 acceptance criteria.
@@ -145,7 +156,13 @@ public final class CommandInputViewModel {
         currentDraft = ""
         isNavigatingHistory = false
 
-        // Execute handler
+        // Send to LichConnection if available (Issue #29)
+        // Use try? for graceful error handling - errors are logged by LichConnection
+        if let connection = connection {
+            try? await connection.send(command: command)
+        }
+
+        // Execute handler (for backward compatibility)
         handler(command)
     }
 
