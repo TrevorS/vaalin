@@ -144,6 +144,11 @@ let package = Package(
                 .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
+        .testTarget(
+            name: "VaalinUITests",
+            dependencies: ["VaalinUI", "VaalinCore"],
+            path: "VaalinUI/Tests/VaalinUITests"
+        ),
 
         // Main application tests
         .testTarget(

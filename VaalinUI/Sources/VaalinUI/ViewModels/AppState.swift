@@ -1,7 +1,8 @@
-// ABOUTME: AppState coordinates connection lifecycle and polling bridge for game log updates
+// ABOUTME: AppState coordinates connection lifecycle, polling bridge, command input, and command history
 
 import Foundation
 import Observation
+import os
 import VaalinCore
 import VaalinNetwork
 
@@ -9,12 +10,12 @@ import VaalinNetwork
 import VaalinParser
 #endif
 
-/// @Observable @MainActor coordinator that manages connection lifecycle and UI polling.
+/// @Observable @MainActor coordinator that manages connection lifecycle, UI polling, and command input.
 ///
 /// `AppState` acts as the integration layer between actor-based networking components
 /// (LichConnection, XMLStreamParser, ParserConnectionBridge) and SwiftUI views. It manages
-/// the connection lifecycle and polls the bridge for parsed tags, forwarding them to the
-/// GameLogViewModel on the main thread.
+/// the connection lifecycle, polls the bridge for parsed tags, coordinates command input
+/// with command history, and sends commands to the game server.
 ///
 /// ## Architecture
 ///
@@ -23,8 +24,11 @@ import VaalinParser
 ///    ├─ owns → LichConnection (actor)
 ///    ├─ owns → XMLStreamParser (actor)
 ///    ├─ owns → ParserConnectionBridge (actor)
+///    ├─ owns → CommandHistory (actor)
 ///    ├─ owns → GameLogViewModel (@Observable)
-///    └─ polling → getParsedTags() → appendMessage() [main thread]
+///    ├─ owns → CommandInputViewModel (@Observable)
+///    ├─ polling → getParsedTags() → appendMessage() [main thread]
+///    └─ sendCommand() → connection.send() [game server]
 /// ```
 ///
 /// ## Polling Pattern
@@ -57,6 +61,11 @@ import VaalinParser
 /// // Bind to GameLogView
 /// GameLogView(viewModel: appState.gameLogViewModel, isConnected: appState.isConnected)
 ///
+/// // Bind to CommandInputView
+/// CommandInputView(viewModel: appState.commandInputViewModel) { command in
+///     await appState.sendCommand(command)
+/// }
+///
 /// // Disconnect when done
 /// await appState.disconnect()
 /// ```
@@ -83,6 +92,12 @@ public final class AppState {
     /// The game log view model (main thread access only)
     public let gameLogViewModel: GameLogViewModel
 
+    /// The command input view model (main thread access only)
+    public let commandInputViewModel: CommandInputViewModel
+
+    /// Command history actor for storing and recalling commands
+    private let commandHistory: CommandHistory
+
     /// Whether currently connected to Lich
     public var isConnected: Bool = false
 
@@ -94,6 +109,9 @@ public final class AppState {
 
     /// Polling task for fetching parsed tags from bridge
     private var pollingTask: Task<Void, Never>?
+
+    /// Logger for AppState events and errors
+    private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "AppState")
 
     // MARK: - Initialization
 
@@ -111,8 +129,12 @@ public final class AppState {
 
         self.bridge = ParserConnectionBridge(connection: connection, parser: parser)
 
-        // Initialize view model on main thread
+        // Initialize command history (500 command buffer)
+        self.commandHistory = CommandHistory(maxSize: 500)
+
+        // Initialize view models on main thread
         self.gameLogViewModel = GameLogViewModel()
+        self.commandInputViewModel = CommandInputViewModel(commandHistory: commandHistory)
     }
 
     // MARK: - Connection Lifecycle
@@ -174,6 +196,30 @@ public final class AppState {
 
         // Update state
         isConnected = false
+    }
+
+    // MARK: - Command Sending
+
+    /// Sends a command to the game server via the Lich connection.
+    ///
+    /// Commands are sent as UTF-8 encoded strings followed by a newline character.
+    /// This method should be called from the command input submit handler.
+    ///
+    /// - Parameter command: The command string to send (without trailing newline)
+    ///
+    /// ## Example
+    /// ```swift
+    /// CommandInputView(viewModel: appState.commandInputViewModel) { command in
+    ///     await appState.sendCommand(command)
+    /// }
+    /// ```
+    public func sendCommand(_ command: String) async {
+        // Send command via connection (LichConnection handles newline encoding)
+        do {
+            try await connection.send(command: command)
+        } catch {
+            logger.error("Failed to send command: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Polling Implementation
