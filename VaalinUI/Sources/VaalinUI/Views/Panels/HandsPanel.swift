@@ -66,6 +66,15 @@ public struct HandsPanel: View {
     /// Collapsed state for PanelContainer (persisted via Settings).
     @State private var isCollapsed: Bool = false
 
+    // MARK: - Constants
+
+    /// Emoji icons for hand and spell rows
+    private enum HandEmoji {
+        static let leftHand = "✋"
+        static let rightHand = "🤚"
+        static let spell = "✨"
+    }
+
     // MARK: - Initializer
 
     /// Creates a hands panel with the specified view model.
@@ -86,31 +95,38 @@ public struct HandsPanel: View {
             isCollapsed: $isCollapsed,
             height: 140
         ) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 // Left hand row
                 HandRow(
-                    icon: "✋",
+                    icon: HandEmoji.leftHand,
                     content: viewModel.leftHand,
                     isEmpty: viewModel.leftHand == "Empty"
                 )
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Left hand: \(viewModel.leftHand)")
 
                 // Right hand row
                 HandRow(
-                    icon: "🤚",
+                    icon: HandEmoji.rightHand,
                     content: viewModel.rightHand,
                     isEmpty: viewModel.rightHand == "Empty"
                 )
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Right hand: \(viewModel.rightHand)")
 
                 // Prepared spell row
                 HandRow(
-                    icon: "✨",
+                    icon: HandEmoji.spell,
                     content: viewModel.preparedSpell,
                     isEmpty: viewModel.preparedSpell == "None"
                 )
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Prepared spell: \(viewModel.preparedSpell)")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.regularMaterial)
         }
         .task {
             // Initialize EventBus subscriptions on appear
@@ -125,6 +141,7 @@ public struct HandsPanel: View {
 ///
 /// Displays emoji icon next to item/spell name with proper spacing and truncation.
 /// Empty states show secondary color and italic style per Illthorn reference.
+/// Includes hover feedback and Liquid Glass icon treatments.
 private struct HandRow: View {
     /// Emoji icon (✋, 🤚, or ✨).
     let icon: String
@@ -135,22 +152,48 @@ private struct HandRow: View {
     /// Whether this row represents an empty state.
     let isEmpty: Bool
 
+    /// Tracks hover state for visual feedback.
+    @State private var isHovering: Bool = false
+
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            // Emoji icon
+            // Emoji icon with floating badge effect
             Text(icon)
                 .font(.system(size: 16))
-                .opacity(isEmpty ? 0.6 : 1.0)
+                .opacity(isEmpty ? 0.5 : 0.95)
                 .frame(width: 20, alignment: .center)
+                .padding(6)
+                .background(
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(isEmpty ? 0.3 : 0.6)
+                )
 
-            // Content text
+            // Content text with typography enhancements
             Text(content)
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundStyle(isEmpty ? .secondary : .primary)
+                .font(.system(size: 13, weight: isEmpty ? .regular : .medium, design: .monospaced))
+                .foregroundStyle(isEmpty ? .secondary : Color(nsColor: .labelColor))
                 .italic(isEmpty)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .visualEffect { content, _ in
+                    content
+                        .saturation(isEmpty ? 0.8 : 1.1)
+                        .brightness(isEmpty ? 0.0 : 0.02)
+                }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(.ultraThinMaterial)
+                .opacity(isHovering ? 0.5 : 0.0)
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
         }
     }
 }
