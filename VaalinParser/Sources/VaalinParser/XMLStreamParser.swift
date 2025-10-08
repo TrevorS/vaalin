@@ -41,6 +41,19 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
     /// 10KB should handle even extremely fragmented chunks (typical game output is < 1KB).
     private let maxBufferSize = 10_000
 
+    /// Optional EventBus for publishing tag events to subscribers.
+    ///
+    /// When provided, the parser publishes events for metadata tags (left, right, spell, progressBar, prompt)
+    /// and stream control tags (pushStream). This enables reactive UI updates without polling.
+    ///
+    /// Event naming conventions:
+    /// - Hands: `metadata/left`, `metadata/right`
+    /// - Spells: `metadata/spell`
+    /// - Progress bars: `metadata/progressBar/{id}` (e.g., `metadata/progressBar/health`)
+    /// - Prompt: `metadata/prompt`
+    /// - Streams: `stream/{id}` (e.g., `stream/thoughts`)
+    private let eventBus: EventBus?
+
     // MARK: - Persistent State
 
     /// The currently active stream ID from the most recent `<pushStream>` tag.
@@ -120,7 +133,12 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
     // MARK: - Initialization
 
     /// Creates a new XML stream parser with empty state.
-    public override init() {
+    ///
+    /// - Parameter eventBus: Optional EventBus for publishing tag events to subscribers.
+    ///                       If provided, metadata tags and stream control tags will publish events.
+    ///                       Defaults to `nil` for backward compatibility.
+    public init(eventBus: EventBus? = nil) {
+        self.eventBus = eventBus
         super.init()
     }
 
@@ -233,6 +251,84 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         return currentParsedTags
     }
 
+    // MARK: - Event Publishing
+
+    /// Publishes stream event for pushStream control directive.
+    ///
+    /// This method is called when a `<pushStream id="X"/>` tag is encountered.
+    /// Unlike regular tags, pushStream doesn't create a GameTag during normal parsing,
+    /// so we create a synthetic GameTag just for the event publishing.
+    ///
+    /// - Parameters:
+    ///   - streamId: The stream ID from the pushStream tag
+    ///   - attributes: The full attribute dictionary from the tag
+    nonisolated private func publishStreamEvent(streamId: String, attributes: [String: String]) {
+        guard let eventBus = eventBus else { return }
+
+        let streamTag = GameTag(
+            name: "pushStream",
+            text: nil,
+            attrs: attributes,
+            children: [],
+            state: .closed,
+            streamId: streamId
+        )
+        Task {
+            await eventBus.publish("stream/\(streamId)", data: streamTag)
+        }
+    }
+
+    /// Publishes EventBus event for metadata tags.
+    ///
+    /// This method is called after a tag is fully constructed and closed.
+    /// Only metadata tags (left, right, spell, progressBar, prompt) and stream control
+    /// tags (pushStream) trigger events. Regular game output tags do not publish events.
+    ///
+    /// Event publishing is non-blocking - events are published asynchronously via Task
+    /// to avoid impacting parser performance.
+    ///
+    /// - Parameter tag: The completed GameTag to potentially publish
+    nonisolated private func publishEventIfNeeded(for tag: GameTag) {
+        guard let eventBus = eventBus else { return }
+
+        // Determine event name based on tag type
+        let eventName: String? = switch tag.name {
+        // Hands metadata
+        case "left": "metadata/left"
+        case "right": "metadata/right"
+        case "spell": "metadata/spell"
+
+        // Progress bars - dynamic event name with id
+        case "progressBar":
+            if let id = tag.attrs["id"] {
+                "metadata/progressBar/\(id)"
+            } else {
+                nil // No id - don't publish
+            }
+
+        // Prompt
+        case "prompt": "metadata/prompt"
+
+        // Stream control - handled separately in didStartElement
+        case "pushStream":
+            if let id = tag.attrs["id"] {
+                "stream/\(id)"
+            } else {
+                nil
+            }
+
+        // Default: no event for regular tags
+        default: nil
+        }
+
+        guard let eventName = eventName else { return }
+
+        // Publish asynchronously - don't block parsing
+        Task {
+            await eventBus.publish(eventName, data: tag)
+        }
+    }
+
     // MARK: - Testing Support
 
     /// Exposes the current stream state for testing purposes.
@@ -274,6 +370,11 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
             // If no id attribute, set currentStream to nil (graceful handling)
             currentStream = attributeDict["id"]
             inStream = true
+
+            // Publish stream event (even though this doesn't create a GameTag)
+            if let streamId = attributeDict["id"] {
+                publishStreamEvent(streamId: streamId, attributes: attributeDict)
+            }
 
             // Don't create a GameTag - this is a stream control directive
             return
@@ -441,6 +542,9 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
             parent.children.append(tag)
             currentTagStack.append(parent) // Put parent back on stack
         }
+
+        // Publish event for metadata tags (non-blocking)
+        publishEventIfNeeded(for: tag)
     }
 
     /// Called when parser encounters an error

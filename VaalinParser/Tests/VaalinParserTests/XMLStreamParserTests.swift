@@ -12,6 +12,14 @@ import Testing
 ///
 /// TDD Approach: These tests are written BEFORE implementation to drive design.
 /// Initial tests focus on skeleton structure and will fail until implementation exists.
+///
+/// ## Issue #31: EventBus Integration
+/// Tests for publishing GameTag events to EventBus for reactive UI updates.
+/// Event naming conventions:
+/// - Metadata: `metadata/{tagname}` (e.g., `metadata/left`, `metadata/right`)
+/// - Progress bars: `metadata/progressBar/{id}` (e.g., `metadata/progressBar/health`)
+/// - Streams: `stream/{id}` (e.g., `stream/thoughts`)
+/// - Prompt: `metadata/prompt`
 struct XMLStreamParserTests {
     // MARK: - Initialization Tests
 
@@ -3068,6 +3076,758 @@ struct XMLStreamParserTests {
         #expect(tags4.count == 1)
         #expect(tags4[0].name == "output")
         #expect(tags4[0].text == "Recovered")
+    }
+
+    // MARK: - EventBus Integration Tests (Issue #31)
+
+    /// Test parser accepts EventBus in initializer
+    /// Parser must support optional EventBus for event publishing
+    @Test func test_parserAcceptsEventBus() async throws {
+        let eventBus = EventBus()
+        _ = XMLStreamParser(eventBus: eventBus)
+    }
+
+    /// Test parser works without EventBus
+    /// EventBus should be optional - parser works normally without it
+    @Test func test_parserWorksWithoutEventBus() async throws {
+        let parser = XMLStreamParser() // No eventBus parameter
+        let xml = "<left>sword</left>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "left")
+        #expect(tags[0].text == "sword")
+    }
+
+    // MARK: - Metadata Event Publishing Tests
+
+    /// Test left hand tag publishes metadata/left event
+    /// Parsing <left> should publish to EventBus for hands panel subscription
+    @Test func test_leftHandEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<left>sword</left>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "left")
+        #expect(receivedEvent?.text == "sword")
+        #expect(receivedEvent?.state == .closed)
+
+        // Verify tags are still returned normally
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "left")
+    }
+
+    /// Test right hand tag publishes metadata/right event
+    /// Parsing <right> should publish to EventBus for hands panel subscription
+    @Test func test_rightHandEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/right") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<right>shield</right>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "right")
+        #expect(receivedEvent?.text == "shield")
+
+        // Verify tags are still returned normally
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "right")
+    }
+
+    /// Test spell tag publishes metadata/spell event
+    /// Parsing <spell> should publish to EventBus for spell tracking
+    @Test func test_spellEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/spell") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<spell>Major Elemental</spell>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "spell")
+        #expect(receivedEvent?.text == "Major Elemental")
+
+        // Verify tags are still returned normally
+        #expect(tags.count == 1)
+    }
+
+    /// Test left hand with empty content publishes event
+    /// Empty left hand should still publish event (for "empty hand" state)
+    @Test func test_leftHandEmptyEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<left></left>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published with empty text
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "left")
+        #expect(receivedEvent?.text == nil || receivedEvent?.text == "")
+    }
+
+    // MARK: - Progress Bar Event Publishing Tests
+
+    /// Test progressBar publishes metadata/progressBar/{id} event
+    /// Progress bar with id attribute should publish event with dynamic name
+    @Test func test_progressBarHealthEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/progressBar/health") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<progressBar id=\"health\" value=\"100\" left=\"100\" right=\"100\" text=\"100%\"/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "progressBar")
+        #expect(receivedEvent?.attrs["id"] == "health")
+        #expect(receivedEvent?.attrs["value"] == "100")
+
+        // Verify tags are still returned normally
+        #expect(tags.count == 1)
+    }
+
+    /// Test progressBar with mana id publishes correct event
+    /// Different progress bar IDs should publish to different event names
+    @Test func test_progressBarManaEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/progressBar/mana") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<progressBar id=\"mana\" value=\"50\" left=\"50\" right=\"100\" text=\"50%\"/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published to mana-specific event
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "progressBar")
+        #expect(receivedEvent?.attrs["id"] == "mana")
+        #expect(receivedEvent?.attrs["value"] == "50")
+    }
+
+    /// Test progressBar without id attribute does not crash
+    /// Malformed progress bar without id should be handled gracefully
+    @Test func test_progressBarWithoutIdDoesNotCrash() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        await eventBus.subscribe("metadata/progressBar") { (_: GameTag) in
+            eventReceived = true
+        }
+
+        let xml = "<progressBar value=\"100\"/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver (if it incorrectly publishes)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Should return tag without crashing
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "progressBar")
+
+        // Should NOT publish event (missing id attribute)
+        #expect(eventReceived == false)
+    }
+
+    /// Test multiple progress bars publish to different events
+    /// Each progress bar type should route to its own event channel
+    @Test func test_multipleProgressBarsPublishSeparateEvents() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var healthEvent: GameTag?
+        var manaEvent: GameTag?
+        var staminaEvent: GameTag?
+
+        await eventBus.subscribe("metadata/progressBar/health") { (tag: GameTag) in
+            healthEvent = tag
+        }
+        await eventBus.subscribe("metadata/progressBar/mana") { (tag: GameTag) in
+            manaEvent = tag
+        }
+        await eventBus.subscribe("metadata/progressBar/stamina") { (tag: GameTag) in
+            staminaEvent = tag
+        }
+
+        let xml = "<progressBar id=\"health\" value=\"100\"/><progressBar id=\"mana\" value=\"50\"/><progressBar id=\"stamina\" value=\"75\"/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver all events
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify each event was published to correct channel
+        #expect(healthEvent != nil)
+        #expect(healthEvent?.attrs["id"] == "health")
+
+        #expect(manaEvent != nil)
+        #expect(manaEvent?.attrs["id"] == "mana")
+
+        #expect(staminaEvent != nil)
+        #expect(staminaEvent?.attrs["id"] == "stamina")
+
+        #expect(tags.count == 3)
+    }
+
+    // MARK: - Prompt Event Publishing Tests
+
+    /// Test prompt tag publishes metadata/prompt event
+    /// Parsing <prompt> should publish to EventBus for prompt display
+    @Test func test_promptEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/prompt") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<prompt>&gt;</prompt>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "prompt")
+        #expect(receivedEvent?.text == ">")
+
+        // Verify tags are still returned normally
+        #expect(tags.count == 1)
+    }
+
+    /// Test complex prompt content publishes correctly
+    /// Prompt can contain various special characters
+    @Test func test_promptWithComplexContentEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("metadata/prompt") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<prompt time=\"1234567890\">&gt; [HP: 100]</prompt>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published with attributes
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.name == "prompt")
+        #expect(receivedEvent?.attrs["time"] == "1234567890")
+    }
+
+    // MARK: - Stream Event Publishing Tests
+
+    /// Test pushStream publishes stream/{id} event
+    /// Stream control tags should publish events for stream routing
+    @Test func test_pushStreamThoughtsEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("stream/thoughts") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<pushStream id=\"thoughts\"/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Note: pushStream may or may not create a GameTag (implementation detail)
+        // The important part is the event is published
+        #expect(receivedEvent != nil)
+    }
+
+    /// Test pushStream speech publishes to correct event
+    /// Different stream IDs should publish to different event channels
+    @Test func test_pushStreamSpeechEventPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var receivedEvent: GameTag?
+        await eventBus.subscribe("stream/speech") { (tag: GameTag) in
+            receivedEvent = tag
+        }
+
+        let xml = "<pushStream id=\"speech\"/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify event was published to speech-specific channel
+        #expect(receivedEvent != nil)
+    }
+
+    /// Test pushStream without id does not crash
+    /// Malformed pushStream without id should be handled gracefully
+    @Test func test_pushStreamWithoutIdDoesNotCrash() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        await eventBus.subscribe("stream/") { (_: GameTag) in
+            eventReceived = true
+        }
+
+        let xml = "<pushStream/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver (if it incorrectly publishes)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Should handle gracefully without crashing
+        #expect(tags.isEmpty) // pushStream is control directive, not content
+
+        // Should NOT publish event (missing id attribute)
+        #expect(eventReceived == false)
+    }
+
+    /// Test popStream does not publish event
+    /// popStream is a control directive that clears stream context but doesn't publish events
+    @Test func test_popStreamDoesNotPublishEvent() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        // Subscribe to any possible stream event pattern
+        await eventBus.subscribe("stream/popStream") { (_: GameTag) in
+            eventReceived = true
+        }
+        await eventBus.subscribe("metadata/popStream") { (_: GameTag) in
+            eventReceived = true
+        }
+
+        // Setup: Push a stream, then pop it
+        let xml = "<pushStream id=\"thoughts\"/><popStream/>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // popStream is control directive - doesn't create content
+        #expect(tags.isEmpty)
+
+        // popStream should NOT publish any events (it's just a state change)
+        #expect(eventReceived == false)
+    }
+
+    // MARK: - Multiple Event Publishing Tests
+
+    /// Test multiple metadata tags publish multiple events
+    /// Parser should publish event for each metadata tag in order
+    @Test func test_multipleMetadataEventsPublished() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var leftEvent: GameTag?
+        var rightEvent: GameTag?
+        var spellEvent: GameTag?
+
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            leftEvent = tag
+        }
+        await eventBus.subscribe("metadata/right") { (tag: GameTag) in
+            rightEvent = tag
+        }
+        await eventBus.subscribe("metadata/spell") { (tag: GameTag) in
+            spellEvent = tag
+        }
+
+        let xml = "<left>sword</left><right>shield</right><spell>Major Elemental</spell>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver all events
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify all events were published
+        #expect(leftEvent != nil)
+        #expect(leftEvent?.text == "sword")
+
+        #expect(rightEvent != nil)
+        #expect(rightEvent?.text == "shield")
+
+        #expect(spellEvent != nil)
+        #expect(spellEvent?.text == "Major Elemental")
+
+        // Verify tags are still returned normally
+        #expect(tags.count == 3)
+    }
+
+    /// Test mixed metadata and regular tags only publish metadata events
+    /// Regular tags should not trigger events
+    @Test func test_mixedTagsOnlyPublishMetadataEvents() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var leftEvent: GameTag?
+        var outputEvent: GameTag?
+
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            leftEvent = tag
+        }
+        await eventBus.subscribe("metadata/output") { (tag: GameTag) in
+            outputEvent = tag
+        }
+
+        let xml = "<output>Some text</output><left>sword</left><output>More text</output>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Only left should publish event
+        #expect(leftEvent != nil)
+        #expect(leftEvent?.text == "sword")
+
+        // output is not a metadata tag - should not publish
+        #expect(outputEvent == nil)
+
+        // All tags should still be returned
+        #expect(tags.count == 3)
+    }
+
+    // MARK: - No Event Publishing Tests
+
+    /// Test regular tags do not publish events
+    /// Only metadata/special tags should trigger EventBus publishing
+    @Test func test_outputTagNoEvent() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        await eventBus.subscribe("metadata/output") { (tag: GameTag) in
+            eventReceived = true
+        }
+
+        let xml = "<output>Regular text</output>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time (if it were to publish)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // output is not a metadata tag - no event should be published
+        #expect(!eventReceived)
+
+        // But tag should still be returned normally
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "output")
+    }
+
+    /// Test anchor tags do not publish events
+    /// Interactive elements like <a> are not metadata
+    @Test func test_anchorTagNoEvent() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        await eventBus.subscribe("metadata/a") { (tag: GameTag) in
+            eventReceived = true
+        }
+
+        let xml = "<a exist=\"12345\" noun=\"gem\">blue gem</a>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time (if it were to publish)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Anchor tags should not publish events
+        #expect(!eventReceived)
+
+        // But tag should still be returned
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "a")
+    }
+
+    /// Test bold tags do not publish events
+    /// Formatting tags are not metadata
+    @Test func test_boldTagNoEvent() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        await eventBus.subscribe("metadata/b") { (tag: GameTag) in
+            eventReceived = true
+        }
+
+        let xml = "<b>Bold text</b>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time (if it were to publish)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Bold tags should not publish events
+        #expect(!eventReceived)
+
+        #expect(tags.count == 1)
+    }
+
+    /// Test preset tags do not publish events
+    /// Preset tags are for styling, not metadata
+    @Test func test_presetTagNoEvent() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventReceived = false
+        await eventBus.subscribe("metadata/preset") { (tag: GameTag) in
+            eventReceived = true
+        }
+
+        let xml = "<preset id=\"speech\">You say, \"Hello!\"</preset>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time (if it were to publish)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Preset tags should not publish events
+        #expect(!eventReceived)
+
+        #expect(tags.count == 1)
+    }
+
+    // MARK: - Event Publishing with Nested Tags Tests
+
+    /// Test nested tags only publish event for parent metadata tag
+    /// Children should not trigger separate events
+    @Test func test_nestedTagsOnlyPublishParentEvent() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var leftEvent: GameTag?
+        var boldEvent: GameTag?
+
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            leftEvent = tag
+        }
+        await eventBus.subscribe("metadata/b") { (tag: GameTag) in
+            boldEvent = tag
+        }
+
+        let xml = "<left><b>enchanted</b> sword</left>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Only left should publish event (it's metadata)
+        #expect(leftEvent != nil)
+        #expect(leftEvent?.children.count == 2) // <b> child + text child
+
+        // Bold inside left should not publish separate event
+        #expect(boldEvent == nil)
+
+        #expect(tags.count == 1)
+    }
+
+    // MARK: - Event Publishing Across Chunks Tests
+
+    /// Test metadata tag split across chunks publishes event once
+    /// Event should only be published when tag is complete (closed)
+    @Test func test_splitMetadataTagPublishesEventOnceWhenComplete() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventCount = 0
+        var receivedEvent: GameTag?
+
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            eventCount += 1
+            receivedEvent = tag
+        }
+
+        // First chunk: incomplete tag
+        let chunk1 = "<left>magic"
+        let tags1 = await parser.parse(chunk1)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Event should NOT be published yet (tag not closed)
+        #expect(eventCount == 0)
+        #expect(tags1.isEmpty)
+
+        // Second chunk: completes tag
+        let chunk2 = " sword</left>"
+        let tags2 = await parser.parse(chunk2)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Event should be published once when tag is complete
+        #expect(eventCount == 1)
+        #expect(receivedEvent != nil)
+        #expect(receivedEvent?.text == "magic sword")
+
+        #expect(tags2.count == 1)
+        #expect(tags2[0].name == "left")
+    }
+
+    /// Test events published in parse order
+    /// Multiple events should be published in the order tags are closed
+    @Test func test_eventsPublishedInParseOrder() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var eventOrder: [String] = []
+
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            eventOrder.append("left")
+        }
+        await eventBus.subscribe("metadata/right") { (tag: GameTag) in
+            eventOrder.append("right")
+        }
+        await eventBus.subscribe("metadata/prompt") { (tag: GameTag) in
+            eventOrder.append("prompt")
+        }
+
+        let xml = "<left>sword</left><right>shield</right><prompt>&gt;</prompt>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver all events
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Verify events were published in parse order
+        #expect(eventOrder.count == 3)
+        #expect(eventOrder[0] == "left")
+        #expect(eventOrder[1] == "right")
+        #expect(eventOrder[2] == "prompt")
+
+        #expect(tags.count == 3)
+    }
+
+    // MARK: - Event Publishing Error Handling Tests
+
+    /// Test event publishing failure does not break parsing
+    /// If EventBus throws, parser should continue and return tags
+    @Test func test_eventPublishingFailureDoesNotBreakParsing() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        // Subscribe with throwing handler
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            throw NSError(domain: "test", code: 1, userInfo: nil)
+        }
+
+        let xml = "<left>sword</left><right>shield</right>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Parsing should succeed despite handler throwing
+        #expect(tags.count == 2)
+        #expect(tags[0].name == "left")
+        #expect(tags[1].name == "right")
+    }
+
+    // MARK: - Real-World Scenario Tests
+
+    /// Test real game output with multiple metadata types
+    /// Simulates actual game server output with mixed metadata
+    @Test func test_realWorldGameOutput() async throws {
+        let eventBus = EventBus()
+        let parser = XMLStreamParser(eventBus: eventBus)
+
+        var leftEvent: GameTag?
+        var rightEvent: GameTag?
+        var healthEvent: GameTag?
+        var manaEvent: GameTag?
+        var promptEvent: GameTag?
+
+        await eventBus.subscribe("metadata/left") { (tag: GameTag) in
+            leftEvent = tag
+        }
+        await eventBus.subscribe("metadata/right") { (tag: GameTag) in
+            rightEvent = tag
+        }
+        await eventBus.subscribe("metadata/progressBar/health") { (tag: GameTag) in
+            healthEvent = tag
+        }
+        await eventBus.subscribe("metadata/progressBar/mana") { (tag: GameTag) in
+            manaEvent = tag
+        }
+        await eventBus.subscribe("metadata/prompt") { (tag: GameTag) in
+            promptEvent = tag
+        }
+
+        let xml = "<left>vultite longsword</left><right>mithril shield</right><progressBar id=\"health\" value=\"100\" left=\"100\" right=\"100\" text=\"100%\"/><progressBar id=\"mana\" value=\"85\" left=\"85\" right=\"100\" text=\"85%\"/><output>You look around the room.</output><prompt time=\"1234567890\">&gt;</prompt>"
+        let tags = await parser.parse(xml)
+
+        // Give event bus time to deliver all events
+        try await Task.sleep(for: .milliseconds(100))
+
+        // Verify all metadata events were published
+        #expect(leftEvent != nil)
+        #expect(leftEvent?.text == "vultite longsword")
+
+        #expect(rightEvent != nil)
+        #expect(rightEvent?.text == "mithril shield")
+
+        #expect(healthEvent != nil)
+        #expect(healthEvent?.attrs["value"] == "100")
+
+        #expect(manaEvent != nil)
+        #expect(manaEvent?.attrs["value"] == "85")
+
+        #expect(promptEvent != nil)
+
+        // All tags should be returned (metadata + regular)
+        #expect(tags.count == 6)
     }
 }
 // swiftlint:enable file_length type_body_length
