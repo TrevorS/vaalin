@@ -347,7 +347,7 @@ struct CommandInputView_Previews: PreviewProvider {
         Group {
             // Preview 1: Empty state - Light mode
             CommandInputView(
-                viewModel: CommandInputViewModel(commandHistory: CommandHistory()),
+                viewModel: makeEmptyViewModel(),
                 onSubmit: { command in
                     print("Submitted: \(command)")
                 }
@@ -360,7 +360,7 @@ struct CommandInputView_Previews: PreviewProvider {
 
             // Preview 2: Empty state - Dark mode
             CommandInputView(
-                viewModel: CommandInputViewModel(commandHistory: CommandHistory()),
+                viewModel: makeEmptyViewModel(),
                 onSubmit: { command in
                     print("Submitted: \(command)")
                 }
@@ -390,7 +390,7 @@ struct CommandInputView_Previews: PreviewProvider {
                     .font(.headline)
 
                 CommandInputView(
-                    viewModel: CommandInputViewModel(commandHistory: CommandHistory()),
+                    viewModel: makeEmptyViewModel(),
                     onSubmit: { command in
                         print("Submitted: \(command)")
                     }
@@ -425,7 +425,12 @@ struct CommandInputView_Previews: PreviewProvider {
             .previewDisplayName("Shortcuts Guide - Dark")
             .preferredColorScheme(.dark)
 
-            // Preview 5: Integrated with game log context
+            // Preview 5: Command Echo Demo - NEW!
+            CommandEchoPreview()
+                .previewDisplayName("Command Echo Demo - Dark")
+                .preferredColorScheme(.dark)
+
+            // Preview 6: Integrated with game log context
             VStack(spacing: 0) {
                 // Simulated game log area
                 ZStack {
@@ -437,7 +442,7 @@ struct CommandInputView_Previews: PreviewProvider {
 
                 // Command input at bottom
                 CommandInputView(
-                    viewModel: CommandInputViewModel(commandHistory: CommandHistory()),
+                    viewModel: makeEmptyViewModel(),
                     onSubmit: { command in
                         print("Submitted: \(command)")
                     }
@@ -451,7 +456,87 @@ struct CommandInputView_Previews: PreviewProvider {
         }
     }
 
+    // MARK: - Command Echo Demo Preview
+
+    /// Preview demonstrating command echo feature (Issue #28)
+    struct CommandEchoPreview: View {
+        @State private var viewModel: CommandInputViewModel
+        @State private var gameLog: GameLogViewModel
+
+        init() {
+            let (vm, log) = Self.makePreviewData()
+            _viewModel = State(initialValue: vm)
+            _gameLog = State(initialValue: log)
+        }
+
+        @MainActor
+        private static func makePreviewData() -> (CommandInputViewModel, GameLogViewModel) {
+            let history = CommandHistory()
+            let gameLog = GameLogViewModel()
+            let viewModel = CommandInputViewModel(
+                commandHistory: history,
+                gameLogViewModel: gameLog,
+                settings: .makeDefault()
+            )
+
+            // Pre-populate with sample echoed commands
+            Task { @MainActor in
+                await gameLog.echoCommand("look", prefix: "›")
+                await gameLog.echoCommand("inventory", prefix: "›")
+                await gameLog.echoCommand("cast 118 at troll", prefix: "›")
+            }
+
+            return (viewModel, gameLog)
+        }
+
+        var body: some View {
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 8) {
+                    Text("Command Echo Feature")
+                        .font(.headline)
+                    Text("Commands are echoed with '›' prefix in dimmed color")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(nsColor: .controlBackgroundColor))
+
+                Divider()
+
+                // Game log showing echoed commands
+                GameLogView(viewModel: gameLog, isConnected: false)
+                    .frame(height: 300)
+
+                Divider()
+
+                // Command input
+                VStack(spacing: 8) {
+                    Text("Type a command and press Enter to see it echo")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    CommandInputView(viewModel: viewModel) { command in
+                        print("Submitted: \(command)")
+                        // In real app, command would be sent to server here
+                    }
+                }
+                .padding(12)
+                .background(Color(nsColor: .windowBackgroundColor))
+            }
+            .frame(width: 700, height: 500)
+        }
+    }
+
     // MARK: - Sample Data
+
+    /// Creates a view model for empty state previews.
+    @MainActor
+    private static func makeEmptyViewModel() -> CommandInputViewModel {
+        let history = CommandHistory()
+        return CommandInputViewModel(commandHistory: history)
+    }
 
     /// Creates a view model with pre-filled text for preview.
     @MainActor
@@ -460,6 +545,19 @@ struct CommandInputView_Previews: PreviewProvider {
         let viewModel = CommandInputViewModel(commandHistory: history)
         viewModel.currentInput = "look at my vultite greatsword"
         return viewModel
+    }
+
+    /// Creates a view model with GameLogViewModel for command echo demo.
+    @MainActor
+    private static func makeEchoViewModel() -> (CommandInputViewModel, GameLogViewModel) {
+        let history = CommandHistory()
+        let gameLog = GameLogViewModel()
+        let viewModel = CommandInputViewModel(
+            commandHistory: history,
+            gameLogViewModel: gameLog,
+            settings: .makeDefault()
+        )
+        return (viewModel, gameLog)
     }
 
     /// Helper view for displaying keyboard shortcut rows.
