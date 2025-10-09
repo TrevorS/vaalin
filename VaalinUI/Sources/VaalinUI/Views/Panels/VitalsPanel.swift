@@ -7,10 +7,10 @@ import VaalinCore
 ///
 /// `VitalsPanel` presents seven rows showing:
 /// - Health: Red→Yellow→Green gradient based on percentage (< 33% red, 33-66% yellow, > 66% green)
-/// - Mana: Blue progress bar
-/// - Stamina: Yellow progress bar
-/// - Spirit: Purple progress bar
-/// - Mind: Teal progress bar
+/// - Mana: Blue progress bar with fraction (e.g., "45/85")
+/// - Stamina: Yellow progress bar with fraction (e.g., "72/95")
+/// - Spirit: Purple progress bar with fraction (e.g., "54/100")
+/// - Mind: Teal progress bar with **descriptive text** (e.g., "clear", "muddled") - not fractions
 /// - Stance: Text label (e.g., "offensive", "defensive")
 /// - Encumbrance: Text label (e.g., "none", "light", "heavy")
 ///
@@ -116,53 +116,62 @@ public struct VitalsPanel: View {
         PanelContainer(
             title: "Vitals",
             isCollapsed: $isCollapsed,
-            height: 160
+            height: 200
         ) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 5) {
                 // Health progress bar (dynamic color based on percentage)
                 VitalProgressBar(
                     label: "Health",
                     percentage: viewModel.health,
+                    text: viewModel.healthText,
                     color: healthColor(percentage: viewModel.health)
                 )
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Health: \(viewModel.health.map { "\($0) percent" } ?? "unknown")")
+                .accessibilityLabel("Health: \(viewModel.healthText ?? "unknown")")
 
                 // Mana progress bar (blue)
                 VitalProgressBar(
                     label: "Mana",
                     percentage: viewModel.mana,
+                    text: viewModel.manaText,
                     color: VitalColor.mana
                 )
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Mana: \(viewModel.mana.map { "\($0) percent" } ?? "unknown")")
+                .accessibilityLabel("Mana: \(viewModel.manaText ?? "unknown")")
 
                 // Stamina progress bar (yellow)
                 VitalProgressBar(
                     label: "Stamina",
                     percentage: viewModel.stamina,
+                    text: viewModel.staminaText,
                     color: VitalColor.stamina
                 )
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Stamina: \(viewModel.stamina.map { "\($0) percent" } ?? "unknown")")
+                .accessibilityLabel("Stamina: \(viewModel.staminaText ?? "unknown")")
 
                 // Spirit progress bar (purple)
                 VitalProgressBar(
                     label: "Spirit",
                     percentage: viewModel.spirit,
+                    text: viewModel.spiritText,
                     color: VitalColor.spirit
                 )
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Spirit: \(viewModel.spirit.map { "\($0) percent" } ?? "unknown")")
+                .accessibilityLabel("Spirit: \(viewModel.spiritText ?? "unknown")")
 
                 // Mind progress bar (teal)
                 VitalProgressBar(
                     label: "Mind",
                     percentage: viewModel.mind,
+                    text: viewModel.mindText,
                     color: VitalColor.mind
                 )
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Mind: \(viewModel.mind.map { "\($0) percent" } ?? "unknown")")
+                .accessibilityLabel("Mind: \(viewModel.mindText ?? "unknown")")
+
+                // Visual separator between vitals and stance/encumbrance
+                Divider()
+                    .padding(.vertical, 6)
 
                 // Stance text field
                 VitalTextField(
@@ -181,7 +190,8 @@ public struct VitalsPanel: View {
                 .accessibilityLabel("Encumbrance: \(viewModel.encumbrance)")
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.top, 18)
+            .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .task {
@@ -222,8 +232,8 @@ public struct VitalsPanel: View {
 
 /// Progress bar row displaying label, value, and colored progress indicator.
 ///
-/// Shows label + percentage text above a native SwiftUI ProgressView with custom tint.
-/// Indeterminate state shows "..." when percentage is nil.
+/// Shows label + fraction text above a custom Capsule-based progress bar.
+/// Indeterminate state shows animated shuffle bar sliding back and forth.
 private struct VitalProgressBar: View {
     /// Vital label (e.g., "Health", "Mana").
     let label: String
@@ -231,11 +241,17 @@ private struct VitalProgressBar: View {
     /// Percentage value (0-100) or nil for indeterminate state.
     let percentage: Int?
 
+    /// Text value showing actual amounts (e.g., "74/74", "50/100").
+    let text: String?
+
     /// Progress bar tint color (vital-specific).
     let color: Color
 
+    /// Animation offset for indeterminate shuffle (0.0 to 1.0)
+    @State private var shuffleOffset: CGFloat = 0.0
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             // Label + value text
             HStack(spacing: 6) {
                 Text(label.capitalized)
@@ -249,29 +265,49 @@ private struct VitalProgressBar: View {
                 Spacer()
             }
 
-            // Progress bar
-            if let percentage = percentage {
-                // Determinate state - show percentage
-                ProgressView(value: Double(percentage), total: 100.0)
-                    .tint(color)
-                    .frame(height: 6)
-            } else {
-                // Indeterminate state - show indeterminate progress bar
-                ProgressView()
-                    .tint(color)
-                    .frame(height: 6)
+            // Custom Capsule progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background track (gray)
+                    Capsule()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 3)
+
+                    // Foreground bar (colored)
+                    if let percentage = percentage {
+                        // Determinate state: fixed width based on percentage
+                        Capsule()
+                            .fill(color)
+                            .frame(width: geometry.size.width * CGFloat(percentage) / 100.0, height: 3)
+                    } else {
+                        // Indeterminate state: animated shuffle bar
+                        let shuffleWidth = geometry.size.width * 0.3  // 30% width shuffle bar
+                        let maxOffset = geometry.size.width - shuffleWidth
+
+                        Capsule()
+                            .fill(color.opacity(0.6))
+                            .frame(width: shuffleWidth, height: 3)
+                            .offset(x: maxOffset * shuffleOffset)
+                            .onAppear {
+                                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                                    shuffleOffset = 1.0
+                                }
+                            }
+                    }
+                }
             }
+            .frame(height: 3)
         }
     }
 
-    /// Formatted value text for percentage display.
+    /// Formatted value text for display.
     ///
-    /// Returns "..." for indeterminate state (nil percentage).
+    /// Returns "..." for indeterminate state (nil text).
     private var valueText: String {
-        guard let percentage = percentage else {
+        guard let text = text else {
             return "..."
         }
-        return "\(percentage)%"
+        return text
     }
 }
 
@@ -297,74 +333,5 @@ private struct VitalTextField: View {
 
             Spacer()
         }
-    }
-}
-
-// MARK: - Previews
-
-struct VitalsPanel_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            // Preview 1: Empty state (all vitals nil/indeterminate)
-            VitalsPanel(viewModel: createEmptyViewModel())
-                .frame(width: 300)
-                .padding()
-                .previewDisplayName("Empty State")
-                .preferredColorScheme(.dark)
-
-            // Preview 2: Populated state (normal vitals)
-            VitalsPanel(viewModel: createPopulatedViewModel())
-                .frame(width: 300)
-                .padding()
-                .previewDisplayName("Populated State")
-                .preferredColorScheme(.dark)
-
-            // Preview 3: Critical state (low health)
-            VitalsPanel(viewModel: createCriticalViewModel())
-                .frame(width: 300)
-                .padding()
-                .previewDisplayName("Critical State (Low Health)")
-                .preferredColorScheme(.dark)
-        }
-    }
-
-    // MARK: - Preview Helpers
-
-    /// Creates view model with empty/indeterminate vitals.
-    private static func createEmptyViewModel() -> VitalsPanelViewModel {
-        let eventBus = EventBus()
-        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
-        // Default state: all vitals nil (indeterminate), stance="offensive", encumbrance="none"
-        return viewModel
-    }
-
-    /// Creates view model with populated vitals (normal gameplay).
-    private static func createPopulatedViewModel() -> VitalsPanelViewModel {
-        let eventBus = EventBus()
-        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
-        // Manually set state for preview (bypassing EventBus)
-        viewModel.health = 75
-        viewModel.mana = 85
-        viewModel.stamina = 90
-        viewModel.spirit = 65
-        viewModel.mind = 80
-        viewModel.stance = "offensive"
-        viewModel.encumbrance = "light"
-        return viewModel
-    }
-
-    /// Creates view model with critical health (< 33%).
-    private static func createCriticalViewModel() -> VitalsPanelViewModel {
-        let eventBus = EventBus()
-        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
-        // Critical health state (red color)
-        viewModel.health = 25
-        viewModel.mana = 60
-        viewModel.stamina = 50
-        viewModel.spirit = 70
-        viewModel.mind = 75
-        viewModel.stance = "defensive"
-        viewModel.encumbrance = "heavy"
-        return viewModel
     }
 }
