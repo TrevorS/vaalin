@@ -156,6 +156,55 @@ open -a Xcode Vaalin/VaalinApp.swift
 # (Opens in Xcode's DocC viewer)
 ```
 
+### Automated Preview Screenshots
+
+**`scripts/capture-preview.sh`** - Automates capturing screenshots of Xcode SwiftUI previews:
+
+```bash
+# Capture a preview screenshot
+./scripts/capture-preview.sh \
+  VaalinUI/Sources/VaalinUI/Views/Panels/Previews/VitalsPanel/VitalsPanelPopulatedState.swift \
+  /tmp/vaalin-vitals-populated.png
+```
+
+**How it works**:
+1. Opens the preview file in Xcode
+2. Ensures Canvas is visible (toggles if needed)
+3. Refreshes the preview (Cmd+Option+P)
+4. Captures Xcode window geometry
+5. Takes screenshot of just the Xcode window
+6. Returns focus to previous application
+
+**Requirements**:
+- Xcode must be installed
+- System Events accessibility permissions enabled for Terminal/Ghostty
+  (System Settings → Privacy & Security → Accessibility)
+
+**Use cases**:
+- Generating documentation screenshots
+- Visual regression testing
+- Design reviews and QA validation
+- Capturing all preview states for issue documentation
+
+**Preview file organization**: All preview files are organized in component-specific directories:
+```
+VaalinUI/Sources/VaalinUI/Views/
+├── Panels/Previews/
+│   ├── HandsPanel/
+│   │   ├── HandsPanelEmptyState.swift
+│   │   ├── HandsPanelPopulatedState.swift
+│   │   └── HandsPanelLongNamesState.swift
+│   └── VitalsPanel/
+│       ├── VitalsPanelEmptyState.swift
+│       ├── VitalsPanelPopulatedState.swift
+│       └── VitalsPanelCriticalState.swift
+└── Previews/
+    ├── CommandInputView/
+    ├── GameLogView/
+    ├── PanelContainer/
+    └── PromptView/
+```
+
 ### Build Output Locations
 
 ```bash
@@ -276,7 +325,9 @@ Vaalin/
 **File Naming Conventions**:
 - Swift files: `PascalCase.swift` (e.g., `GameLogView.swift`)
 - Test files: `{FileName}Tests.swift` (e.g., `XMLStreamParserTests.swift`)
-- Xcode Previews: `{ViewName}_Previews` struct within view file
+- Preview files: `{ComponentName}{StateName}.swift` (e.g., `VitalsPanelPopulatedState.swift`)
+  - Organized in `Views/Previews/{ComponentName}/` directories
+  - Captured via `scripts/capture-preview.sh` automation
 
 ## Critical Implementation Details
 
@@ -676,8 +727,10 @@ See GemStone IV Wiki for protocol details: https://gswiki.play.net/Lich_XML_Data
 - **Actors**: Prefix intention in comments (e.g., `actor XMLStreamParser // Thread-safe XML parser`)
 
 **SwiftUI Specifics**:
-- **Previews**: Define `{ViewName}_Previews` struct within the same file as the view
+- **Previews**: Organized in separate files in component-specific directories (see "Automated Preview Screenshots")
 - **Preview requirement**: Minimum 2 states per view (e.g., empty state, populated state)
+- **Preview naming**: `{ComponentName}{StateName}.swift` (e.g., `VitalsPanelPopulatedState.swift`)
+- **Preview automation**: Use `scripts/capture-preview.sh` for screenshot capture
 - **View modifiers**: Chain on separate lines for readability
 - **@Observable**: Use for all view models (not `@ObservableObject` or `@StateObject`)
 
@@ -694,6 +747,8 @@ See GemStone IV Wiki for protocol details: https://gswiki.play.net/Lich_XML_Data
 - **Performance-critical code**: Document performance targets (e.g., "< 1ms average")
 
 **Example File Structure**:
+
+Main view file (clean, no previews):
 ```swift
 // ABOUTME: GameLogView displays the virtualized scrolling game log with themed preset colors
 
@@ -711,21 +766,21 @@ struct GameLogView: View {
         // Implementation...
     }
 }
+```
 
-// MARK: - Previews
+Separate preview file (`Views/Previews/GameLogView/GameLogViewStates.swift`):
+```swift
+// ABOUTME: Preview states for GameLogView
 
-struct GameLogView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            // Empty state
-            GameLogView(viewModel: GameLogViewModel())
-                .previewDisplayName("Empty")
+import SwiftUI
+@testable import VaalinUI
 
-            // Populated state
-            GameLogView(viewModel: GameLogViewModel.sampleData())
-                .previewDisplayName("With Messages")
-        }
-    }
+#Preview("Empty State") {
+    GameLogView(viewModel: GameLogViewModel())
+}
+
+#Preview("Populated State") {
+    GameLogView(viewModel: GameLogViewModel.sampleData())
 }
 ```
 
