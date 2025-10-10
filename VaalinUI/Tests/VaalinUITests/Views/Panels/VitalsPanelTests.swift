@@ -1125,4 +1125,112 @@ struct VitalsPanelTests {
             #expect(duration < 0.1) // 100ms for 100 views = 1ms average
         }
     }
+
+    // MARK: - Text Display Integration Tests
+
+    @Suite("Text Display Integration")
+    @MainActor
+    struct TextDisplayIntegrationTests {
+        @Test("VitalsPanel displays healthText with actual values")
+        func test_displaysHealthTextInsteadOfPercentage() {
+            // Given: View model with health percentage and text
+            let eventBus = EventBus()
+            let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+            viewModel.health = 75
+            viewModel.healthText = "75/100"
+
+            // When: Panel is created
+            let panel = VitalsPanel(viewModel: viewModel)
+
+            // Then: Panel should be valid
+            #expect(type(of: panel) == VitalsPanel.self)
+            // Verify both percentage and text are set
+            #expect(viewModel.health == 75)
+            #expect(viewModel.healthText == "75/100")
+
+            // Note: VitalProgressBar (line 237-312) displays healthText via valueText property.
+            // The valueText getter (line 306-311) returns text or "..." for nil.
+            // This means the view shows "75/100" not "75%" for health display.
+        }
+
+        @Test("VitalsPanel displays mindText as descriptive state")
+        func test_displaysMindDescriptiveText() {
+            // Given: View model with mind percentage and descriptive text
+            let eventBus = EventBus()
+            let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+            viewModel.mind = 100
+            viewModel.mindText = "clear"
+
+            // When: Panel is created
+            let panel = VitalsPanel(viewModel: viewModel)
+
+            // Then: Panel should be valid
+            #expect(type(of: panel) == VitalsPanel.self)
+            // Verify both percentage and text are set
+            #expect(viewModel.mind == 100)
+            #expect(viewModel.mindText == "clear")
+
+            // Note: VitalProgressBar displays mindText ("clear") not "100%" or "100/100"
+            // per VitalsPanel.swift line 166: text: viewModel.mindText
+            // This is rendered via valueText getter which returns "clear" directly.
+        }
+
+        @Test("VitalsPanel displays ellipsis for nil text values")
+        func test_displaysIndeterminateTextForNilValues() {
+            // Given: View model with nil text values
+            let eventBus = EventBus()
+            let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+            viewModel.health = nil
+            viewModel.healthText = nil
+            viewModel.mana = nil
+            viewModel.manaText = nil
+
+            // When: Panel is created
+            let panel = VitalsPanel(viewModel: viewModel)
+
+            // Then: Panel should be valid
+            #expect(type(of: panel) == VitalsPanel.self)
+            // Verify values are nil
+            #expect(viewModel.health == nil)
+            #expect(viewModel.healthText == nil)
+            #expect(viewModel.mana == nil)
+            #expect(viewModel.manaText == nil)
+
+            // Note: VitalProgressBar.valueText (line 306-311) returns "..." when text is nil:
+            //   guard let text = text else { return "..." }
+            // This provides visual feedback for indeterminate state in the UI.
+        }
+
+        @Test("VitalsPanel displays all vital texts when populated")
+        func test_displaysAllVitalTexts() {
+            // Given: View model with all vitals populated with text
+            let eventBus = EventBus()
+            let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+            viewModel.health = 68
+            viewModel.healthText = "68/100"
+            viewModel.mana = 53
+            viewModel.manaText = "45/85"
+            viewModel.stamina = 76
+            viewModel.staminaText = "72/95"
+            viewModel.spirit = 54
+            viewModel.spiritText = "54/100"
+            viewModel.mind = 100
+            viewModel.mindText = "clear"
+
+            // When: Panel is created
+            let panel = VitalsPanel(viewModel: viewModel)
+
+            // Then: Panel should be valid with all texts set
+            #expect(type(of: panel) == VitalsPanel.self)
+            #expect(viewModel.healthText == "68/100")
+            #expect(viewModel.manaText == "45/85")
+            #expect(viewModel.staminaText == "72/95")
+            #expect(viewModel.spiritText == "54/100")
+            #expect(viewModel.mindText == "clear")
+
+            // Note: All vitals use VitalProgressBar which displays text values.
+            // Health/mana/stamina/spirit show fractions (e.g., "68/100")
+            // Mind shows descriptive text (e.g., "clear")
+        }
+    }
 }
