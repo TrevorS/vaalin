@@ -373,7 +373,7 @@ public final class VitalsPanelViewModel {
         }
 
         // Verify ID matches expected vital
-        guard let tagID = tag.attrs["id"] as? String, tagID == expectedID else {
+        guard let tagID = tag.attrs["id"], tagID == expectedID else {
             logger.debug("Ignoring progressBar with wrong ID for \(expectedID)")
             return
         }
@@ -423,10 +423,10 @@ public final class VitalsPanelViewModel {
     /// send `value="0"` despite having valid fraction text.
     private func extractVitalData(from tag: GameTag) -> (percentage: Int?, text: String?) {
         // Extract text first (this is what we display)
-        let text = tag.attrs["text"] as? String
+        let text = tag.attrs["text"]
 
         // Try getting value attribute for percentage
-        if let valueString = tag.attrs["value"] as? String,
+        if let valueString = tag.attrs["value"],
            let value = Int(valueString),
            value > 1 {
             // Valid percentage provided by server
@@ -471,13 +471,13 @@ public final class VitalsPanelViewModel {
         }
 
         // Verify ID matches stance
-        guard let tagID = tag.attrs["id"] as? String, tagID == "pbarStance" else {
+        guard let tagID = tag.attrs["id"], tagID == "pbarStance" else {
             logger.debug("Ignoring progressBar with wrong ID for stance")
             return
         }
 
         // Extract text and take first word
-        if let text = tag.attrs["text"] as? String {
+        if let text = tag.attrs["text"] {
             let firstWord = text.split(separator: " ").first.map(String.init) ?? text
             stance = firstWord
             logger.debug("Updated stance: \(firstWord)")
@@ -505,13 +505,13 @@ public final class VitalsPanelViewModel {
         }
 
         // Verify ID matches encumbrance
-        guard let tagID = tag.attrs["id"] as? String, tagID == "encumlevel" else {
+        guard let tagID = tag.attrs["id"], tagID == "encumlevel" else {
             logger.debug("Ignoring progressBar with wrong ID for encumbrance")
             return
         }
 
         // Extract text and convert to lowercase
-        if let text = tag.attrs["text"] as? String {
+        if let text = tag.attrs["text"] {
             encumbrance = text.lowercased()
             logger.debug("Updated encumbrance: \(text.lowercased())")
         } else {
@@ -543,13 +543,13 @@ public final class VitalsPanelViewModel {
         }
 
         // Verify ID matches mind
-        guard let tagID = tag.attrs["id"] as? String, tagID == "mindState" else {
+        guard let tagID = tag.attrs["id"], tagID == "mindState" else {
             logger.debug("Ignoring progressBar with wrong ID for mind")
             return
         }
 
         // Extract percentage from value attribute
-        if let valueString = tag.attrs["value"] as? String,
+        if let valueString = tag.attrs["value"],
            let value = Int(valueString) {
             mind = value
         } else {
@@ -557,7 +557,7 @@ public final class VitalsPanelViewModel {
         }
 
         // Extract text directly (no parsing, no splitting)
-        mindText = tag.attrs["text"] as? String
+        mindText = tag.attrs["text"]
 
         logger.debug("Updated mind: \(self.mind?.description ?? "nil"), text: \(self.mindText ?? "nil")")
     }
