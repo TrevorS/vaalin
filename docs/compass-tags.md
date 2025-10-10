@@ -308,25 +308,26 @@ class CompassPanelViewModel {
     init(eventBus: EventBus) {
         Task {
             // Subscribe to nav events
-            await eventBus.subscribe("metadata/nav") { [weak self] tag in
-                if let roomId = tag.attrs["rm"] as? Int {
+            await eventBus.subscribe("metadata/nav") { tag in
+                if let roomIdStr = tag.attrs["rm"] as? String,
+                   let roomId = Int(roomIdStr) {
                     await MainActor.run {
-                        self?.roomId = roomId
+                        self.roomId = roomId
                     }
                 }
             }
 
             // Subscribe to compass events
-            await eventBus.subscribe("metadata/compass") { [weak self] tag in
+            await eventBus.subscribe("metadata/compass") { tag in
                 let exits = tag.children
                     .compactMap { $0.attrs["value"] as? String }
                 await MainActor.run {
-                    self?.availableExits = exits
+                    self.availableExits = exits
                 }
             }
 
             // Subscribe to room title events
-            await eventBus.subscribe("metadata/streamWindow/room") { [weak self] tag in
+            await eventBus.subscribe("metadata/streamWindow/room") { tag in
                 if let subtitle = tag.attrs["subtitle"] as? String {
                     var title = subtitle
                     // Remove leading " - " and trailing " - {room_id}"
@@ -337,7 +338,7 @@ class CompassPanelViewModel {
                         title.removeSubrange(range)
                     }
                     await MainActor.run {
-                        self?.roomTitle = title
+                        self.roomTitle = title
                     }
                 }
             }
