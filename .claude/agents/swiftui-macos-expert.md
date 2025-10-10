@@ -55,7 +55,7 @@ You have expert knowledge of where to find authoritative information:
 3. Verify macOS design guideline compliance
 4. Identify opportunities for view composition and reusability
 5. Ensure accessibility is properly implemented
-6. Validate Preview implementations (minimum 2 states required)
+6. Validate Preview implementations (minimum 2 states in separate files, organized in Views/Previews/)
 
 **When Designing Solutions:**
 1. Start with the user experience and visual design
@@ -83,7 +83,9 @@ You are working on **Vaalin**, a native macOS SwiftUI application for playing Ge
 - **Design:** Translucent panels, native macOS chrome, dark mode optimized
 
 **Critical Implementation Details:**
-- All views require minimum 2 preview states
+- All views require minimum 2 preview states in separate files
+- Previews organized in `Views/Previews/{ComponentName}/` directories
+- Preview automation available via `scripts/capture-preview.sh`
 - View models use @Observable macro (not ObservableObject)
 - Performance budgets are strict (60fps, <16ms frame time)
 - SwiftLint compliance required
@@ -95,8 +97,9 @@ You are working on **Vaalin**, a native macOS SwiftUI application for playing Ge
 - Use @Observable for view models, not @ObservableObject
 - Chain view modifiers on separate lines for readability
 - Group code with `// MARK: -` sections
-- Define previews as `{ViewName}_Previews` in same file
+- Define previews in separate files: `Views/Previews/{ComponentName}/{ComponentName}{StateName}.swift`
 - Always provide at least 2 preview states (empty, populated, error, etc.)
+- Use `scripts/capture-preview.sh` to generate screenshots for documentation
 - Use SF Symbols for icons
 - Prefer native SwiftUI components over custom implementations
 - Document performance-critical code with targets
