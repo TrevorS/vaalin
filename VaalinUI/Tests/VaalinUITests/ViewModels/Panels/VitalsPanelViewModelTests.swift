@@ -696,4 +696,212 @@ struct VitalsPanelViewModelTests {
 
         #expect(viewModel.health == 67)
     }
+
+    // MARK: - Text Extraction Tests
+
+    /// Test that VitalsPanelViewModel extracts healthText from progressBar tags
+    ///
+    /// Acceptance Criteria:
+    /// - Extracts text attribute for health display (e.g., "74/74", "50/100")
+    /// - Stores text alongside percentage for UI display
+    @Test func test_extractsHealthTextFromProgressBarTag() async throws {
+        let eventBus = EventBus()
+        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Publish health event with fraction text
+        let healthTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "health", "value": "75", "text": "75/100"],
+            children: [],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/progressBar/health", data: healthTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Verify both percentage and text are extracted
+        #expect(viewModel.health == 75)
+        #expect(viewModel.healthText == "75/100")
+    }
+
+    /// Test that VitalsPanelViewModel extracts manaText from progressBar tags
+    ///
+    /// Acceptance Criteria:
+    /// - Extracts text attribute for mana display
+    @Test func test_extractsManaTextFromProgressBarTag() async throws {
+        let eventBus = EventBus()
+        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        let manaTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "mana", "value": "53", "text": "45/85"],
+            children: [],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/progressBar/mana", data: manaTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        #expect(viewModel.mana == 53)
+        #expect(viewModel.manaText == "45/85")
+    }
+
+    /// Test that VitalsPanelViewModel extracts staminaText from progressBar tags
+    ///
+    /// Acceptance Criteria:
+    /// - Extracts text attribute for stamina display
+    @Test func test_extractsStaminaTextFromProgressBarTag() async throws {
+        let eventBus = EventBus()
+        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        let staminaTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "stamina", "value": "76", "text": "72/95"],
+            children: [],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/progressBar/stamina", data: staminaTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        #expect(viewModel.stamina == 76)
+        #expect(viewModel.staminaText == "72/95")
+    }
+
+    /// Test that VitalsPanelViewModel extracts spiritText from progressBar tags
+    ///
+    /// Acceptance Criteria:
+    /// - Extracts text attribute for spirit display
+    @Test func test_extractsSpiritTextFromProgressBarTag() async throws {
+        let eventBus = EventBus()
+        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        let spiritTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "spirit", "value": "54", "text": "54/100"],
+            children: [],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/progressBar/spirit", data: spiritTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        #expect(viewModel.spirit == 54)
+        #expect(viewModel.spiritText == "54/100")
+    }
+
+    /// Test that VitalsPanelViewModel extracts mindText without fraction parsing
+    ///
+    /// Acceptance Criteria:
+    /// - Extracts descriptive text directly (e.g., "clear", "muddled")
+    /// - Does NOT parse as fraction like other vitals
+    /// - Displays mind state text instead of numeric fraction
+    @Test func test_extractsMindTextWithoutFraction() async throws {
+        let eventBus = EventBus()
+        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Mind sends descriptive text, not fractions
+        let mindTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "mindState", "value": "100", "text": "clear"],
+            children: [],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/progressBar/mindState", data: mindTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Verify percentage extracted for progress bar
+        #expect(viewModel.mind == 100)
+        // Verify text is descriptive, not a fraction
+        #expect(viewModel.mindText == "clear")
+    }
+
+    /// Test that VitalsPanelViewModel handles different mind state texts
+    ///
+    /// Acceptance Criteria:
+    /// - Correctly displays various mind states
+    /// - Handles states: "clear", "muddled", "numbed", "clear as a bell"
+    @Test func test_mindTextShowsDescriptiveStates() async throws {
+        let eventBus = EventBus()
+        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Test "muddled" state
+        let muddledTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "mindState", "value": "60", "text": "muddled"],
+            children: [],
+            state: .closed
+        )
+        await eventBus.publish("metadata/progressBar/mindState", data: muddledTag)
+        try? await Task.sleep(for: .milliseconds(10))
+        #expect(viewModel.mind == 60)
+        #expect(viewModel.mindText == "muddled")
+
+        // Test "clear as a bell" state (longer descriptive text)
+        let clearTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "mindState", "value": "100", "text": "clear as a bell"],
+            children: [],
+            state: .closed
+        )
+        await eventBus.publish("metadata/progressBar/mindState", data: clearTag)
+        try? await Task.sleep(for: .milliseconds(10))
+        #expect(viewModel.mind == 100)
+        #expect(viewModel.mindText == "clear as a bell")
+
+        // Test "numbed" state
+        let numbedTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "mindState", "value": "20", "text": "numbed"],
+            children: [],
+            state: .closed
+        )
+        await eventBus.publish("metadata/progressBar/mindState", data: numbedTag)
+        try? await Task.sleep(for: .milliseconds(10))
+        #expect(viewModel.mind == 20)
+        #expect(viewModel.mindText == "numbed")
+    }
+
+    /// Test that VitalsPanelViewModel handles nil text attributes gracefully
+    ///
+    /// Acceptance Criteria:
+    /// - Text properties remain nil when tag has no text attribute
+    /// - Percentage still extracted from value attribute
+    @Test func test_handlesNilTextGracefully() async throws {
+        let eventBus = EventBus()
+        let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Publish health event without text attribute
+        let healthTag = GameTag(
+            name: "progressBar",
+            text: nil,
+            attrs: ["id": "health", "value": "85"],
+            children: [],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/progressBar/health", data: healthTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Percentage should still be extracted
+        #expect(viewModel.health == 85)
+        // Text should be nil (not "...")
+        #expect(viewModel.healthText == nil)
+    }
 }
