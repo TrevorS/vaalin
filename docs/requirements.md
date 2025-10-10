@@ -351,20 +351,26 @@ enum TagState {
 **Description**: Displays current room name and compass rose showing available exits.
 
 **Acceptance Criteria**:
-- Listens for `<nav>` or `<compass>` tags (research current tag structure)
+- Listens for `<nav>` (room ID), `<compass>` (exits), and `<streamWindow>` (room title) tags ✅ **Documented in Issue #39**
 - Renders compass rose with 8 directions (N, NE, E, SE, S, SW, W, NW) + up/down/out
-- Highlights available exits
+- Highlights available exits based on `<dir value="..."/>` children of `<compass>` tag
 - Clickable exits send movement command (e.g., click "north" → sends "north")
-- Displays room name/title above compass
+- Displays room name/title above compass (parsed from `<streamWindow subtitle="...">`)
 - Xcode Preview showing various exit combinations
 
 **Technical Constraints**:
 - Custom SwiftUI shape drawing for compass rose
 - Accessible: VoiceOver reads available exits
+- Subscribe to three event bus events: `metadata/nav`, `metadata/compass`, `metadata/streamWindow/room`
+
+**Tag Structure** (Issue #39):
+- `<nav rm="12345"/>` - Room UID as integer
+- `<compass><dir value="n"/><dir value="s"/>...</compass>` - Available exits as children
+- `<streamWindow id="main" subtitle=" - [Room Name] - 12345"/>` - Formatted room title
 
 **Dependencies**: FR-1.1, FR-3.1
 
-**Reference**: Examine Illthorn's compass implementation for exit tag structure
+**Reference**: See `docs/compass-tags.md` for complete tag specification and implementation guidance
 
 ---
 
