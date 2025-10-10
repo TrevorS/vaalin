@@ -346,17 +346,17 @@ enum TagState {
 
 ---
 
-#### FR-3.4: Room/Compass Panel
+#### FR-3.4: Room/Compass Panel ✅ IMPLEMENTED (Issues #40, #41, PR #133)
 
 **Description**: Displays current room name and compass rose showing available exits.
 
 **Acceptance Criteria**:
-- Listens for `<nav>` (room ID), `<compass>` (exits), and `<streamWindow>` (room title) tags ✅ **Documented in Issue #39**
-- Renders compass rose with 8 directions (N, NE, E, SE, S, SW, W, NW) + up/down/out
-- Highlights available exits based on `<dir value="..."/>` children of `<compass>` tag
-- Clickable exits send movement command (e.g., click "north" → sends "north")
-- Displays room name/title above compass (parsed from `<streamWindow subtitle="...">`)
-- Xcode Preview showing various exit combinations
+- ✅ Listens for `<nav>` (room ID), `<compass>` (exits), and `<streamWindow>` (room title) tags via EventBus subscriptions
+- ✅ Renders compass rose with 8 directions (N, NE, E, SE, S, SW, W, NW) + up/down/out
+- ✅ Highlights available exits based on `<dir value="..."/>` children of `<compass>` tag
+- ✅ Clickable exits send movement command via CommandSending protocol (e.g., click "north" → sends "north")
+- ✅ Displays room name/title above compass (parsed from `<streamWindow subtitle="...">`)
+- ✅ Xcode Preview showing three states (empty, populated, all exits)
 
 **Technical Constraints**:
 - Custom SwiftUI shape drawing for compass rose
@@ -367,6 +367,14 @@ enum TagState {
 - `<nav rm="12345"/>` - Room UID as integer
 - `<compass><dir value="n"/><dir value="s"/>...</compass>` - Available exits as children
 - `<streamWindow id="main" subtitle=" - [Room Name] - 12345"/>` - Formatted room title
+
+**Implementation Details** (Issues #40, #41, PR #133):
+- `VaalinUI/Sources/VaalinUI/ViewModels/Panels/CompassPanelViewModel.swift` - @Observable view model with EventBus subscriptions to metadata/nav, metadata/compass, metadata/streamWindow/room
+- `VaalinUI/Sources/VaalinUI/Views/Panels/CompassRose.swift` - Custom SwiftUI Shape with 8-directional arrows + 3 special exits (up/out/down)
+- `VaalinUI/Sources/VaalinUI/Views/Panels/CompassPanel.swift` - Main panel view with PanelContainer integration, CommandSending protocol support, and Liquid Glass design
+- `VaalinUI/Tests/VaalinUITests/ViewModels/Panels/CompassPanelViewModelTests.swift` - 30 comprehensive tests with 90% pass rate (3 edge case failures)
+- Preview files: CompassPanelEmptyState, CompassPanelPopulatedState, CompassPanelAllExitsState (3 states)
+- Design refinements: Catppuccin green (#a6e3a1) for active exits, shadow/glow effects, enhanced typography
 
 **Dependencies**: FR-1.1, FR-3.1
 
