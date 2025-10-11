@@ -87,6 +87,9 @@ public final class AppState {
     /// The bridge that integrates connection and parser
     private let bridge: ParserConnectionBridge
 
+    /// Shared EventBus for cross-component communication
+    private let eventBus: EventBus
+
     // MARK: - State
 
     /// The game log view model (main thread access only)
@@ -94,6 +97,16 @@ public final class AppState {
 
     /// The command input view model (main thread access only)
     public let commandInputViewModel: CommandInputViewModel
+
+    /// Panel view models for HUD panels (Phase 2 layout)
+    public let handsPanelViewModel: HandsPanelViewModel
+    public let vitalsPanelViewModel: VitalsPanelViewModel
+    public let compassPanelViewModel: CompassPanelViewModel
+    public let injuriesPanelViewModel: InjuriesPanelViewModel
+    public let spellsPanelViewModel: SpellsPanelViewModel
+
+    /// Prompt view model for prompt display (Phase 2 layout)
+    public let promptViewModel: PromptViewModel
 
     /// Command history actor for storing and recalling commands
     private let commandHistory: CommandHistory
@@ -129,12 +142,30 @@ public final class AppState {
 
         self.bridge = ParserConnectionBridge(connection: connection, parser: parser)
 
+        // Initialize shared EventBus for panel/prompt communication
+        self.eventBus = EventBus()
+
         // Initialize command history (500 command buffer)
         self.commandHistory = CommandHistory(maxSize: 500)
 
         // Initialize view models on main thread
         self.gameLogViewModel = GameLogViewModel()
-        self.commandInputViewModel = CommandInputViewModel(commandHistory: commandHistory)
+        self.commandInputViewModel = CommandInputViewModel(
+            commandHistory: commandHistory,
+            gameLogViewModel: gameLogViewModel,
+            settings: .makeDefault(),
+            connection: connection
+        )
+
+        // Initialize panel view models with EventBus subscriptions
+        self.handsPanelViewModel = HandsPanelViewModel(eventBus: eventBus)
+        self.vitalsPanelViewModel = VitalsPanelViewModel(eventBus: eventBus)
+        self.compassPanelViewModel = CompassPanelViewModel(eventBus: eventBus)
+        self.injuriesPanelViewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        self.spellsPanelViewModel = SpellsPanelViewModel(eventBus: eventBus)
+
+        // Initialize prompt view model with EventBus subscription
+        self.promptViewModel = PromptViewModel(eventBus: eventBus)
     }
 
     // MARK: - Connection Lifecycle
@@ -166,6 +197,14 @@ public final class AppState {
 
         // Start bridge data flow
         await bridge.start()
+
+        // Set up EventBus subscriptions for panels and prompt
+        await handsPanelViewModel.setup()
+        await vitalsPanelViewModel.setup()
+        await compassPanelViewModel.setup()
+        await injuriesPanelViewModel.setup()
+        await spellsPanelViewModel.setup()
+        await promptViewModel.setup()
 
         // Update state
         isConnected = true
