@@ -24,30 +24,43 @@ struct SpellsPanelLowTimeStatePreview: PreviewProvider {
 
         // Manually set state for preview (bypassing EventBus)
         // All spells have < 33% remaining to show red warning colors
+        // Realistic Wizard buffs about to expire (sorted by spell ID)
         viewModel.activeSpells = [
             ActiveSpell(
-                id: "spell1",
-                name: "Spirit Shield",
-                timeRemaining: "0:45",
-                percentRemaining: 12
+                id: "401",  // Elemental Defense I (Minor Elemental)
+                name: "Elemental Defense I",
+                timeRemaining: "3:12",
+                percentRemaining: 15
             ),
             ActiveSpell(
-                id: "spell2",
-                name: "Haste",
-                timeRemaining: "1:23",
-                percentRemaining: 28
+                id: "503",  // Thurfel's Ward (Major Elemental)
+                name: "Thurfel's Ward",
+                timeRemaining: "1:04",
+                percentRemaining: 8
             ),
             ActiveSpell(
-                id: "spell3",
-                name: "Minor Sanctuary",
+                id: "506",  // Celerity (Major Elemental) - short duration spell
+                name: "Celerity",
                 timeRemaining: "0:18",
                 percentRemaining: 5
             ),
             ActiveSpell(
-                id: "spell4",
-                name: "Elemental Defense",
-                timeRemaining: "2:04",
-                percentRemaining: 32
+                id: "509",  // Strength (Major Elemental)
+                name: "Strength",
+                timeRemaining: "4:33",
+                percentRemaining: 25
+            ),
+            ActiveSpell(
+                id: "535",  // Haste (Major Elemental)
+                name: "Haste",
+                timeRemaining: "2:47",
+                percentRemaining: 18
+            ),
+            ActiveSpell(
+                id: "911",  // Mass Blur (Wizard Base)
+                name: "Mass Blur",
+                timeRemaining: "1:55",
+                percentRemaining: 12
             )
         ]
 

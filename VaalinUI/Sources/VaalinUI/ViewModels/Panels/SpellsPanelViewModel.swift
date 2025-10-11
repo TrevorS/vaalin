@@ -31,20 +31,20 @@ import VaalinCore
 ///         GameTag(
 ///             name: "progressBar",
 ///             attrs: [
-///                 "id": "spell123",           // Required: unique identifier
-///                 "text": "Spirit Shield",    // Required: spell name
-///                 "time": "14:32",           // Optional: time remaining
-///                 "value": "85"              // Optional: percentage
+///                 "id": "401",                          // Required: GemStone IV spell number
+///                 "text": "Elemental Defense I",      // Required: spell name
+///                 "time": "45:20",                     // Optional: time remaining
+///                 "value": "88"                        // Optional: percentage
 ///             ],
 ///             state: .closed
 ///         ),
 ///         GameTag(
 ///             name: "progressBar",
 ///             attrs: [
-///                 "id": "spell456",
-///                 "text": "Haste",
-///                 "time": "3:45",
-///                 "value": "25"
+///                 "id": "913",                        // Melgorehn's Aura (Wizard Base)
+///                 "text": "Melgorehn's Aura",
+///                 "time": "22:15",
+///                 "value": "74"
 ///             ],
 ///             state: .closed
 ///         )
@@ -100,7 +100,7 @@ import VaalinCore
 /// // The parser will publish spellfront events:
 /// let spell = GameTag(
 ///     name: "progressBar",
-///     attrs: ["id": "spell123", "text": "Spirit Shield", "time": "14:32", "value": "85"]
+///     attrs: ["id": "913", "text": "Melgorehn's Aura", "time": "14:32", "value": "85"]
 /// )
 /// let dialog = GameTag(
 ///     name: "dialogData",
@@ -111,7 +111,7 @@ import VaalinCore
 ///
 /// // SwiftUI view automatically updates with new spell list
 /// print(viewModel.activeSpells.count)  // 1
-/// print(viewModel.activeSpells[0].name)  // "Spirit Shield"
+/// print(viewModel.activeSpells[0].name)  // "Melgorehn's Aura"
 /// ```
 @Observable
 @MainActor
@@ -279,8 +279,17 @@ public final class SpellsPanelViewModel {
             return spell
         }
 
-        // Replace activeSpells with new list (full replacement)
-        activeSpells = newSpells
-        logger.debug("Updated activeSpells: \(newSpells.count) spells")
+        // Sort spells by numeric spell ID
+        // Spell IDs are numeric strings (e.g., "202", "901", "1720")
+        // Sort numerically so 202 comes before 901, not alphabetically
+        let sortedSpells = newSpells.sorted { lhs, rhs in
+            let lhsNum = Int(lhs.id) ?? Int.max
+            let rhsNum = Int(rhs.id) ?? Int.max
+            return lhsNum < rhsNum
+        }
+
+        // Replace activeSpells with new sorted list
+        activeSpells = sortedSpells
+        logger.debug("Updated activeSpells: \(sortedSpells.count) spells, sorted by spell ID")
     }
 }
