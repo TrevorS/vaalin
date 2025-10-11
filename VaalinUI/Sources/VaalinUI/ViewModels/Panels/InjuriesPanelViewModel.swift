@@ -142,8 +142,7 @@ public final class InjuriesPanelViewModel {
     /// Returns true when nerves have any injury or scar (severity > 0).
     /// Used by status area to display nervous system warning.
     public var hasNervousDamage: Bool {
-        guard let nervesStatus = injuries[.nerves] else { return false }
-        return nervesStatus.isInjured
+        nervousSeverity > 0
     }
 
     /// Nervous system injury severity (0 if not injured)
@@ -165,7 +164,7 @@ public final class InjuriesPanelViewModel {
     nonisolated(unsafe) private var subscriptionID: EventBus.SubscriptionID?
 
     /// Logger for InjuriesPanelViewModel events and errors
-    private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "InjuriesPanelViewModel")
+    private static let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "InjuriesPanelViewModel")
 
     // MARK: - Initialization
 
@@ -198,16 +197,19 @@ public final class InjuriesPanelViewModel {
         subscriptionID = await eventBus.subscribe("metadata/dialogData") { [weak self] (tag: GameTag) in
             await self?.handleDialogDataEvent(tag)
         }
-        logger.debug("Subscribed to metadata/dialogData events with ID: \(self.subscriptionID!)")
+        Self.logger.debug("Subscribed to metadata/dialogData events with ID: \(self.subscriptionID!)")
     }
 
     // MARK: - Deinitialization
 
     /// Unsubscribes from EventBus on deallocation
     ///
-    /// **Note:** Cleanup happens asynchronously in detached tasks. The subscriptions
-    /// will be removed from EventBus after deinit completes. This is safe because
-    /// the handlers use `weak self` and won't be called after deallocation.
+    /// **Note:** Cleanup happens asynchronously after deinit completes. The subscription
+    /// may fire once more during cleanup before being removed from EventBus. This is safe
+    /// because:
+    /// - Handlers use `weak self` which becomes nil immediately after deallocation
+    /// - The weak self guard prevents any handler execution after deallocation
+    /// - EventBus will complete unsubscription shortly after deinit finishes
     deinit {
         // Capture values for async cleanup
         let bus = eventBus
@@ -237,14 +239,14 @@ public final class InjuriesPanelViewModel {
     private func handleDialogDataEvent(_ tag: GameTag) {
         // Only process tags named "dialogData"
         guard tag.name == "dialogData" else {
-            logger.debug("Ignoring non-dialogData tag: \(tag.name)")
+            Self.logger.debug("Ignoring non-dialogData tag: \(tag.name)")
             return
         }
 
         // Only process injuries dialog (filter other dialogs like spells, familiar, etc.)
         // The injuries dialog has id="injuries" attribute
         guard tag.attrs["id"] == "injuries" else {
-            logger.debug("Ignoring non-injuries dialogData (id=\(tag.attrs["id"] ?? "nil"))")
+            Self.logger.debug("Ignoring non-injuries dialogData (id=\(tag.attrs["id"] ?? "nil"))")
             return
         }
 
@@ -256,7 +258,7 @@ public final class InjuriesPanelViewModel {
             parseInjuryImage(child)
         }
 
-        logger.debug("Updated injuries state from dialogData")
+        Self.logger.debug("Updated injuries state from dialogData")
     }
 
     /// Resets all injuries to default state
@@ -296,7 +298,7 @@ public final class InjuriesPanelViewModel {
     private func parseInjuryImage(_ tag: GameTag) {
         guard let imageId = tag.attrs["id"],
               let imageName = tag.attrs["name"] else {
-            logger.warning("Image tag missing id or name attribute")
+            Self.logger.warning("Image tag missing id or name attribute")
             return
         }
 
@@ -307,14 +309,14 @@ public final class InjuriesPanelViewModel {
 
         // Map to BodyPart enum
         guard let bodyPart = BodyPart(rawValue: imageId) else {
-            logger.debug("Unknown body part ID: \(imageId)")
+            Self.logger.debug("Unknown body part ID: \(imageId)")
             return
         }
 
         // Healthy state: name == id
         if imageName == imageId {
             injuries[bodyPart] = InjuryStatus(injuryType: .none, severity: 0)
-            logger.debug("Set \(imageId) to healthy state")
+            Self.logger.debug("Set \(imageId) to healthy state")
             return
         }
 
@@ -323,7 +325,7 @@ public final class InjuriesPanelViewModel {
             let severityStr = imageName.dropFirst(6)  // Drop "Injury" prefix
             let severity = Int(severityStr) ?? 1
             injuries[bodyPart] = InjuryStatus(injuryType: .injury, severity: severity)
-            logger.debug("Set \(imageId) injury severity to \(severity)")
+            Self.logger.debug("Set \(imageId) injury severity to \(severity)")
             return
         }
 
@@ -332,11 +334,11 @@ public final class InjuriesPanelViewModel {
             let severityStr = imageName.dropFirst(4)  // Drop "Scar" prefix
             let severity = Int(severityStr) ?? 1
             injuries[bodyPart] = InjuryStatus(injuryType: .scar, severity: severity)
-            logger.debug("Set \(imageId) scar severity to \(severity)")
+            Self.logger.debug("Set \(imageId) scar severity to \(severity)")
             return
         }
 
         // Unknown pattern - log and ignore
-        logger.warning("Unknown image name pattern for \(imageId): \(imageName)")
+        Self.logger.warning("Unknown image name pattern for \(imageId): \(imageName)")
     }
 }

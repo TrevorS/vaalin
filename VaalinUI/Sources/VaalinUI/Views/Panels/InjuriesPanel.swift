@@ -80,8 +80,8 @@ import SwiftUI
 /// ## Accessibility
 ///
 /// - Each location: Combined accessibility element
-/// - Label format: "Head: injured severity 3" / "Neck: healthy"
-/// - Scar distinction: "Chest: scarred severity 1"
+/// - Label format: "Head: rank 3 injury" / "Neck: healthy"
+/// - Scar distinction: "Chest: rank 1 scar"
 /// - VoiceOver reads injury status for all body parts
 ///
 /// ## Performance
@@ -114,6 +114,15 @@ public struct InjuriesPanel: View {
 
     /// Collapsed state for PanelContainer (persisted via Settings).
     @State private var isCollapsed: Bool = false
+
+    // MARK: - Layout Constants
+
+    /// Layout constants for grid dimensions
+    private enum Layout {
+        static let columnWidth: CGFloat = 68
+        static let columnCount = 3
+        static let gridWidth: CGFloat = columnWidth * CGFloat(columnCount)  // 204pt
+    }
 
     // MARK: - Grid Data Structure
 
@@ -176,9 +185,9 @@ public struct InjuriesPanel: View {
                 // Grid of body part injuries
                 LazyVGrid(
                     columns: [
-                        GridItem(.fixed(68), alignment: .leading),
-                        GridItem(.fixed(68), alignment: .leading),
-                        GridItem(.fixed(68), alignment: .leading)
+                        GridItem(.fixed(Layout.columnWidth), alignment: .leading),
+                        GridItem(.fixed(Layout.columnWidth), alignment: .leading),
+                        GridItem(.fixed(Layout.columnWidth), alignment: .leading)
                     ],
                     alignment: .center,
                     spacing: 4
@@ -195,16 +204,16 @@ public struct InjuriesPanel: View {
                         } else {
                             // Empty cell (maintains grid structure)
                             Color.clear
-                                .frame(width: 68, height: 36)
+                                .frame(width: Layout.columnWidth, height: 36)
                                 .accessibilityHidden(true)
                         }
                     }
                 }
-                .frame(width: 204)  // Constrain to natural width: 3 columns × 68pt
+                .frame(width: Layout.gridWidth)
 
                 // Status area at bottom - centered
                 StatusArea(viewModel: viewModel)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(width: Layout.gridWidth, alignment: .center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
@@ -222,8 +231,8 @@ public struct InjuriesPanel: View {
     /// - Returns: Accessibility label string
     ///
     /// Format:
-    /// - Injured: "Head: injured severity 3"
-    /// - Scarred: "Chest: scarred severity 1"
+    /// - Injured: "Head: rank 3 injury"
+    /// - Scarred: "Chest: rank 1 scar"
     /// - Healthy: "Neck: healthy"
     private func accessibilityLabel(for bodyPart: BodyPart) -> String {
         let status = viewModel.injuries[bodyPart] ?? InjuryStatus()
@@ -233,8 +242,8 @@ public struct InjuriesPanel: View {
             return "\(partName): healthy"
         }
 
-        let typeText = status.injuryType == .injury ? "injured" : "scarred"
-        return "\(partName): \(typeText) severity \(status.severity)"
+        let typeText = status.injuryType == .injury ? "injury" : "scar"
+        return "\(partName): rank \(status.severity) \(typeText)"
     }
 }
 
