@@ -934,4 +934,263 @@ struct InjuriesPanelViewModelTests {
             try? await Task.sleep(for: .milliseconds(10))
         }
     }
+
+    // MARK: - Status Computation Tests
+
+    /// Test that injuryCount returns correct count of injured body parts
+    ///
+    /// Acceptance Criteria:
+    /// - Returns 0 when all body parts are healthy
+    /// - Returns correct count when body parts are injured
+    /// - Excludes healthy body parts from count
+    @Test func test_injuryCountComputation() async throws {
+        let eventBus = EventBus()
+        let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Initially all healthy, count should be 0
+        #expect(viewModel.injuryCount == 0)
+
+        // Add 3 injuries
+        let headImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "head", "name": "Injury3"],
+            children: [],
+            state: .closed
+        )
+        let chestImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "chest", "name": "Scar1"],
+            children: [],
+            state: .closed
+        )
+        let leftArmImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "leftArm", "name": "Injury2"],
+            children: [],
+            state: .closed
+        )
+
+        let dialogTag = GameTag(
+            name: "dialogData",
+            text: nil,
+            attrs: ["id": "injuries"],
+            children: [headImage, chestImage, leftArmImage],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Verify count is 3
+        #expect(viewModel.injuryCount == 3)
+    }
+
+    /// Test that isHealthy returns true only when all body parts are healthy
+    ///
+    /// Acceptance Criteria:
+    /// - Returns true when all body parts have severity 0 and type .none
+    /// - Returns false when any body part has injury or scar
+    @Test func test_isHealthyComputation() async throws {
+        let eventBus = EventBus()
+        let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Initially all healthy
+        #expect(viewModel.isHealthy == true)
+
+        // Add one injury
+        let headImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "head", "name": "Injury1"],
+            children: [],
+            state: .closed
+        )
+        let dialogTag = GameTag(
+            name: "dialogData",
+            text: nil,
+            attrs: ["id": "injuries"],
+            children: [headImage],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // No longer healthy
+        #expect(viewModel.isHealthy == false)
+
+        // Clear all injuries
+        let emptyDialog = GameTag(
+            name: "dialogData",
+            text: nil,
+            attrs: ["id": "injuries"],
+            children: [],
+            state: .closed
+        )
+        await eventBus.publish("metadata/dialogData", data: emptyDialog)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Healthy again
+        #expect(viewModel.isHealthy == true)
+    }
+
+    /// Test that hasNervousDamage detects nervous system injuries
+    ///
+    /// Acceptance Criteria:
+    /// - Returns false when nerves are healthy (severity 0, type .none)
+    /// - Returns true when nerves have any injury (severity > 0)
+    /// - Returns true when nerves have any scar (severity > 0)
+    @Test func test_hasNervousDamageDetection() async throws {
+        let eventBus = EventBus()
+        let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Initially no nervous damage
+        #expect(viewModel.hasNervousDamage == false)
+
+        // Add nervous system injury
+        let nervesImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "nerves", "name": "Injury2"],
+            children: [],
+            state: .closed
+        )
+        let dialogTag = GameTag(
+            name: "dialogData",
+            text: nil,
+            attrs: ["id": "injuries"],
+            children: [nervesImage],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Should detect nervous damage
+        #expect(viewModel.hasNervousDamage == true)
+    }
+
+    /// Test that hasNervousDamage detects nervous system scars
+    ///
+    /// Acceptance Criteria:
+    /// - Returns true when nerves have scars (not just injuries)
+    @Test func test_hasNervousDamageDetectsScar() async throws {
+        let eventBus = EventBus()
+        let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Add nervous system scar
+        let nervesScarImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "nerves", "name": "Scar1"],
+            children: [],
+            state: .closed
+        )
+        let dialogTag = GameTag(
+            name: "dialogData",
+            text: nil,
+            attrs: ["id": "injuries"],
+            children: [nervesScarImage],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Should detect nervous damage even from scar
+        #expect(viewModel.hasNervousDamage == true)
+    }
+
+    /// Test that nervousSeverity returns correct severity level
+    ///
+    /// Acceptance Criteria:
+    /// - Returns 0 when nerves are healthy
+    /// - Returns 1-3 matching the severity of nervous system injury/scar
+    @Test func test_nervousSeverityComputation() async throws {
+        let eventBus = EventBus()
+        let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Initially severity 0
+        #expect(viewModel.nervousSeverity == 0)
+
+        // Test each severity level
+        for severity in 1...3 {
+            let nervesImage = GameTag(
+                name: "image",
+                text: nil,
+                attrs: ["id": "nerves", "name": "Injury\(severity)"],
+                children: [],
+                state: .closed
+            )
+            let dialogTag = GameTag(
+                name: "dialogData",
+                text: nil,
+                attrs: ["id": "injuries"],
+                children: [nervesImage],
+                state: .closed
+            )
+
+            await eventBus.publish("metadata/dialogData", data: dialogTag)
+            try? await Task.sleep(for: .milliseconds(10))
+
+            #expect(viewModel.nervousSeverity == severity)
+        }
+    }
+
+    /// Test that status computations update correctly when injuries change
+    ///
+    /// Acceptance Criteria:
+    /// - All status properties update immediately when injuries dict changes
+    /// - Status properties reflect current state accurately
+    @Test func test_statusPropertiesUpdateWithInjuries() async throws {
+        let eventBus = EventBus()
+        let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        await viewModel.setup()
+
+        // Initially healthy
+        #expect(viewModel.isHealthy == true)
+        #expect(viewModel.injuryCount == 0)
+        #expect(viewModel.hasNervousDamage == false)
+        #expect(viewModel.nervousSeverity == 0)
+
+        // Add mixed injuries including nerves
+        let headImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "head", "name": "Injury1"],
+            children: [],
+            state: .closed
+        )
+        let nervesImage = GameTag(
+            name: "image",
+            text: nil,
+            attrs: ["id": "nerves", "name": "Injury3"],
+            children: [],
+            state: .closed
+        )
+        let dialogTag = GameTag(
+            name: "dialogData",
+            text: nil,
+            attrs: ["id": "injuries"],
+            children: [headImage, nervesImage],
+            state: .closed
+        )
+
+        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Verify all status properties updated
+        #expect(viewModel.isHealthy == false)
+        #expect(viewModel.injuryCount == 2)
+        #expect(viewModel.hasNervousDamage == true)
+        #expect(viewModel.nervousSeverity == 3)
+    }
 }

@@ -12,7 +12,7 @@ import VaalinCore
 struct InjuriesPanelHealthyStatePreview: PreviewProvider {
     static var previews: some View {
         InjuriesPanel(viewModel: createHealthyViewModel())
-            .frame(width: 300)
+            .frame(width: 300, height: 300)
             .padding()
             .previewDisplayName("Healthy State (No Injuries)")
             .preferredColorScheme(.dark)

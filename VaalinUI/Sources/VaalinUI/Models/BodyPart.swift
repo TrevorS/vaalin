@@ -42,4 +42,5 @@ public enum BodyPart: String, CaseIterable, Sendable {
     case rightHand
     case leftLeg
     case rightLeg
+    case nerves
 }

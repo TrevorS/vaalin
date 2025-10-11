@@ -12,7 +12,7 @@ import SwiftUI
 ///
 /// ## Visual Design
 ///
-/// Layout follows a fixed grid structure with 80pt column width:
+/// Layout follows a fixed grid structure with 68pt column width:
 /// ```
 /// ┌────────────────────────────────┐
 /// │ Injuries                        │
@@ -66,7 +66,7 @@ import SwiftUI
 ///
 /// Wraps content in `PanelContainer` with:
 /// - Title: "Injuries"
-/// - Fixed height: 180pt (per FR-3.6 requirements)
+/// - Fixed height: 200pt (accommodates grid + status area)
 /// - Collapsible header with Liquid Glass material
 /// - Persistent collapsed state via Settings binding
 ///
@@ -170,38 +170,44 @@ public struct InjuriesPanel: View {
         PanelContainer(
             title: "Injuries",
             isCollapsed: $isCollapsed,
-            height: 180
+            height: 250
         ) {
-            LazyVGrid(
-                columns: [
-                    GridItem(.fixed(80), alignment: .leading),
-                    GridItem(.fixed(80), alignment: .leading),
-                    GridItem(.fixed(80), alignment: .leading)
-                ],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                ForEach(Array(gridLocations.enumerated()), id: \.offset) { _, location in
-                    if let bodyPart = location.bodyPart {
-                        // Body part cell with indicator
-                        LocationCell(
-                            label: location.label,
-                            status: viewModel.injuries[bodyPart] ?? InjuryStatus()
-                        )
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel(accessibilityLabel(for: bodyPart))
-                    } else {
-                        // Empty cell (maintains grid structure)
-                        Color.clear
-                            .frame(width: 80, height: 36)
-                            .accessibilityHidden(true)
+            VStack(spacing: 8) {
+                // Grid of body part injuries
+                LazyVGrid(
+                    columns: [
+                        GridItem(.fixed(68), alignment: .leading),
+                        GridItem(.fixed(68), alignment: .leading),
+                        GridItem(.fixed(68), alignment: .leading)
+                    ],
+                    alignment: .center,
+                    spacing: 4
+                ) {
+                    ForEach(Array(gridLocations.enumerated()), id: \.offset) { _, location in
+                        if let bodyPart = location.bodyPart {
+                            // Body part cell with indicator
+                            LocationCell(
+                                label: location.label,
+                                status: viewModel.injuries[bodyPart] ?? InjuryStatus()
+                            )
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(accessibilityLabel(for: bodyPart))
+                        } else {
+                            // Empty cell (maintains grid structure)
+                            Color.clear
+                                .frame(width: 68, height: 36)
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                // Status area at bottom
+                StatusArea(viewModel: viewModel)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 18)
-            .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .task {
             // Initialize EventBus subscriptions on appear
@@ -247,16 +253,17 @@ private struct LocationCell: View {
     let status: InjuryStatus
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 0) {
             // Label
             Text(label)
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
+                .padding(.bottom, -2)
 
             // Indicator
             LocationIndicator(status: status)
-                .frame(width: 24, height: 24)
+                .frame(width: 24, height: 24, alignment: .leading)
         }
     }
 }
@@ -292,10 +299,10 @@ private struct LocationIndicator: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .leading) {
             if status.isInjured {
-                // Injured/scarred: stacked dots
-                VStack(spacing: 2) {
+                // Injured/scarred: horizontal dots
+                HStack(spacing: 2) {
                     ForEach(0..<status.severity, id: \.self) { _ in
                         Circle()
                             .fill(indicatorColor)
@@ -303,13 +310,13 @@ private struct LocationIndicator: View {
                     }
                 }
             } else {
-                // Healthy: hollow circle
+                // Healthy: hollow circle (same size as dots)
                 Circle()
-                    .strokeBorder(SeverityColor.healthy.opacity(0.3), lineWidth: 1.5)
-                    .frame(width: 16, height: 16)
+                    .strokeBorder(SeverityColor.healthy.opacity(0.5), lineWidth: 1)
+                    .frame(width: 6, height: 6)
             }
         }
-        .frame(width: 24, height: 24)
+        .frame(width: 24, height: 24, alignment: .leading)
     }
 
     /// Calculates indicator color based on severity and injury type.
@@ -329,5 +336,101 @@ private struct LocationIndicator: View {
         }
 
         return status.injuryType == .scar ? baseColor.opacity(0.5) : baseColor
+    }
+}
+
+// MARK: - Status Area
+
+/// Status area showing overall injury summary at bottom of panel.
+///
+/// Displays three states:
+/// 1. **Healthy**: "Healthy" text in italic secondary color
+/// 2. **Injured**: "X wound(s)" text in primary color
+/// 3. **Nervous damage**: Additional warning line with severity-colored text
+///
+/// ## Visual Design
+///
+/// **Healthy state:**
+/// ```
+/// Healthy
+/// ```
+///
+/// **Injured state (no nerves):**
+/// ```
+/// 3 wounds
+/// ```
+///
+/// **Injured state (with nerves):**
+/// ```
+/// 5 wounds
+/// Nervous system damaged
+/// ```
+///
+/// ## Typography
+/// - Wound count: 11pt SF Mono Medium, primary color
+/// - Healthy text: 11pt SF Mono Regular, secondary color, italic
+/// - Nervous warning: 10pt SF Mono Medium, severity-colored (yellow/orange/red)
+///
+/// ## Color Mapping (Nervous Damage)
+/// - Severity 1: Yellow (#f9e2af)
+/// - Severity 2: Orange (#fab387)
+/// - Severity 3: Red (#f38ba8)
+///
+/// ## Layout
+/// - VStack with 4pt spacing
+/// - Centered horizontally in panel
+/// - Bottom of InjuriesPanel content area
+private struct StatusArea: View {
+    /// View model providing injury state
+    let viewModel: InjuriesPanelViewModel
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if viewModel.isHealthy {
+                // Healthy state
+                Text("Healthy")
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .italic()
+            } else {
+                // Injured state
+                Text(injuryCountText)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.primary)
+
+                // Nervous system warning (if applicable)
+                if viewModel.hasNervousDamage {
+                    Text("Nervous system damaged")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(nervousColor)
+                }
+            }
+        }
+    }
+
+    /// Formats injury count with proper pluralization.
+    ///
+    /// - Returns: "1 wound" or "X wounds"
+    private var injuryCountText: String {
+        let count = viewModel.injuryCount
+        return count == 1 ? "1 wound" : "\(count) wounds"
+    }
+
+    /// Calculates nervous system damage warning color based on severity.
+    ///
+    /// - Returns: Severity-appropriate color (yellow/orange/red) or secondary fallback
+    ///
+    /// Severity mapping:
+    /// - 1: Yellow (#f9e2af)
+    /// - 2: Orange (#fab387)
+    /// - 3: Red (#f38ba8)
+    /// - 0: Secondary (should never display, but safe fallback)
+    private var nervousColor: Color {
+        switch viewModel.nervousSeverity {
+        case 1: return Color(red: 0.976, green: 0.886, blue: 0.686)  // Yellow
+        case 2: return Color(red: 0.980, green: 0.702, blue: 0.529)  // Orange
+        case 3: return Color(red: 0.953, green: 0.545, blue: 0.659)  // Red
+        default: return .secondary
+        }
     }
 }

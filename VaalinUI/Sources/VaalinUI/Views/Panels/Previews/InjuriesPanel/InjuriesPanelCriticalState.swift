@@ -17,12 +17,15 @@ import VaalinCore
 /// - Right Hand: Injury severity 1 (yellow, 1 dot)
 /// - Left Leg: Injury severity 3 (red, 3 dots)
 /// - Right Leg: Injury severity 2 (orange, 2 dots)
+/// - Nerves: Injury severity 3 (red, 3 dots) - Triggers nervous system warning
 ///
-/// This represents near-death combat state with multiple severe wounds.
+/// This represents near-death combat state with multiple severe wounds
+/// and critical nervous system damage. Status area shows wound count
+/// and "Nervous system damaged" warning in red.
 struct InjuriesPanelCriticalStatePreview: PreviewProvider {
     static var previews: some View {
         InjuriesPanel(viewModel: createCriticalViewModel())
-            .frame(width: 300)
+            .frame(width: 300, height: 300)
             .padding()
             .previewDisplayName("Critical State (Near Death)")
             .preferredColorScheme(.dark)
@@ -45,7 +48,8 @@ struct InjuriesPanelCriticalStatePreview: PreviewProvider {
             .back: InjuryStatus(injuryType: .injury, severity: 3),       // Severe back wound
             .rightHand: InjuryStatus(injuryType: .injury, severity: 1),  // Minor right hand wound
             .leftLeg: InjuryStatus(injuryType: .injury, severity: 3),    // Severe left leg wound
-            .rightLeg: InjuryStatus(injuryType: .injury, severity: 2)    // Moderate right leg wound
+            .rightLeg: InjuryStatus(injuryType: .injury, severity: 2),   // Moderate right leg wound
+            .nerves: InjuryStatus(injuryType: .injury, severity: 3)      // Critical nervous damage
         ]
 
         return viewModel

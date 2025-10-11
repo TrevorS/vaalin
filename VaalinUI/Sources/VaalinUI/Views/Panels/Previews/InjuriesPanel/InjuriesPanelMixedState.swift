@@ -17,10 +17,13 @@ import VaalinCore
 /// - Right Hand: Injury severity 1 (yellow, 1 dot)
 /// - Left Leg: Injury severity 2 (orange, 2 dots)
 /// - Right Leg: Healthy
+/// - Nerves: Injury severity 2 (orange, 2 dots) - Triggers nervous system warning
+///
+/// Status area shows wound count and "Nervous system damaged" warning in orange.
 struct InjuriesPanelMixedStatePreview: PreviewProvider {
     static var previews: some View {
         InjuriesPanel(viewModel: createMixedViewModel())
-            .frame(width: 300)
+            .frame(width: 300, height: 300)
             .padding()
             .previewDisplayName("Mixed State (Injuries + Scars)")
             .preferredColorScheme(.dark)
@@ -39,7 +42,8 @@ struct InjuriesPanelMixedStatePreview: PreviewProvider {
             .abdomen: InjuryStatus(injuryType: .injury, severity: 1),    // Minor abdomen wound
             .back: InjuryStatus(injuryType: .scar, severity: 2),         // Old back scar
             .rightHand: InjuryStatus(injuryType: .injury, severity: 1),  // Minor hand wound
-            .leftLeg: InjuryStatus(injuryType: .injury, severity: 2)     // Moderate leg wound
+            .leftLeg: InjuryStatus(injuryType: .injury, severity: 2),    // Moderate leg wound
+            .nerves: InjuryStatus(injuryType: .injury, severity: 2)      // Moderate nervous damage
         ]
 
         return viewModel

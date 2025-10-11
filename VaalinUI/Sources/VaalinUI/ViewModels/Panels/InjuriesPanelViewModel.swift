@@ -119,6 +119,42 @@ public final class InjuriesPanelViewModel {
         return dict
     }()
 
+    // MARK: - Computed Status Properties
+
+    /// Total count of injured body parts (excludes healthy parts)
+    ///
+    /// Returns the number of body parts with active injuries or scars.
+    /// Used by status area to display "X wounds" text.
+    public var injuryCount: Int {
+        injuries.values.filter { $0.isInjured }.count
+    }
+
+    /// True if all body parts are healthy (no injuries or scars)
+    ///
+    /// Returns true when all body parts have severity 0 and type .none.
+    /// Used by status area to display "Healthy" text.
+    public var isHealthy: Bool {
+        injuries.values.allSatisfy { !$0.isInjured }
+    }
+
+    /// True if nervous system is damaged
+    ///
+    /// Returns true when nerves have any injury or scar (severity > 0).
+    /// Used by status area to display nervous system warning.
+    public var hasNervousDamage: Bool {
+        guard let nervesStatus = injuries[.nerves] else { return false }
+        return nervesStatus.isInjured
+    }
+
+    /// Nervous system injury severity (0 if not injured)
+    ///
+    /// Returns the severity level (1-3) of nervous system damage, or 0 if healthy.
+    /// Used by status area to colorize the nervous system warning.
+    public var nervousSeverity: Int {
+        guard let nervesStatus = injuries[.nerves] else { return 0 }
+        return nervesStatus.severity
+    }
+
     /// EventBus reference for subscribing to injuries events
     private let eventBus: EventBus
 
