@@ -94,10 +94,10 @@ public struct SpellsPanel: View {
             } else {
                 // Populated state
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(viewModel.activeSpells) { spell in
-                        SpellRow(spell: spell)
+                    ForEach(Array(viewModel.activeSpells.enumerated()), id: \.element.id) { index, spell in
+                        SpellRow(spellNumber: index + 1, spell: spell)
                             .accessibilityElement(children: AccessibilityChildBehavior.combine)
-                            .accessibilityLabel(accessibilityLabel(for: spell))
+                            .accessibilityLabel(accessibilityLabel(for: spell, number: index + 1))
                     }
                 }
                 .padding(.horizontal, 16)
@@ -115,33 +115,38 @@ public struct SpellsPanel: View {
 
     /// Generates accessibility label for a spell.
     ///
-    /// - Parameter spell: The spell to generate label for
-    /// - Returns: Formatted accessibility label (e.g., "Spirit Shield, 14:32 remaining")
-    private func accessibilityLabel(for spell: ActiveSpell) -> String {
+    /// - Parameters:
+    ///   - spell: The spell to generate label for
+    ///   - number: The spell's position in the list (1-based)
+    /// - Returns: Formatted accessibility label (e.g., "Spell 1: Spirit Shield, 14:32 remaining")
+    private func accessibilityLabel(for spell: ActiveSpell, number: Int) -> String {
         if let time = spell.timeRemaining {
-            return "\(spell.name), \(time) remaining"
+            return "Spell \(number): \(spell.name), \(time) remaining"
         }
-        return spell.name
+        return "Spell \(number): \(spell.name)"
     }
 }
 
 // MARK: - Subviews
 
-/// Individual row displaying a spell name and time remaining with color-coded styling.
+/// Individual row displaying a spell number, name, and time remaining with color-coded styling.
 ///
-/// Displays spell name (left-aligned) and optional time remaining (right-aligned).
+/// Displays spell number and name (left-aligned) and optional time remaining (right-aligned).
 /// Time color is based on percentage remaining:
 /// - < 33%: Red warning
 /// - 33-66%: Orange caution
 /// - > 66%: Green normal
 private struct SpellRow: View {
+    /// The spell's position in the list (1-based).
+    let spellNumber: Int
+
     /// The spell to display.
     let spell: ActiveSpell
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            // Spell name (left, flexible)
-            Text(spell.name)
+            // Spell number and name (left, flexible)
+            Text("\(spellNumber). \(spell.name)")
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
