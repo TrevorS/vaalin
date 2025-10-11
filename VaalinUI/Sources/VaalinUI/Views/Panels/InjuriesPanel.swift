@@ -172,7 +172,7 @@ public struct InjuriesPanel: View {
             isCollapsed: $isCollapsed,
             height: 250
         ) {
-            VStack(spacing: 8) {
+            VStack(alignment: .center, spacing: 8) {
                 // Grid of body part injuries
                 LazyVGrid(
                     columns: [
@@ -200,14 +200,13 @@ public struct InjuriesPanel: View {
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(width: 204)  // Constrain to natural width: 3 columns × 68pt
 
-                // Status area at bottom
+                // Status area at bottom - centered
                 StatusArea(viewModel: viewModel)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 4)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .task {
             // Initialize EventBus subscriptions on appear
