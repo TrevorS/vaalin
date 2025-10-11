@@ -143,7 +143,7 @@ private struct SpellRow: View {
             // Spell name (left, flexible)
             Text(spell.name)
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
-                .foregroundStyle(timeColor)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
