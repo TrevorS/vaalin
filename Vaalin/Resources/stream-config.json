@@ -1,0 +1,46 @@
+{
+  "streams": [
+    {
+      "id": "thoughts",
+      "label": "Thoughts",
+      "defaultOn": true,
+      "color": "subtext1",
+      "aliases": []
+    },
+    {
+      "id": "speech",
+      "label": "Speech",
+      "defaultOn": true,
+      "color": "green",
+      "aliases": []
+    },
+    {
+      "id": "whispers",
+      "label": "Whispers",
+      "defaultOn": true,
+      "color": "teal",
+      "aliases": ["whisper"]
+    },
+    {
+      "id": "logons",
+      "label": "Logons",
+      "defaultOn": true,
+      "color": "yellow",
+      "aliases": ["logon", "logoff", "death"]
+    },
+    {
+      "id": "expr",
+      "label": "Experience",
+      "defaultOn": false,
+      "color": "sapphire",
+      "aliases": ["experience"]
+    },
+    {
+      "id": "familiar",
+      "label": "Familiar",
+      "defaultOn": false,
+      "color": "mauve",
+      "aliases": []
+    }
+  ]
+}
