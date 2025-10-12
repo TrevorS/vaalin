@@ -44,13 +44,13 @@ struct GameLogViewStatesPreview: PreviewProvider {
     private static func sampleViewModel() -> GameLogViewModel {
         let viewModel = GameLogViewModel()
 
-        // Catppuccin Mocha colors (matching theme preset mappings)
+        // Catppuccin Mocha colors from centralized theme
         let colors = (
-            text: Color(red: 0.8, green: 0.84, blue: 0.96),     // #cdd6f4 - text
-            red: Color(red: 0.95, green: 0.55, blue: 0.66),     // #f38ba8 - damage
-            green: Color(red: 0.65, green: 0.89, blue: 0.63),   // #a6e3a1 - speech/heal
-            teal: Color(red: 0.58, green: 0.89, blue: 0.84),    // #94e2d5 - whisper
-            yellow: Color(red: 0.98, green: 0.83, blue: 0.48)   // #fab387 - warning
+            text: CatppuccinMocha.text,      // #cdd6f4 - text
+            red: CatppuccinMocha.red,        // #f38ba8 - damage
+            green: CatppuccinMocha.green,    // #a6e3a1 - speech/heal
+            teal: CatppuccinMocha.teal,      // #94e2d5 - whisper
+            yellow: CatppuccinMocha.peach    // #fab387 - warning (peach, not yellow)
         )
 
         // Sample messages with theme colors (damage = red, speech = green, etc.)
