@@ -14,7 +14,7 @@ struct SettingsTests {
     private let completeSettingsJSON = """
     {
         "layout": {
-            "left": ["hands", "vitals"],
+            "left": ["hands", "vitals", "injuries"],
             "right": ["compass", "spells"],
             "colWidth": {
                 "hands": 200.0,
@@ -148,7 +148,7 @@ struct SettingsTests {
         let settings = try decoder.decode(Settings.self, from: data)
 
         // Verify layout
-        #expect(settings.layout.left == ["hands", "vitals"])
+        #expect(settings.layout.left == ["hands", "vitals", "injuries"])
         #expect(settings.layout.right == ["compass", "spells"])
         #expect(settings.layout.colWidth["hands"] == 200.0)
         #expect(settings.layout.streamsHeight == 150.0)
@@ -183,7 +183,7 @@ struct SettingsTests {
         let settings = Settings.makeDefault()
 
         // Layout defaults
-        #expect(settings.layout.left == ["hands", "vitals"])
+        #expect(settings.layout.left == ["hands", "vitals", "injuries"])
         #expect(settings.layout.right == ["compass", "spells"])
         #expect(settings.layout.streamsHeight == 200.0)
         #expect(settings.layout.colWidth.isEmpty)
@@ -212,7 +212,7 @@ struct SettingsTests {
     /// Test that each nested struct has its own defaults
     @Test func test_nestedStructureDefaults() {
         let layout = Settings.Layout.makeDefault()
-        #expect(layout.left == ["hands", "vitals"])
+        #expect(layout.left == ["hands", "vitals", "injuries"])
         #expect(layout.right == ["compass", "spells"])
 
         let streams = Settings.StreamSettings.makeDefault()

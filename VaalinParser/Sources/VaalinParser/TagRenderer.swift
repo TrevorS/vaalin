@@ -77,17 +77,51 @@ public actor TagRenderer {
         timestampSettings: VaalinCore.Settings.StreamSettings.TimestampSettings? = nil
     ) async -> AttributedString {
         // Render the tag content
-        var result = await renderTag(tag, theme: theme, inheritedBold: false)
+        let result = await renderTag(tag, theme: theme, inheritedBold: false)
 
-        // Prepend timestamp if enabled and timestamp is provided
-        if let timestamp = timestamp,
-           let settings = timestampSettings,
-           settings.gameLog {
-            let timestampPrefix = await renderTimestamp(timestamp, theme: theme)
-            result = timestampPrefix + result
+        // Finalize: trim trailing newlines and add timestamp
+        return await finalizeMessage(result, timestamp: timestamp, timestampSettings: timestampSettings, theme: theme)
+    }
+
+    /// Renders an array of GameTags into a single styled AttributedString.
+    ///
+    /// This method concatenates multiple tags into a single logical message with one timestamp.
+    /// It matches the behavior of ProfanityFE and Illthorn where tags from a single server
+    /// message batch are rendered together, not as separate messages.
+    ///
+    /// - Parameters:
+    ///   - tags: Array of GameTags to render together
+    ///   - theme: Theme containing color and preset mappings
+    ///   - timestamp: Optional timestamp to prepend as `[HH:MM:SS] ` prefix (added once)
+    ///   - timestampSettings: Optional settings controlling timestamp display
+    /// - Returns: Styled AttributedString with all tags rendered and timestamp prepended once
+    ///
+    /// ## Example Usage
+    /// ```swift
+    /// // Render multiple item tags as one message
+    /// let tags = [
+    ///     GameTag(name: "a", text: "crumbling stone tower pin", ...),
+    ///     GameTag(name: "a", text: "some full leather", ...),
+    ///     GameTag(name: "a", text: "an amber silk satchel", ...)
+    /// ]
+    /// let message = await renderer.render(tags, theme: theme, timestamp: Date())
+    /// // Result: "[17:19:09] crumbling stone tower pin, some full leather, an amber silk satchel"
+    /// ```
+    public func render(
+        _ tags: [GameTag],
+        theme: Theme,
+        timestamp: Date? = nil,
+        timestampSettings: VaalinCore.Settings.StreamSettings.TimestampSettings? = nil
+    ) async -> AttributedString {
+        // Render all tags and concatenate them
+        var result = AttributedString()
+        for tag in tags {
+            let rendered = await renderTag(tag, theme: theme, inheritedBold: false)
+            result += rendered
         }
 
-        return result
+        // Finalize: trim trailing newlines and add timestamp
+        return await finalizeMessage(result, timestamp: timestamp, timestampSettings: timestampSettings, theme: theme)
     }
 
     // MARK: - Private Rendering Methods
@@ -328,5 +362,98 @@ public actor TagRenderer {
         }
 
         return attributed
+    }
+
+    /// Finalizes a rendered message by trimming trailing newlines and adding timestamp.
+    ///
+    /// This method performs the final post-processing steps after tag rendering:
+    /// 1. Trims trailing double newlines to prevent blank lines
+    /// 2. Prepends optional timestamp if enabled
+    ///
+    /// Extracted to avoid code duplication between single-tag and batch rendering.
+    ///
+    /// - Parameters:
+    ///   - attributed: The rendered AttributedString to finalize
+    ///   - timestamp: Optional timestamp to prepend
+    ///   - timestampSettings: Settings controlling timestamp display
+    ///   - theme: Theme for timestamp color
+    /// - Returns: Finalized AttributedString ready for display
+    private func finalizeMessage(
+        _ attributed: AttributedString,
+        timestamp: Date?,
+        timestampSettings: VaalinCore.Settings.StreamSettings.TimestampSettings?,
+        theme: Theme
+    ) async -> AttributedString {
+        // Trim trailing double newlines first
+        var result = trimTrailingDoubleNewlines(attributed)
+
+        // Prepend timestamp if enabled
+        if let timestamp = timestamp,
+           let settings = timestampSettings,
+           settings.gameLog {
+            let timestampPrefix = await renderTimestamp(timestamp, theme: theme)
+            result = timestampPrefix + result
+        }
+
+        return result
+    }
+
+    /// Trims trailing double newlines from an AttributedString.
+    ///
+    /// ## Rationale
+    ///
+    /// The GemStone IV game server sends XML tags that can result in double newlines
+    /// at the end of rendered messages, creating unwanted blank lines in the game log.
+    ///
+    /// **Common patterns from server**:
+    /// - `<output>text\n</output>\n` → renders as `"text\n\n"` after tag processing
+    /// - Consecutive tags with newlines → accumulate trailing newlines
+    /// - Stream control tags (`<pushStream>`, `<popStream>`) sometimes add extra newlines
+    ///
+    /// This matches the behavior of illthorn (TypeScript client) and ProfanityFE which both
+    /// implement similar trimming to prevent blank line spam.
+    ///
+    /// ## Trimming Rules
+    ///
+    /// Only removes `\n\n` from the **end** of the string, preserving:
+    /// - Single trailing newlines (intentional line breaks)
+    /// - Newlines in the middle of text (paragraph breaks, lists)
+    /// - All character styling and attributes
+    ///
+    /// This prevents blank lines at the end of messages while preserving
+    /// intentional formatting within the message content.
+    ///
+    /// - Parameter attributed: The AttributedString to trim
+    /// - Returns: AttributedString with trailing double newlines removed
+    ///
+    /// ## Examples
+    /// - `"Hello\n\n"` → `"Hello"` (server artifact removed)
+    /// - `"Hello\n"` → `"Hello\n"` (single newline preserved)
+    /// - `"Hello\nWorld\n\n"` → `"Hello\nWorld"` (middle newline preserved)
+    /// - `"Line1\nLine2\nLine3\n\n\n"` → `"Line1\nLine2\nLine3"` (all trailing newlines removed)
+    private func trimTrailingDoubleNewlines(_ attributed: AttributedString) -> AttributedString {
+        var result = attributed
+        let text = String(result.characters)
+
+        // Check if string ends with double newlines
+        if text.hasSuffix("\n\n") {
+            // Find how many trailing newlines we have
+            var trimCount = 0
+            for char in text.reversed() {
+                if char == "\n" {
+                    trimCount += 1
+                } else {
+                    break
+                }
+            }
+
+            // Only trim if we have 2+ trailing newlines (remove all but keep formatting)
+            if trimCount >= 2 {
+                let endIndex = result.characters.index(result.endIndex, offsetBy: -trimCount)
+                result = AttributedString(result[..<endIndex])
+            }
+        }
+
+        return result
     }
 }

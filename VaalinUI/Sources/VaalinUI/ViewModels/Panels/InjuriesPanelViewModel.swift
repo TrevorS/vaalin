@@ -7,7 +7,7 @@ import VaalinCore
 
 /// View model for the injuries panel with real-time updates from EventBus.
 ///
-/// `InjuriesPanelViewModel` subscribes to `metadata/dialogData` events from the EventBus
+/// `InjuriesPanelViewModel` subscribes to `metadata/dialogData/injuries` events from the EventBus
 /// and updates injuries state when the game server sends injuries dialog updates. The injuries panel
 /// displays body part injuries and scars with severity levels 1-3.
 ///
@@ -45,7 +45,7 @@ import VaalinCore
 ///
 /// ## EventBus Integration
 ///
-/// Subscribes to `"metadata/dialogData"` event on initialization.
+/// Subscribes to `"metadata/dialogData/injuries"` event on initialization.
 ///
 /// ## Event Structure
 ///
@@ -95,7 +95,7 @@ import VaalinCore
 ///     ],
 ///     state: .closed
 /// )
-/// await eventBus.publish("metadata/dialogData", data: dialogTag)
+/// await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
 ///
 /// // SwiftUI view automatically updates with new head injury
 /// print(viewModel.injuries[.head]?.severity)  // 3
@@ -108,7 +108,7 @@ public final class InjuriesPanelViewModel {
 
     /// Current injuries by body part (all parts default to .none severity)
     ///
-    /// Updated automatically when `metadata/dialogData` events are published to EventBus.
+    /// Updated automatically when `metadata/dialogData/injuries` events are published to EventBus.
     /// SwiftUI views observing this property will automatically update when it changes.
     /// All `BodyPart` cases are present in the dictionary at all times.
     public var injuries: [BodyPart: InjuryStatus] = {
@@ -184,8 +184,10 @@ public final class InjuriesPanelViewModel {
     /// Sets up EventBus subscriptions to injuries events.
     ///
     /// **Must be called immediately after init** to enable injuries updates.
-    /// In production code, this is typically called in the view's `onAppear` or
-    /// similar lifecycle method.
+    /// In production code, this is typically called in the view's `.task` modifier.
+    ///
+    /// **Idempotency**: This method can be called multiple times safely - it will only
+    /// subscribe once. Subsequent calls are ignored with a debug log.
     ///
     /// ## Example Usage
     /// ```swift
@@ -193,11 +195,17 @@ public final class InjuriesPanelViewModel {
     /// await viewModel.setup()  // Required!
     /// ```
     public func setup() async {
+        // Idempotency check - prevent duplicate subscriptions
+        guard subscriptionID == nil else {
+            Self.logger.debug("Already subscribed to EventBus, skipping setup")
+            return
+        }
+
         // Subscribe to dialogData events
-        subscriptionID = await eventBus.subscribe("metadata/dialogData") { [weak self] (tag: GameTag) in
+        subscriptionID = await eventBus.subscribe("metadata/dialogData/injuries") { [weak self] (tag: GameTag) in
             await self?.handleDialogDataEvent(tag)
         }
-        Self.logger.debug("Subscribed to metadata/dialogData events with ID: \(self.subscriptionID!)")
+        Self.logger.debug("Subscribed to metadata/dialogData/injuries events with ID: \(self.subscriptionID!)")
     }
 
     // MARK: - Deinitialization
@@ -246,7 +254,7 @@ public final class InjuriesPanelViewModel {
         // Only process injuries dialog (filter other dialogs like spells, familiar, etc.)
         // The injuries dialog has id="injuries" attribute
         guard tag.attrs["id"] == "injuries" else {
-            Self.logger.debug("Ignoring non-injuries dialogData (id=\(tag.attrs["id"] ?? "nil"))")
+            Self.logger.debug("Ignoring non-injuries dialogData (id=\(String(describing: tag.attrs["id"])))")
             return
         }
 

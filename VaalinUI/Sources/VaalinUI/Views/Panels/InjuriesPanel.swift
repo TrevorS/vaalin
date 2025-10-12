@@ -73,7 +73,7 @@ import SwiftUI
 /// ## EventBus Updates
 ///
 /// Updates automatically via `InjuriesPanelViewModel` which subscribes to:
-/// - `metadata/dialogData` - Injuries dialog updates with `<image>` tags
+/// - `metadata/dialogData/injuries` - Injuries dialog updates with `<image>` tags
 ///
 /// The view model calls `setup()` in the `.task` modifier to initialize EventBus subscriptions.
 ///

@@ -37,7 +37,7 @@ struct GameLogViewModelTests {
             state: .closed
         )
 
-        await viewModel.appendMessage(tag)
+        await viewModel.appendMessage([tag])
 
         let messages = viewModel.messages
         #expect(messages.count == 1, "Should contain exactly one message")
@@ -55,9 +55,9 @@ struct GameLogViewModelTests {
         let tag2 = GameTag(name: "output", text: "Second message", attrs: [:], children: [], state: .closed)
         let tag3 = GameTag(name: "output", text: "Third message", attrs: [:], children: [], state: .closed)
 
-        await viewModel.appendMessage(tag1)
-        await viewModel.appendMessage(tag2)
-        await viewModel.appendMessage(tag3)
+        await viewModel.appendMessage([tag1])
+        await viewModel.appendMessage([tag2])
+        await viewModel.appendMessage([tag3])
 
         let messages = viewModel.messages
         #expect(messages.count == 3, "Should contain three messages")
@@ -81,7 +81,7 @@ struct GameLogViewModelTests {
             state: .closed
         )
 
-        await viewModel.appendMessage(linkTag)
+        await viewModel.appendMessage([linkTag])
 
         let messages = viewModel.messages
         #expect(messages.count == 1, "Should contain one message")
@@ -106,7 +106,7 @@ struct GameLogViewModelTests {
                 children: [],
                 state: .closed
             )
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Verify at exactly 10,000
@@ -123,7 +123,7 @@ struct GameLogViewModelTests {
             children: [],
             state: .closed
         )
-        await viewModel.appendMessage(newTag)
+        await viewModel.appendMessage([newTag])
 
         // Verify pruning occurred
         messages = viewModel.messages
@@ -147,7 +147,7 @@ struct GameLogViewModelTests {
                 children: [],
                 state: .closed
             )
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Add 100 more messages to trigger multiple pruning operations
@@ -159,7 +159,7 @@ struct GameLogViewModelTests {
                 children: [],
                 state: .closed
             )
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Verify FIFO behavior
@@ -186,7 +186,7 @@ struct GameLogViewModelTests {
                 children: [],
                 state: .closed
             )
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         let messages = viewModel.messages
@@ -209,7 +209,7 @@ struct GameLogViewModelTests {
                 children: [],
                 state: .closed
             )
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         let messages = viewModel.messages
@@ -233,7 +233,7 @@ struct GameLogViewModelTests {
                 children: [],
                 state: .closed
             )
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         let messages = viewModel.messages
@@ -260,7 +260,7 @@ struct GameLogViewModelTests {
                         children: [],
                         state: .closed
                     )
-                    await viewModel.appendMessage(tag)
+                    await viewModel.appendMessage([tag])
                 }
             }
         }
@@ -290,7 +290,7 @@ struct GameLogViewModelTests {
             streamId: "thoughts"
         )
 
-        await viewModel.appendMessage(tag)
+        await viewModel.appendMessage([tag])
 
         let messages = viewModel.messages
         #expect(messages.first?.streamID == "thoughts", "StreamID should be preserved")
@@ -310,7 +310,7 @@ struct GameLogViewModelTests {
             streamId: nil
         )
 
-        await viewModel.appendMessage(tag)
+        await viewModel.appendMessage([tag])
 
         let messages = viewModel.messages
         #expect(messages.first?.streamID == nil, "Nil streamID should be preserved")
@@ -337,7 +337,7 @@ struct GameLogViewModelTests {
         let start = Date()
 
         for _ in 0..<iterations {
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         let duration = Date().timeIntervalSince(start)
@@ -362,7 +362,7 @@ struct GameLogViewModelTests {
                 children: [],
                 state: .closed
             )
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Measure time to add message that triggers pruning
@@ -375,7 +375,7 @@ struct GameLogViewModelTests {
         )
 
         let start = Date()
-        await viewModel.appendMessage(tag)
+        await viewModel.appendMessage([tag])
         let duration = Date().timeIntervalSince(start)
 
         let durationMs = duration * 1000

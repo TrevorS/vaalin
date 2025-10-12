@@ -26,10 +26,10 @@ struct SpellsPanelViewModelTests {
 
     // MARK: - EventBus Subscription Tests
 
-    /// Test that SpellsPanelViewModel subscribes to spellfront events on setup
+    /// Test that SpellsPanelViewModel subscribes to Active Spells events on setup
     ///
     /// Acceptance Criteria:
-    /// - Subscribes to "metadata/dialogData/spellfront" event on setup
+    /// - Subscribes to "metadata/dialogData/Active Spells" event on setup
     @Test func test_setup() async throws {
         let eventBus = EventBus()
         let viewModel = SpellsPanelViewModel(eventBus: eventBus)
@@ -37,14 +37,14 @@ struct SpellsPanelViewModelTests {
         await viewModel.setup()
 
         // Verify subscription exists
-        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/spellfront")
+        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/Active Spells")
         #expect(handlerCount == 1)
     }
 
-    /// Test that SpellsPanelViewModel processes valid spellfront events after setup
+    /// Test that SpellsPanelViewModel processes valid Active Spells events after setup
     ///
     /// Acceptance Criteria:
-    /// - Processes events published to "metadata/dialogData/spellfront"
+    /// - Processes events published to "metadata/dialogData/Active Spells"
     /// - Updates activeSpells when event contains spell data
     @Test func test_subscribesToSpellfrontEvents() async throws {
         let eventBus = EventBus()
@@ -54,15 +54,15 @@ struct SpellsPanelViewModelTests {
         // Verify initially empty
         #expect(viewModel.activeSpells.isEmpty)
 
-        // Publish a spellfront event with empty children (no spells)
+        // Publish a Active Spells event with empty children (no spells)
         let emptyTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: emptyTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: emptyTag)
 
         // Give async operation time to complete
         try? await Task.sleep(for: .milliseconds(10))
@@ -83,7 +83,7 @@ struct SpellsPanelViewModelTests {
         let viewModel = SpellsPanelViewModel(eventBus: eventBus)
         await viewModel.setup()
 
-        // Publish spellfront event with one spell
+        // Publish Active Spells event with one spell
         let spellBar = GameTag(
             name: "progressBar",
             text: nil,
@@ -96,15 +96,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spellBar],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell added
@@ -136,15 +136,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spellBar],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell added with nil optional fields
@@ -167,7 +167,7 @@ struct SpellsPanelViewModelTests {
         let viewModel = SpellsPanelViewModel(eventBus: eventBus)
         await viewModel.setup()
 
-        // Publish spellfront event with multiple spells
+        // Publish Active Spells event with multiple spells
         let spell1 = GameTag(
             name: "progressBar",
             text: nil,
@@ -204,15 +204,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spell1, spell2, spell3],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all three spells added
@@ -263,15 +263,15 @@ struct SpellsPanelViewModelTests {
             state: .closed
         )
 
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spellA, spellB, spellC],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify exact order maintained
@@ -304,14 +304,14 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spellBar],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell exists
@@ -321,11 +321,11 @@ struct SpellsPanelViewModelTests {
         let emptyTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: emptyTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: emptyTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all spells cleared
@@ -356,14 +356,14 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spell1, spell2],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify both spells exist
@@ -373,11 +373,11 @@ struct SpellsPanelViewModelTests {
         let emptyTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: emptyTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: emptyTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all spells cleared
@@ -412,11 +412,11 @@ struct SpellsPanelViewModelTests {
         let initialTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [initialSpell],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: initialTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: initialTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify initial state
@@ -440,11 +440,11 @@ struct SpellsPanelViewModelTests {
         let updatedTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [updatedSpell],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: updatedTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: updatedTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify updated (not duplicated)
@@ -482,11 +482,11 @@ struct SpellsPanelViewModelTests {
         let tag1 = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spell1, spell2],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: tag1)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: tag1)
         try? await Task.sleep(for: .milliseconds(10))
         #expect(viewModel.activeSpells.count == 2)
 
@@ -501,11 +501,11 @@ struct SpellsPanelViewModelTests {
         let tag2 = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spell1, spell3],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: tag2)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: tag2)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify correct spells present
@@ -538,15 +538,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [permanentSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell added with nil time
@@ -580,15 +580,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [noPercentSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell added with nil percentage
@@ -618,15 +618,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [minimalSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell added with both optional fields nil
@@ -652,12 +652,12 @@ struct SpellsPanelViewModelTests {
         let wrongTag = GameTag(
             name: "progressBar",  // Wrong - should be "dialogData"
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: wrongTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: wrongTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify no spells added (wrong tag name ignored)
@@ -667,7 +667,7 @@ struct SpellsPanelViewModelTests {
     /// Test that SpellsPanelViewModel handles dialogData tags with wrong ID
     ///
     /// Acceptance Criteria:
-    /// - Only processes dialogData tags with id="spellfront"
+    /// - Only processes dialogData tags with id="Active Spells"
     /// - Ignores other dialog types
     @Test func test_handleWrongDialogID() async throws {
         let eventBus = EventBus()
@@ -691,7 +691,7 @@ struct SpellsPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: wrongIdTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: wrongIdTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify no spells added (wrong dialog ID ignored)
@@ -727,12 +727,12 @@ struct SpellsPanelViewModelTests {
         let mixedTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [invalidChild, validSpell, invalidChild],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: mixedTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: mixedTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify only progressBar child processed
@@ -754,7 +754,7 @@ struct SpellsPanelViewModelTests {
             await viewModel.setup()
 
             // Verify subscription exists
-            let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/spellfront")
+            let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/Active Spells")
             #expect(handlerCount == 1)
         }
 
@@ -763,7 +763,7 @@ struct SpellsPanelViewModelTests {
         try? await Task.sleep(for: .milliseconds(50))
 
         // Verify subscription was removed
-        let handlerCountAfter = await eventBus.handlerCount(for: "metadata/dialogData/spellfront")
+        let handlerCountAfter = await eventBus.handlerCount(for: "metadata/dialogData/Active Spells")
         #expect(handlerCountAfter == 0)
     }
 
@@ -779,7 +779,7 @@ struct SpellsPanelViewModelTests {
         await viewModel2.setup()
 
         // Verify both subscribed
-        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/spellfront")
+        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/Active Spells")
         #expect(handlerCount == 2)
 
         // Publish event
@@ -790,14 +790,14 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [spellBar],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify both updated
@@ -826,15 +826,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [noIdSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell skipped (no id = invalid)
@@ -858,15 +858,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [noNameSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell skipped (no text = invalid)
@@ -890,15 +890,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [emptyNameSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell skipped (empty name = invalid)
@@ -927,15 +927,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [invalidPercentSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify spell added with nil percentage
@@ -961,15 +961,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [specialSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.activeSpells[0].name == specialName)
@@ -992,15 +992,15 @@ struct SpellsPanelViewModelTests {
             children: [],
             state: .closed
         )
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: [unicodeSpell],
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.activeSpells[0].name == unicodeName)
@@ -1033,15 +1033,15 @@ struct SpellsPanelViewModelTests {
             spells.append(spell)
         }
 
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: spells,
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all 20 spells added
@@ -1072,11 +1072,11 @@ struct SpellsPanelViewModelTests {
             let tag = GameTag(
                 name: "dialogData",
                 text: nil,
-                attrs: ["id": "spellfront"],
+                attrs: ["id": "Active Spells"],
                 children: [spell],
                 state: .closed
             )
-            await eventBus.publish("metadata/dialogData/spellfront", data: tag)
+            await eventBus.publish("metadata/dialogData/Active Spells", data: tag)
             try? await Task.sleep(for: .milliseconds(2))
         }
 
@@ -1117,15 +1117,15 @@ struct SpellsPanelViewModelTests {
             spells.append(spell)
         }
 
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: spells,
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all time formats preserved as-is
@@ -1163,15 +1163,15 @@ struct SpellsPanelViewModelTests {
             spells.append(spell)
         }
 
-        let spellfrontTag = GameTag(
+        let activeSpellsTag = GameTag(
             name: "dialogData",
             text: nil,
-            attrs: ["id": "spellfront"],
+            attrs: ["id": "Active Spells"],
             children: spells,
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData/spellfront", data: spellfrontTag)
+        await eventBus.publish("metadata/dialogData/Active Spells", data: activeSpellsTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all percentages handled correctly

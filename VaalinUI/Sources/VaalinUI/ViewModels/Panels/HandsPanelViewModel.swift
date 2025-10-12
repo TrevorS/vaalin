@@ -138,8 +138,10 @@ public final class HandsPanelViewModel {
     /// Sets up EventBus subscriptions to hands/spell events.
     ///
     /// **Must be called immediately after init** to enable hands/spell updates.
-    /// In production code, this is typically called in the view's `onAppear` or
-    /// similar lifecycle method.
+    /// In production code, this is typically called in the view's `.task` modifier.
+    ///
+    /// **Idempotency**: This method can be called multiple times safely - it will only
+    /// subscribe once. Subsequent calls are ignored with a debug log.
     ///
     /// ## Example Usage
     /// ```swift
@@ -147,6 +149,12 @@ public final class HandsPanelViewModel {
     /// await viewModel.setup()  // Required!
     /// ```
     public func setup() async {
+        // Idempotency check - prevent duplicate subscriptions
+        guard leftSubscriptionID == nil else {
+            logger.debug("Already subscribed to EventBus, skipping setup")
+            return
+        }
+
         // Subscribe to left hand events
         leftSubscriptionID = await eventBus.subscribe("metadata/left") { [weak self] (tag: GameTag) in
             await self?.handleLeftHandEvent(tag)
@@ -202,8 +210,8 @@ public final class HandsPanelViewModel {
     ///
     /// - Parameter tag: GameTag containing left hand item data
     ///
-    /// Extracts item name from `tag.children[0].text` (per Illthorn reference).
-    /// Falls back to "Empty" if no children, nil text, or empty text.
+    /// Extracts item name from `tag.text` or `tag.children[0].text`.
+    /// Falls back to "Empty" if no text content found.
     @MainActor
     private func handleLeftHandEvent(_ tag: GameTag) {
         // Only process tags named "left"
@@ -212,17 +220,25 @@ public final class HandsPanelViewModel {
             return
         }
 
-        // Extract item name from first child's text
-        // Per Illthorn reference: tag.children[0].text
-        if let firstChild = tag.children.first,
-           let itemText = firstChild.text,
-           !itemText.isEmpty {
+        // DEBUG: Log full tag structure
+        logger.debug(
+            """
+            Processing left hand - Tag: \(tag.name), text: \(tag.text ?? "nil"), \
+            children count: \(tag.children.count)
+            """
+        )
+
+        // Extract item name from tag (check direct text first, then children)
+        // Vaalin parser stores simple text in tag.text, complex nested text in children
+        let itemText = tag.text ?? tag.children.first?.text
+
+        if let itemText = itemText, !itemText.isEmpty {
             leftHand = itemText
-            logger.debug("Updated left hand: \(itemText)")
+            logger.debug("✓ Updated left hand: \(itemText)")
         } else {
-            // No children or nil/empty text -> empty hand
+            // No text content -> empty hand
             leftHand = "Empty"
-            logger.debug("Left hand is now empty")
+            logger.debug("⚠️ Left hand is now empty")
         }
     }
 
@@ -230,8 +246,8 @@ public final class HandsPanelViewModel {
     ///
     /// - Parameter tag: GameTag containing right hand item data
     ///
-    /// Extracts item name from `tag.children[0].text` (per Illthorn reference).
-    /// Falls back to "Empty" if no children, nil text, or empty text.
+    /// Extracts item name from `tag.text` or `tag.children[0].text`.
+    /// Falls back to "Empty" if no text content found.
     @MainActor
     private func handleRightHandEvent(_ tag: GameTag) {
         // Only process tags named "right"
@@ -240,17 +256,25 @@ public final class HandsPanelViewModel {
             return
         }
 
-        // Extract item name from first child's text
-        // Per Illthorn reference: tag.children[0].text
-        if let firstChild = tag.children.first,
-           let itemText = firstChild.text,
-           !itemText.isEmpty {
+        // DEBUG: Log full tag structure
+        logger.debug(
+            """
+            Processing right hand - Tag: \(tag.name), text: \(tag.text ?? "nil"), \
+            children count: \(tag.children.count)
+            """
+        )
+
+        // Extract item name from tag (check direct text first, then children)
+        // Vaalin parser stores simple text in tag.text, complex nested text in children
+        let itemText = tag.text ?? tag.children.first?.text
+
+        if let itemText = itemText, !itemText.isEmpty {
             rightHand = itemText
-            logger.debug("Updated right hand: \(itemText)")
+            logger.debug("✓ Updated right hand: \(itemText)")
         } else {
-            // No children or nil/empty text -> empty hand
+            // No text content -> empty hand
             rightHand = "Empty"
-            logger.debug("Right hand is now empty")
+            logger.debug("⚠️ Right hand is now empty")
         }
     }
 
@@ -258,8 +282,8 @@ public final class HandsPanelViewModel {
     ///
     /// - Parameter tag: GameTag containing prepared spell data
     ///
-    /// Extracts spell name from `tag.children[0].text` (per Illthorn reference).
-    /// Falls back to "None" if no children, nil text, or empty text.
+    /// Extracts spell name from `tag.text` or `tag.children[0].text`.
+    /// Falls back to "None" if no text content found.
     @MainActor
     private func handleSpellEvent(_ tag: GameTag) {
         // Only process tags named "spell"
@@ -268,17 +292,25 @@ public final class HandsPanelViewModel {
             return
         }
 
-        // Extract spell name from first child's text
-        // Per Illthorn reference: tag.children[0].text
-        if let firstChild = tag.children.first,
-           let spellText = firstChild.text,
-           !spellText.isEmpty {
+        // DEBUG: Log full tag structure
+        logger.debug(
+            """
+            Processing prepared spell - Tag: \(tag.name), text: \(tag.text ?? "nil"), \
+            children count: \(tag.children.count)
+            """
+        )
+
+        // Extract spell name from tag (check direct text first, then children)
+        // Vaalin parser stores simple text in tag.text, complex nested text in children
+        let spellText = tag.text ?? tag.children.first?.text
+
+        if let spellText = spellText, !spellText.isEmpty {
             preparedSpell = spellText
-            logger.debug("Updated prepared spell: \(spellText)")
+            logger.debug("✓ Updated prepared spell: \(spellText)")
         } else {
-            // No children or nil/empty text -> no spell
+            // No text content -> no spell
             preparedSpell = "None"
-            logger.debug("No spell prepared")
+            logger.debug("⚠️ No spell prepared")
         }
     }
 }

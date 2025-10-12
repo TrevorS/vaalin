@@ -296,14 +296,17 @@ public final class CompassPanelViewModel {
             return
         }
 
+        // DEBUG: Log raw tag data
+        logger.debug("Processing nav - Raw attrs: \(tag.attrs)")
+
         // Extract room ID from rm attribute
-        if let rmValue = tag.attrs["rm"] as? String,
+        if let rmValue = tag.attrs["rm"],
            let parsedId = Int(rmValue) {
             roomId = parsedId
-            logger.debug("Updated room ID: \(parsedId)")
+            logger.debug("✓ Updated room ID: \(parsedId)")
         } else {
             // Missing or invalid rm attribute
-            logger.debug("Nav tag missing or invalid rm attribute, keeping previous value")
+            logger.debug("⚠️ Nav tag missing or invalid rm attribute, keeping previous value")
         }
     }
 
@@ -322,24 +325,29 @@ public final class CompassPanelViewModel {
             return
         }
 
+        // DEBUG: Log full tag structure
+        logger.debug("Processing compass - Tag: \(tag.name), children count: \(tag.children.count)")
+
         // Extract exit directions from children
         let exitDirections = tag.children
             .compactMap { child -> String? in
                 // Each child should be a <dir value="..."/> tag
                 guard child.name == "dir",
-                      let value = child.attrs["value"] as? String,
+                      let value = child.attrs["value"],
                       !value.isEmpty else {
+                    logger.debug("  Skipping child: name=\(child.name), value=\(child.attrs["value"] ?? "nil")")
                     return nil
                 }
+                logger.debug("  ✓ Found exit: \(value)")
                 return value
             }
 
         exits = Set(exitDirections)
 
         if exits.isEmpty {
-            logger.debug("Compass has no exits (dead end)")
+            logger.debug("⚠️ Compass has no exits (dead end)")
         } else {
-            logger.debug("Updated exits: \(self.exits.sorted())")
+            logger.debug("✓ Updated exits: \(self.exits.sorted())")
         }
     }
 
@@ -358,9 +366,12 @@ public final class CompassPanelViewModel {
             return
         }
 
+        // DEBUG: Log raw tag data
+        logger.debug("Processing streamWindow - Raw attrs: \(tag.attrs)")
+
         // Extract subtitle attribute
-        guard let subtitle = tag.attrs["subtitle"] as? String else {
-            logger.debug("StreamWindow tag missing subtitle attribute, keeping previous value")
+        guard let subtitle = tag.attrs["subtitle"] else {
+            logger.debug("⚠️ StreamWindow tag missing subtitle attribute, keeping previous value")
             return
         }
 
@@ -369,9 +380,9 @@ public final class CompassPanelViewModel {
         roomName = parsedName
 
         if parsedName.isEmpty {
-            logger.debug("Parsed empty room name from subtitle: \"\(subtitle)\"")
+            logger.debug("⚠️ Parsed empty room name from subtitle: \"\(subtitle)\"")
         } else {
-            logger.debug("Updated room name: \(parsedName)")
+            logger.debug("✓ Updated room name: \(parsedName)")
         }
     }
 

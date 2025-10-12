@@ -27,9 +27,23 @@ import VaalinParser
 ///    ├─ owns → CommandHistory (actor)
 ///    ├─ owns → GameLogViewModel (@Observable)
 ///    ├─ owns → CommandInputViewModel (@Observable)
-///    ├─ polling → getParsedTags() → appendMessage() [main thread]
+///    ├─ polling → getParsedTags() → filterContentTags() → appendMessage() [main thread]
 ///    └─ sendCommand() → connection.send() [game server]
 /// ```
+///
+/// ## Tag Filtering
+///
+/// AppState implements three-layer filtering to prevent blank lines:
+/// 1. **Parser layer**: XMLStreamParser publishes metadata events to EventBus
+/// 2. **Session layer**: AppState filters metadata tags from game log (this class)
+/// 3. **View layer**: GameLogViewModel.hasContentRecursive() catches remaining empty tags
+///
+/// Metadata tags (left, right, spell, progressBar, dialogData, etc.) are NOT
+/// displayed in the game log because they have no visible text content. Instead,
+/// they are consumed by panels via EventBus subscriptions.
+///
+/// This matches the architecture of illthorn (filters metadata at session layer)
+/// and ProfanityFE (returns nil for metadata tags).
 ///
 /// ## Polling Pattern
 ///
@@ -87,6 +101,9 @@ public final class AppState {
     /// The bridge that integrates connection and parser
     private let bridge: ParserConnectionBridge
 
+    /// Shared EventBus for cross-component communication
+    private let eventBus: EventBus
+
     // MARK: - State
 
     /// The game log view model (main thread access only)
@@ -94,6 +111,16 @@ public final class AppState {
 
     /// The command input view model (main thread access only)
     public let commandInputViewModel: CommandInputViewModel
+
+    /// Panel view models for HUD panels (Phase 2 layout)
+    public let handsPanelViewModel: HandsPanelViewModel
+    public let vitalsPanelViewModel: VitalsPanelViewModel
+    public let compassPanelViewModel: CompassPanelViewModel
+    public let injuriesPanelViewModel: InjuriesPanelViewModel
+    public let spellsPanelViewModel: SpellsPanelViewModel
+
+    /// Prompt view model for prompt display (Phase 2 layout)
+    public let promptViewModel: PromptViewModel
 
     /// Command history actor for storing and recalling commands
     private let commandHistory: CommandHistory
@@ -113,6 +140,50 @@ public final class AppState {
     /// Logger for AppState events and errors
     private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "AppState")
 
+    /// Metadata tag names that should NOT appear in game log.
+    ///
+    /// These tags are dispatched as EventBus events for panels instead of being
+    /// displayed in the main game log. The parser publishes these tags to EventBus
+    /// (via XMLStreamParser.publishEventIfNeeded), and panels subscribe to the events.
+    ///
+    /// ## Tag Categories
+    /// - **Hands**: left, right, spell
+    /// - **Vitals**: progressBar (health, mana, stamina, etc.)
+    /// - **Navigation**: nav, compass, streamWindow
+    /// - **Dialog Data**: dialogData (spells, injuries from game dialogs)
+    /// - **Prompt**: prompt (displayed separately in PromptView)
+    /// - **Stream Control**: pushStream, popStream, clearStream (routing directives)
+    ///
+    /// ## Architecture Note
+    /// This filtering happens at the session layer (AppState), matching illthorn's
+    /// approach of separating metadata from content. ProfanityFE does the same by
+    /// returning `nil` for these tags.
+    private let metadataTagNames: Set<String> = [
+        // Hands panel metadata
+        "left",
+        "right",
+        "spell",
+
+        // Vitals panel metadata
+        "progressBar",
+
+        // Navigation panel metadata
+        "nav",
+        "compass",
+        "streamWindow",
+
+        // Dialog data (spells panel, injuries panel)
+        "dialogData",
+
+        // Prompt display (separate view)
+        "prompt",
+
+        // Stream control directives (not visible content)
+        "pushStream",
+        "popStream",
+        "clearStream"
+    ]
+
     // MARK: - Initialization
 
     /// Creates a new AppState with all dependencies initialized.
@@ -120,8 +191,12 @@ public final class AppState {
         // Initialize actor-based components
         self.connection = LichConnection()
 
+        // Initialize shared EventBus FIRST (parser needs it)
+        self.eventBus = EventBus()
+
         #if canImport(VaalinParser)
-        self.parser = XMLStreamParser()
+        // Pass eventBus to parser so it can publish metadata events
+        self.parser = XMLStreamParser(eventBus: eventBus)
         #else
         // For testing without VaalinParser module
         fatalError("VaalinParser module required")
@@ -134,7 +209,22 @@ public final class AppState {
 
         // Initialize view models on main thread
         self.gameLogViewModel = GameLogViewModel()
-        self.commandInputViewModel = CommandInputViewModel(commandHistory: commandHistory)
+        self.commandInputViewModel = CommandInputViewModel(
+            commandHistory: commandHistory,
+            gameLogViewModel: gameLogViewModel,
+            settings: .makeDefault(),
+            connection: connection
+        )
+
+        // Initialize panel view models with EventBus subscriptions
+        self.handsPanelViewModel = HandsPanelViewModel(eventBus: eventBus)
+        self.vitalsPanelViewModel = VitalsPanelViewModel(eventBus: eventBus)
+        self.compassPanelViewModel = CompassPanelViewModel(eventBus: eventBus)
+        self.injuriesPanelViewModel = InjuriesPanelViewModel(eventBus: eventBus)
+        self.spellsPanelViewModel = SpellsPanelViewModel(eventBus: eventBus)
+
+        // Initialize prompt view model with EventBus subscription
+        self.promptViewModel = PromptViewModel(eventBus: eventBus)
     }
 
     // MARK: - Connection Lifecycle
@@ -166,6 +256,14 @@ public final class AppState {
 
         // Start bridge data flow
         await bridge.start()
+
+        // Set up EventBus subscriptions for panels and prompt
+        await handsPanelViewModel.setup()
+        await vitalsPanelViewModel.setup()
+        await compassPanelViewModel.setup()
+        await injuriesPanelViewModel.setup()
+        await spellsPanelViewModel.setup()
+        await promptViewModel.setup()
 
         // Update state
         isConnected = true
@@ -227,7 +325,9 @@ public final class AppState {
     /// Start polling bridge for parsed tags.
     ///
     /// Creates a task that fetches tags from the bridge every 100ms and appends them
-    /// to the game log view model. The task runs until cancelled by `stopPolling()`.
+    /// to the game log view model as a single batch. Tags from one polling cycle are
+    /// rendered together with one timestamp, matching ProfanityFE and Illthorn behavior.
+    /// The task runs until cancelled by `stopPolling()`.
     ///
     /// ## Threading
     /// Polling task runs on MainActor to ensure thread-safe access to GameLogViewModel.
@@ -236,22 +336,30 @@ public final class AppState {
     /// ## Performance
     /// - **Interval**: 100ms (10 updates/second)
     /// - **Overhead**: < 1ms per empty poll
-    /// - **Batch processing**: < 5ms per 100 tags
+    /// - **Batch processing**: < 5ms per 100 tags (rendered as one message)
     private func startPolling() {
         pollingTask = Task { @MainActor in
             while !Task.isCancelled {
                 // Fetch tags from bridge (async actor call)
                 let tags = await bridge.getParsedTags()
 
-                // Process tags if any arrived
-                if !tags.isEmpty {
-                    // Render GameTags to Messages and append to view model
-                    for tag in tags {
-                        // appendMessage() now renders with TagRenderer + ThemeManager
-                        await gameLogViewModel.appendMessage(tag)
-                    }
+                // Filter out metadata tags before sending to game log
+                // Metadata tags are already dispatched to panels via EventBus by the parser,
+                // so they should NOT appear in the game log (they have no visible content)
+                let contentTags = filterContentTags(tags)
 
-                    // Clear processed tags from bridge
+                // Process ONLY content tags - render entire batch as ONE message
+                // This matches illthorn's approach: contentTags = parsed.filter(!metadata)
+                // and ProfanityFE's approach: metadata tags return nil
+                if !contentTags.isEmpty {
+                    // appendMessage() renders all tags together with one timestamp
+                    // This matches ProfanityFE's approach of batching text between XML tags
+                    await gameLogViewModel.appendMessage(contentTags)
+                }
+
+                // Clear ALL tags from bridge (both metadata and content have been processed)
+                // Metadata was published to EventBus by parser, content was sent to game log
+                if !tags.isEmpty {
                     await bridge.clearParsedTags()
                 }
 
@@ -268,5 +376,37 @@ public final class AppState {
     private func stopPolling() {
         pollingTask?.cancel()
         pollingTask = nil
+    }
+
+    // MARK: - Tag Filtering
+
+    /// Filters out metadata tags that belong in panels, not the game log.
+    ///
+    /// Metadata tags (hands, vitals, spells, etc.) are published to EventBus by
+    /// the parser for panel subscriptions. They should NOT appear in the main game
+    /// log because they have no visible text content and would create blank lines.
+    ///
+    /// This implements the three-layer filtering strategy:
+    /// 1. **Parser layer**: Publishes metadata events to EventBus
+    /// 2. **Session layer** (THIS METHOD): Filters metadata from game log
+    /// 3. **View layer**: GameLogViewModel.hasContentRecursive() catches any remaining empty tags
+    ///
+    /// ## Example
+    /// ```swift
+    /// let tags = [
+    ///     GameTag(name: "left", text: nil, ...),      // ← Filtered OUT
+    ///     GameTag(name: "output", text: "Hello", ...), // ← Pass THROUGH
+    ///     GameTag(name: "progressBar", ...)            // ← Filtered OUT
+    /// ]
+    /// let contentTags = filterContentTags(tags)
+    /// // Result: [GameTag(name: "output", text: "Hello", ...)]
+    /// ```
+    ///
+    /// - Parameter tags: All tags from parser (metadata + content)
+    /// - Returns: Only content tags for game log display
+    private func filterContentTags(_ tags: [GameTag]) -> [GameTag] {
+        return tags.filter { tag in
+            !metadataTagNames.contains(tag.name)
+        }
     }
 }
