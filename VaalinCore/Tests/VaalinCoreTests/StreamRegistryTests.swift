@@ -445,6 +445,46 @@ struct StreamRegistryTests {
         #expect(secondAlias?.id == "test")
     }
 
+    /// Test alias collision behavior (last-wins, with logging)
+    @Test func aliasCollisionBehavior() async throws {
+        let registry = StreamRegistry()
+
+        // Two different streams sharing the same alias
+        let json = """
+        {
+          "streams": [
+            {
+              "id": "first",
+              "label": "First Stream",
+              "defaultOn": true,
+              "color": "red",
+              "aliases": ["shared", "first-only"]
+            },
+            {
+              "id": "second",
+              "label": "Second Stream",
+              "defaultOn": true,
+              "color": "blue",
+              "aliases": ["shared", "second-only"]
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        try await registry.load(from: json)
+
+        // Last-wins behavior: "shared" should resolve to "second"
+        let sharedResult = await registry.stream(withAlias: "shared")
+        #expect(sharedResult?.id == "second")
+
+        // Unique aliases should still work
+        let firstOnly = await registry.stream(withAlias: "first-only")
+        #expect(firstOnly?.id == "first")
+
+        let secondOnly = await registry.stream(withAlias: "second-only")
+        #expect(secondOnly?.id == "second")
+    }
+
     // MARK: - Concurrent Access Tests
 
     /// Test concurrent access to registry (thread safety)

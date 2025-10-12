@@ -178,6 +178,11 @@ public actor StreamRegistry {
     /// Replaces all existing streams and aliases with the newly loaded configuration.
     /// This allows for runtime configuration reloading.
     ///
+    /// ## Collision Handling
+    ///
+    /// - **Duplicate IDs**: Last definition wins, previous aliases are removed
+    /// - **Duplicate Aliases**: Last definition wins, collision logged as warning
+    ///
     /// ## Example
     ///
     /// ```swift
@@ -189,9 +194,9 @@ public actor StreamRegistry {
         let decoder = JSONDecoder()
         let config = try decoder.decode(StreamConfig.self, from: data)
 
-        // Clear existing state
-        streams.removeAll()
-        aliasMap.removeAll()
+        // Clear existing state (keep capacity for performance on reload)
+        streams.removeAll(keepingCapacity: true)
+        aliasMap.removeAll(keepingCapacity: true)
 
         // Register all streams from config
         for stream in config.streams {
@@ -207,6 +212,15 @@ public actor StreamRegistry {
 
             // Register all aliases for this stream
             for alias in stream.aliases {
+                // Warn if alias already exists (collision)
+                if let existingID = aliasMap[alias] {
+                    logger.warning(
+                        """
+                        Alias '\(alias, privacy: .public)' remapped: \
+                        '\(existingID, privacy: .public)' -> '\(stream.id, privacy: .public)'
+                        """
+                    )
+                }
                 aliasMap[alias] = stream.id
             }
         }
