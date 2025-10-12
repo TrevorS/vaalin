@@ -79,6 +79,9 @@ public actor TagRenderer {
         // Render the tag content
         var result = await renderTag(tag, theme: theme, inheritedBold: false)
 
+        // Trim double newlines from the END of the message only
+        result = trimTrailingDoubleNewlines(result)
+
         // Prepend timestamp if enabled and timestamp is provided
         if let timestamp = timestamp,
            let settings = timestampSettings,
@@ -126,6 +129,9 @@ public actor TagRenderer {
             let rendered = await renderTag(tag, theme: theme, inheritedBold: false)
             result += rendered
         }
+
+        // Trim double newlines from the END of the message only
+        result = trimTrailingDoubleNewlines(result)
 
         // Prepend timestamp ONCE if enabled and timestamp is provided
         if let timestamp = timestamp,
@@ -376,5 +382,48 @@ public actor TagRenderer {
         }
 
         return attributed
+    }
+
+    /// Trims trailing double newlines from an AttributedString.
+    ///
+    /// Only removes `\n\n` from the end of the string, preserving:
+    /// - Single trailing newlines
+    /// - Newlines in the middle of text
+    /// - All character styling and attributes
+    ///
+    /// This prevents blank lines at the end of messages while preserving
+    /// intentional formatting within the message content.
+    ///
+    /// - Parameter attributed: The AttributedString to trim
+    /// - Returns: AttributedString with trailing double newlines removed
+    ///
+    /// ## Examples
+    /// - `"Hello\n\n"` → `"Hello"`
+    /// - `"Hello\n"` → `"Hello\n"` (single newline preserved)
+    /// - `"Hello\nWorld\n\n"` → `"Hello\nWorld"` (middle newline preserved)
+    private func trimTrailingDoubleNewlines(_ attributed: AttributedString) -> AttributedString {
+        var result = attributed
+        let text = String(result.characters)
+
+        // Check if string ends with double newlines
+        if text.hasSuffix("\n\n") {
+            // Find how many trailing newlines we have
+            var trimCount = 0
+            for char in text.reversed() {
+                if char == "\n" {
+                    trimCount += 1
+                } else {
+                    break
+                }
+            }
+
+            // Only trim if we have 2+ trailing newlines (remove all but keep formatting)
+            if trimCount >= 2 {
+                let endIndex = result.characters.index(result.endIndex, offsetBy: -trimCount)
+                result = AttributedString(result[..<endIndex])
+            }
+        }
+
+        return result
     }
 }

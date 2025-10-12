@@ -273,6 +273,16 @@ public final class GameLogViewModel {
     /// actual content worth displaying. Empty tags, whitespace-only text nodes,
     /// and tags containing only empty children are all considered empty.
     ///
+    /// ## Three-Layer Filtering
+    ///
+    /// This method is the THIRD layer of defense against blank lines:
+    /// 1. **Parser**: Publishes metadata events (XMLStreamParser.publishEventIfNeeded)
+    /// 2. **Session**: Filters metadata tags (AppState.filterContentTags) ← PRIMARY FILTER
+    /// 3. **View**: Catches remaining empty tags (THIS METHOD) ← SAFETY NET
+    ///
+    /// Under normal operation, AppState filtering should catch all metadata tags.
+    /// This method provides a safety net for edge cases (malformed XML, unexpected tags).
+    ///
     /// ## Checks:
     /// 1. If tag has direct text → check if non-whitespace
     /// 2. If tag has children → recursively check each child
