@@ -179,18 +179,10 @@ private struct SpellRow: View {
     /// - Low (< 33%): Red #f38ba8
     /// - Medium (33-66%): Orange #fab387
     /// - High (> 66%): Green #a6e3a1
-    /// - No percentage: Primary color (white/default)
+    /// - No percentage: Green (default)
+    ///
+    /// Delegates to `CatppuccinMocha.severityColor(for:)` for consistent color selection.
     private var timeColor: Color {
-        guard let percent = spell.percentRemaining else {
-            return .primary  // No percentage = normal color
-        }
-
-        if percent < CatppuccinMocha.Severity.critical {
-            return CatppuccinMocha.healthCritical
-        } else if percent < CatppuccinMocha.Severity.medium {
-            return Color(red: 0.980, green: 0.702, blue: 0.529)  // Orange (not in CatppuccinMocha yet)
-        } else {
-            return CatppuccinMocha.healthHigh
-        }
+        return CatppuccinMocha.severityColor(for: spell.percentRemaining)
     }
 }

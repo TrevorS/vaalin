@@ -35,7 +35,7 @@ struct VitalsPanelPopulatedStatePreview: PreviewProvider {
         viewModel.staminaText = "72/95"
         viewModel.spirit = 54  // Medium
         viewModel.spiritText = "54/100"
-        viewModel.mind = 100  // Clear mind
+        viewModel.mind = 0  // Clear mind
         viewModel.mindText = "clear"
         viewModel.stance = "offensive"
         viewModel.encumbrance = "light"

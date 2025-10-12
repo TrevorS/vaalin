@@ -1,6 +1,7 @@
 // ABOUTME: Custom compass rose component with 8-directional arrows and special exits (up/out/down)
 
 import SwiftUI
+import VaalinCore
 import VaalinNetwork
 
 /// Custom compass rose component displaying navigation directions.
@@ -104,7 +105,7 @@ public struct CompassRose: View {
     /// Color palette for compass exits (Catppuccin Mocha theme)
     private enum CompassColor {
         /// Active exit color - Catppuccin green (#a6e3a1)
-        static let activeExit = Color(red: 0.651, green: 0.890, blue: 0.631)
+        static let activeExit = CatppuccinMocha.green
         /// Inactive exit color - system secondary
         static let inactiveExit = Color.secondary
     }
