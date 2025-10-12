@@ -309,12 +309,6 @@ private struct LocationIndicator: View {
     /// Injury status to render
     let status: InjuryStatus
 
-    /// Visual constants for injury indicators
-    private enum Visual {
-        /// Opacity for scar indicators (50% of injury color)
-        static let scarOpacity: CGFloat = 0.5
-    }
-
     var body: some View {
         ZStack(alignment: .leading) {
             if status.isInjured {
@@ -341,18 +335,23 @@ private struct LocationIndicator: View {
     /// - Returns: Color with appropriate severity tint and opacity
     ///
     /// Logic:
-    /// 1. Select base color from severity
+    /// 1. Convert severity (1-3) to percentage for color selection
     /// 2. Apply 50% opacity if scar type
     /// 3. Return full opacity if injury type
     private var indicatorColor: Color {
-        let baseColor: Color = switch status.severity {
-        case 1: CatppuccinMocha.healthMedium  // Yellow for minor injury
-        case 2: Color(red: 0.980, green: 0.702, blue: 0.529)  // Orange for moderate (not in CatppuccinMocha yet)
-        case 3: CatppuccinMocha.healthCritical  // Red for severe injury
-        default: Color.gray  // Fallback for invalid severity
+        // Map severity (1-3) to percentage for color selection
+        // Severity 1 (minor) → 75% → Yellow
+        // Severity 2 (moderate) → 50% → Orange
+        // Severity 3 (severe) → 25% → Red
+        let percentage: Int? = switch status.severity {
+        case 1: 75
+        case 2: 50
+        case 3: 25
+        default: nil
         }
 
-        return status.injuryType == .scar ? baseColor.opacity(Visual.scarOpacity) : baseColor
+        let baseColor = CatppuccinMocha.severityColor(for: percentage)
+        return status.injuryType == .scar ? baseColor.opacity(CatppuccinMocha.Visual.scarOpacity) : baseColor
     }
 }
 
@@ -435,19 +434,23 @@ private struct StatusArea: View {
 
     /// Calculates nervous system damage warning color based on severity.
     ///
-    /// - Returns: Severity-appropriate color (yellow/orange/red) or secondary fallback
+    /// - Returns: Severity-appropriate color (yellow/orange/red)
     ///
     /// Severity mapping:
-    /// - 1: Yellow (#f9e2af)
-    /// - 2: Orange (#fab387)
-    /// - 3: Red (#f38ba8)
-    /// - 0: Secondary (should never display, but safe fallback)
+    /// - 1 (minor): Yellow (#f9e2af) via 75% → yellow
+    /// - 2 (moderate): Orange (#fab387) via 50% → orange
+    /// - 3 (severe): Red (#f38ba8) via 25% → red
+    ///
+    /// Delegates to `CatppuccinMocha.severityColor(for:)` for consistent color selection.
     private var nervousColor: Color {
-        switch viewModel.nervousSeverity {
-        case 1: return CatppuccinMocha.healthMedium  // Yellow for minor nervous damage
-        case 2: return Color(red: 0.980, green: 0.702, blue: 0.529)  // Orange for moderate (not in CatppuccinMocha yet)
-        case 3: return CatppuccinMocha.healthCritical  // Red for severe nervous damage
-        default: return .secondary
+        // Map severity (1-3) to percentage for color selection
+        let percentage: Int? = switch viewModel.nervousSeverity {
+        case 1: 75   // Minor → Yellow
+        case 2: 50   // Moderate → Orange
+        case 3: 25   // Severe → Red
+        default: nil
         }
+
+        return CatppuccinMocha.severityColor(for: percentage)
     }
 }

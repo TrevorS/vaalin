@@ -201,26 +201,11 @@ public struct VitalsPanel: View {
     /// Determines health bar color based on percentage thresholds.
     ///
     /// - Parameter percentage: Health percentage (0-100) or nil for indeterminate
-    /// - Returns: Color matching health level (red/yellow/green)
+    /// - Returns: Color matching health level (red/orange/green)
     ///
-    /// Color mapping:
-    /// - < 33%: Red (critical)
-    /// - 33-66%: Yellow (medium)
-    /// - > 66%: Green (high)
-    /// - nil: Green (default for indeterminate state)
+    /// Delegates to `CatppuccinMocha.severityColor(for:)` for consistent color selection.
     private func healthColor(percentage: Int?) -> Color {
-        guard let percentage = percentage else {
-            // Indeterminate state - use green as default
-            return CatppuccinMocha.healthHigh
-        }
-
-        if percentage < CatppuccinMocha.Severity.critical {
-            return CatppuccinMocha.healthCritical
-        } else if percentage < CatppuccinMocha.Severity.medium {
-            return CatppuccinMocha.healthMedium
-        } else {
-            return CatppuccinMocha.healthHigh
-        }
+        return CatppuccinMocha.severityColor(for: percentage)
     }
 }
 
