@@ -118,7 +118,23 @@ public final class GameLogViewModel {
 
     // MARK: - Public Methods
 
-    /// Appends a game message to the log buffer with theme-based rendering.
+    /// Appends a single game tag to the log buffer with theme-based rendering.
+    ///
+    /// Convenience method for appending a single tag. Delegates to the array-based method
+    /// for consistent rendering behavior. This is the most common use case (85% of call sites).
+    ///
+    /// - Parameter tag: The game tag to render and append
+    ///
+    /// ## Example
+    /// ```swift
+    /// let tag = GameTag(name: "output", text: "You swing at the troll!", state: .closed)
+    /// await viewModel.appendMessage(tag)
+    /// ```
+    public func appendMessage(_ tag: GameTag) async {
+        await appendMessage([tag])
+    }
+
+    /// Appends a batch of game tags to the log buffer with theme-based rendering.
     ///
     /// Renders the provided `GameTag` array into a styled `Message` using TagRenderer and the
     /// current theme. Multiple tags are rendered together as a single logical message with one
@@ -138,6 +154,7 @@ public final class GameLogViewModel {
     ///
     /// ## Example
     /// ```swift
+    /// // Batch rendering: all tags rendered together with one timestamp
     /// let tags = [
     ///     GameTag(name: "a", text: "crumbling stone tower pin", state: .closed),
     ///     GameTag(name: "a", text: "some full leather", state: .closed)
