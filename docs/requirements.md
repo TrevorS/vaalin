@@ -286,7 +286,7 @@ enum TagState {
 
 **Technical Constraints**:
 - ✅ Use `.containerBackground(.glass)` or similar Liquid Glass modifiers (implemented with `.ultraThinMaterial`)
-- ✅ Fixed heights: Hands 140pt, Room 160pt, Vitals 160pt, Injuries 180pt, Spells 180pt
+- ✅ Fixed heights: Hands 140pt, Room 160pt, Vitals 200pt, Injuries 250pt, Spells 180pt
 
 **Implementation Notes** (Issue #33):
 - Generic SwiftUI view with `@ViewBuilder` content

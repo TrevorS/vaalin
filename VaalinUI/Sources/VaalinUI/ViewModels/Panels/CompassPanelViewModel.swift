@@ -151,7 +151,39 @@ import VaalinCore
 /// documented in `docs/compass-tags.md` (Issue #39).
 @Observable
 @MainActor
-public final class CompassPanelViewModel {
+public final class CompassPanelViewModel: PanelViewModelBase {
+    // MARK: - Pattern Constants
+
+    /// Regex patterns for parsing room titles from subtitle attributes
+    private enum RoomTitlePattern {
+        /// GemStone IV format: closing bracket followed by " - {room_id}"
+        ///
+        /// Matches patterns like:
+        /// - "[Room Name] - 123" (ending pattern)
+        /// - "[Town Square, Market] - 228" (ending pattern)
+        ///
+        /// Used to remove the trailing " - {id}" only when there's a closing bracket before it.
+        static let gemstoneIV = #"\] - \d+$"#
+
+        /// DragonRealms format: space followed by "({room_id})"
+        ///
+        /// Matches patterns like:
+        /// - "[Room Name] (123)" (ending pattern)
+        /// - "[Bosque Deriel] (230008)" (ending pattern)
+        ///
+        /// Used to remove the trailing " ({id})" pattern.
+        static let dragonRealms = #" \(\d+\)$"#
+
+        /// Malformed/fallback format: space followed by "- {room_id}"
+        ///
+        /// Matches patterns like:
+        /// - "Room Name - 123" (ending pattern)
+        /// - "Location - 456" (ending pattern)
+        ///
+        /// Used as fallback when subtitle doesn't contain brackets.
+        static let malformed = #" - \d+$"#
+    }
+
     // MARK: - Properties
 
     /// Current room name (default: "")
@@ -176,20 +208,16 @@ public final class CompassPanelViewModel {
     /// SwiftUI views observing this property will automatically update when it changes.
     public var exits: Set<String> = []
 
+    // MARK: - PanelViewModelBase Requirements
+
     /// EventBus reference for subscribing to navigation/compass events
-    private let eventBus: EventBus
+    public let eventBus: EventBus
 
     /// Subscription IDs for cleanup on deinit
     /// Excluded from observation (not part of UI state) and marked nonisolated(unsafe)
     /// for access in deinit. Safe because handlers use weak self.
     @ObservationIgnored
-    nonisolated(unsafe) private var navSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var compassSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var streamWindowSubscriptionID: EventBus.SubscriptionID?
+    nonisolated(unsafe) public var subscriptionIDs: [EventBus.SubscriptionID] = []
 
     /// Logger for CompassPanelViewModel events and errors
     private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "CompassPanelViewModel")
@@ -224,60 +252,44 @@ public final class CompassPanelViewModel {
     /// ```
     public func setup() async {
         // Idempotency check - prevent duplicate subscriptions
-        guard navSubscriptionID == nil else {
+        guard subscriptionIDs.isEmpty else {
             logger.debug("Already subscribed to EventBus, skipping setup")
             return
         }
 
         // Subscribe to nav events (room ID)
-        navSubscriptionID = await eventBus.subscribe("metadata/nav") { [weak self] (tag: GameTag) in
+        let navID = await eventBus.subscribe("metadata/nav") { [weak self] (tag: GameTag) in
             await self?.handleNavEvent(tag)
         }
-        logger.debug("Subscribed to metadata/nav events with ID: \(self.navSubscriptionID!)")
+        subscriptionIDs.append(navID)
+        logger.debug("Subscribed to metadata/nav events with ID: \(navID)")
 
         // Subscribe to compass events (exits)
-        compassSubscriptionID = await eventBus.subscribe("metadata/compass") { [weak self] (tag: GameTag) in
+        let compassID = await eventBus.subscribe("metadata/compass") { [weak self] (tag: GameTag) in
             await self?.handleCompassEvent(tag)
         }
-        logger.debug("Subscribed to metadata/compass events with ID: \(self.compassSubscriptionID!)")
+        subscriptionIDs.append(compassID)
+        logger.debug("Subscribed to metadata/compass events with ID: \(compassID)")
 
         // Subscribe to streamWindow events (room title)
-        streamWindowSubscriptionID = await eventBus.subscribe(
+        let streamWindowID = await eventBus.subscribe(
             "metadata/streamWindow/room"
         ) { [weak self] (tag: GameTag) in
             await self?.handleStreamWindowEvent(tag)
         }
-        logger.debug("Subscribed to metadata/streamWindow/room events with ID: \(self.streamWindowSubscriptionID!)")
+        subscriptionIDs.append(streamWindowID)
+        logger.debug("Subscribed to metadata/streamWindow/room events with ID: \(streamWindowID)")
     }
 
     // MARK: - Deinitialization
 
     /// Unsubscribes from EventBus on deallocation
     ///
-    /// **Note:** Cleanup happens asynchronously in detached tasks. The subscriptions
-    /// will be removed from EventBus after deinit completes. This is safe because
-    /// the handlers use `weak self` and won't be called after deallocation.
+    /// **Note:** Cleanup happens asynchronously via PanelViewModelBase.cleanup().
+    /// The subscriptions will be removed from EventBus after deinit completes.
+    /// This is safe because the handlers use `weak self` and won't be called after deallocation.
     deinit {
-        // Capture values for async cleanup
-        let bus = eventBus
-
-        if let id = navSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = compassSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = streamWindowSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
+        cleanup()
     }
 
     // MARK: - Private Methods
@@ -419,8 +431,7 @@ public final class CompassPanelViewModel {
 
         // Remove trailing " - {room_id}" pattern (GemStone IV format)
         // ONLY if there's a closing bracket BEFORE the ` - {id}` pattern
-        // Regex: "\] - \d+$" (closing bracket, space, hyphen, space, digits, end of string)
-        if let range = title.range(of: #"\] - \d+$"#, options: .regularExpression) {
+        if let range = title.range(of: RoomTitlePattern.gemstoneIV, options: .regularExpression) {
             // Remove only the " - {digits}" part, keep the "]"
             let bracketIndex = title.distance(from: title.startIndex, to: range.lowerBound)
             let endIndex = title.index(title.startIndex, offsetBy: bracketIndex + 1) // Keep the "]"
@@ -428,14 +439,13 @@ public final class CompassPanelViewModel {
         } else if !title.contains("[") {
             // Fallback: Malformed subtitle without brackets
             // Remove trailing " - {digits}" pattern anyway for robustness
-            if let range = title.range(of: #" - \d+$"#, options: .regularExpression) {
+            if let range = title.range(of: RoomTitlePattern.malformed, options: .regularExpression) {
                 title.removeSubrange(range)
             }
         }
 
         // Remove trailing " ({room_id})" pattern (DragonRealms format)
-        // Regex: " \(\d+\)$" (space, open paren, digits, close paren, end of string)
-        if let range = title.range(of: #" \(\d+\)$"#, options: .regularExpression) {
+        if let range = title.range(of: RoomTitlePattern.dragonRealms, options: .regularExpression) {
             title.removeSubrange(range)
         }
 

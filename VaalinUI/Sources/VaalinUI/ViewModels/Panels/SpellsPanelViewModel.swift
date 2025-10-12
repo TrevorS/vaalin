@@ -115,7 +115,7 @@ import VaalinCore
 /// ```
 @Observable
 @MainActor
-public final class SpellsPanelViewModel {
+public final class SpellsPanelViewModel: PanelViewModelBase {
     // MARK: - Properties
 
     /// List of currently active spells
@@ -125,14 +125,16 @@ public final class SpellsPanelViewModel {
     /// Empty array indicates no spells are currently active.
     public var activeSpells: [ActiveSpell] = []
 
-    /// EventBus reference for subscribing to Active Spells events
-    private let eventBus: EventBus
+    // MARK: - PanelViewModelBase Requirements
 
-    /// Subscription ID for cleanup on deinit
+    /// EventBus reference for subscribing to Active Spells events
+    public let eventBus: EventBus
+
+    /// Subscription IDs for cleanup on deinit
     /// Excluded from observation (not part of UI state) and marked nonisolated(unsafe)
-    /// for access in deinit. Safe because handler uses weak self.
+    /// for access in deinit. Safe because handlers use weak self.
     @ObservationIgnored
-    nonisolated(unsafe) private var spellsSubscriptionID: EventBus.SubscriptionID?
+    nonisolated(unsafe) public var subscriptionIDs: [EventBus.SubscriptionID] = []
 
     /// Logger for SpellsPanelViewModel events and errors
     private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "SpellsPanelViewModel")
@@ -167,36 +169,29 @@ public final class SpellsPanelViewModel {
     /// ```
     public func setup() async {
         // Idempotency check - prevent duplicate subscriptions
-        guard spellsSubscriptionID == nil else {
+        guard subscriptionIDs.isEmpty else {
             logger.debug("Already subscribed to EventBus, skipping setup")
             return
         }
 
         // Subscribe to Active Spells events
         let eventName = "metadata/dialogData/Active Spells"
-        spellsSubscriptionID = await eventBus.subscribe(eventName) { [weak self] (tag: GameTag) in
+        let id = await eventBus.subscribe(eventName) { [weak self] (tag: GameTag) in
             await self?.handleActiveSpellsEvent(tag)
         }
-        let subID = self.spellsSubscriptionID!
-        logger.debug("Subscribed to \(eventName) events with ID: \(subID)")
+        subscriptionIDs.append(id)
+        logger.debug("Subscribed to \(eventName) events with ID: \(id)")
     }
 
     // MARK: - Deinitialization
 
     /// Unsubscribes from EventBus on deallocation
     ///
-    /// **Note:** Cleanup happens asynchronously in detached tasks. The subscriptions
-    /// will be removed from EventBus after deinit completes. This is safe because
-    /// the handlers use `weak self` and won't be called after deallocation.
+    /// **Note:** Cleanup happens asynchronously via PanelViewModelBase.cleanup().
+    /// The subscriptions will be removed from EventBus after deinit completes.
+    /// This is safe because the handlers use `weak self` and won't be called after deallocation.
     deinit {
-        // Capture values for async cleanup
-        let bus = eventBus
-
-        if let id = spellsSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
+        cleanup()
     }
 
     // MARK: - Private Methods
@@ -251,11 +246,9 @@ public final class SpellsPanelViewModel {
 
         // Sort spells by numeric spell ID
         // Spell IDs are numeric strings (e.g., "202", "901", "1720")
-        // Sort numerically so 202 comes before 901, not alphabetically
+        // Use localizedStandardCompare for proper numeric string sorting
         let sortedSpells = newSpells.sorted { lhs, rhs in
-            let lhsNum = Int(lhs.id) ?? Int.max
-            let rhsNum = Int(rhs.id) ?? Int.max
-            return lhsNum < rhsNum
+            lhs.id.localizedStandardCompare(rhs.id) == .orderedAscending
         }
 
         // Replace activeSpells with new sorted list

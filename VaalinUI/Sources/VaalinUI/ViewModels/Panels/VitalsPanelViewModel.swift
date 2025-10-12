@@ -114,7 +114,22 @@ import VaalinCore
 /// ```
 @Observable
 @MainActor
-public final class VitalsPanelViewModel {
+public final class VitalsPanelViewModel: PanelViewModelBase {
+    // MARK: - Pattern Constants
+
+    /// Regex patterns for parsing vital text data
+    private enum VitalPattern {
+        /// Extracts numeric fraction (e.g., "74/74") from potentially contaminated text
+        ///
+        /// Matches patterns like:
+        /// - "74/74" → "74/74"
+        /// - "Health 74/74" → "74/74"
+        /// - "50 / 100" → "50 / 100" (with spaces)
+        ///
+        /// Used in `extractVitalData(from:)` to clean server-provided text.
+        static let fraction = #"\d+\s*/\s*\d+"#
+    }
+
     // MARK: - Properties
 
     /// Current health percentage (0-100), nil for indeterminate state
@@ -190,32 +205,16 @@ public final class VitalsPanelViewModel {
     /// Text is converted to lowercase for consistent display.
     public var encumbrance: String = "none"
 
+    // MARK: - PanelViewModelBase Requirements
+
     /// EventBus reference for subscribing to vitals events
-    private let eventBus: EventBus
+    public let eventBus: EventBus
 
     /// Subscription IDs for cleanup on deinit
     /// Excluded from observation (not part of UI state) and marked nonisolated(unsafe)
     /// for access in deinit. Safe because handlers use weak self.
     @ObservationIgnored
-    nonisolated(unsafe) private var healthSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var manaSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var staminaSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var spiritSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var mindSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var stanceSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var encumbranceSubscriptionID: EventBus.SubscriptionID?
+    nonisolated(unsafe) public var subscriptionIDs: [EventBus.SubscriptionID] = []
 
     /// Logger for VitalsPanelViewModel events and errors
     private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "VitalsPanelViewModel")
@@ -250,53 +249,58 @@ public final class VitalsPanelViewModel {
     /// ```
     public func setup() async {
         // Idempotency check - prevent duplicate subscriptions
-        guard healthSubscriptionID == nil else {
+        guard subscriptionIDs.isEmpty else {
             logger.debug("Already subscribed to EventBus, skipping setup")
             return
         }
 
         // Subscribe to health events
-        healthSubscriptionID = await eventBus.subscribe("metadata/progressBar/health") { [weak self] (tag: GameTag) in
+        let healthID = await eventBus.subscribe("metadata/progressBar/health") { [weak self] (tag: GameTag) in
             await self?.handleProgressBarEvent(tag, expectedID: "health")
         }
-        logger.debug("Subscribed to metadata/progressBar/health events with ID: \(self.healthSubscriptionID!)")
+        subscriptionIDs.append(healthID)
+        logger.debug("Subscribed to metadata/progressBar/health events with ID: \(healthID)")
 
         // Subscribe to mana events
-        manaSubscriptionID = await eventBus.subscribe("metadata/progressBar/mana") { [weak self] (tag: GameTag) in
+        let manaID = await eventBus.subscribe("metadata/progressBar/mana") { [weak self] (tag: GameTag) in
             await self?.handleProgressBarEvent(tag, expectedID: "mana")
         }
-        logger.debug("Subscribed to metadata/progressBar/mana events with ID: \(self.manaSubscriptionID!)")
+        subscriptionIDs.append(manaID)
+        logger.debug("Subscribed to metadata/progressBar/mana events with ID: \(manaID)")
 
         // Subscribe to stamina events
-        staminaSubscriptionID = await eventBus.subscribe("metadata/progressBar/stamina") { [weak self] (tag: GameTag) in
+        let staminaID = await eventBus.subscribe("metadata/progressBar/stamina") { [weak self] (tag: GameTag) in
             await self?.handleProgressBarEvent(tag, expectedID: "stamina")
         }
-        logger.debug("Subscribed to metadata/progressBar/stamina events with ID: \(self.staminaSubscriptionID!)")
+        subscriptionIDs.append(staminaID)
+        logger.debug("Subscribed to metadata/progressBar/stamina events with ID: \(staminaID)")
 
         // Subscribe to spirit events
-        spiritSubscriptionID = await eventBus.subscribe("metadata/progressBar/spirit") { [weak self] (tag: GameTag) in
+        let spiritID = await eventBus.subscribe("metadata/progressBar/spirit") { [weak self] (tag: GameTag) in
             await self?.handleProgressBarEvent(tag, expectedID: "spirit")
         }
-        logger.debug("Subscribed to metadata/progressBar/spirit events with ID: \(self.spiritSubscriptionID!)")
+        subscriptionIDs.append(spiritID)
+        logger.debug("Subscribed to metadata/progressBar/spirit events with ID: \(spiritID)")
 
         // Subscribe to mind events
-        mindSubscriptionID = await eventBus.subscribe("metadata/progressBar/mindState") { [weak self] tag in
+        let mindID = await eventBus.subscribe("metadata/progressBar/mindState") { [weak self] tag in
             await self?.handleMindEvent(tag)
         }
-        logger.debug("Subscribed to metadata/progressBar/mindState events with ID: \(self.mindSubscriptionID!)")
+        subscriptionIDs.append(mindID)
+        logger.debug("Subscribed to metadata/progressBar/mindState events with ID: \(mindID)")
 
         // Subscribe to stance events
-        stanceSubscriptionID = await eventBus.subscribe("metadata/progressBar/pbarStance") { [weak self] tag in
+        let stanceID = await eventBus.subscribe("metadata/progressBar/pbarStance") { [weak self] tag in
             await self?.handleStanceEvent(tag)
         }
-        let stanceID = self.stanceSubscriptionID!
+        subscriptionIDs.append(stanceID)
         logger.debug("Subscribed to metadata/progressBar/pbarStance events with ID: \(stanceID)")
 
         // Subscribe to encumbrance events
-        encumbranceSubscriptionID = await eventBus.subscribe("metadata/progressBar/encumlevel") { [weak self] tag in
+        let encumID = await eventBus.subscribe("metadata/progressBar/encumlevel") { [weak self] tag in
             await self?.handleEncumbranceEvent(tag)
         }
-        let encumID = self.encumbranceSubscriptionID!
+        subscriptionIDs.append(encumID)
         logger.debug("Subscribed to metadata/progressBar/encumlevel events with ID: \(encumID)")
     }
 
@@ -304,54 +308,11 @@ public final class VitalsPanelViewModel {
 
     /// Unsubscribes from EventBus on deallocation
     ///
-    /// **Note:** Cleanup happens asynchronously in detached tasks. The subscriptions
-    /// will be removed from EventBus after deinit completes. This is safe because
-    /// the handlers use `weak self` and won't be called after deallocation.
+    /// **Note:** Cleanup happens asynchronously via PanelViewModelBase.cleanup().
+    /// The subscriptions will be removed from EventBus after deinit completes.
+    /// This is safe because the handlers use `weak self` and won't be called after deallocation.
     deinit {
-        // Capture values for async cleanup
-        let bus = eventBus
-
-        if let id = healthSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = manaSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = staminaSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = spiritSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = mindSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = stanceSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = encumbranceSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
+        cleanup()
     }
 
     // MARK: - Private Methods
@@ -439,8 +400,7 @@ public final class VitalsPanelViewModel {
         // Clean text: extract ONLY the numeric fraction (e.g., "74/74"), strip any label prefix
         // Server might send contaminated text like "Health 74/74" but we only want "74/74"
         if let rawText = text, rawText.contains("/") {
-            let fractionPattern = #"\d+\s*/\s*\d+"#
-            if let range = rawText.range(of: fractionPattern, options: .regularExpression) {
+            if let range = rawText.range(of: VitalPattern.fraction, options: .regularExpression) {
                 text = String(rawText[range])  // Extract just "74/74" part
                 logger.debug("Cleaned text from '\(rawText)' to '\(text!)'")
             }
