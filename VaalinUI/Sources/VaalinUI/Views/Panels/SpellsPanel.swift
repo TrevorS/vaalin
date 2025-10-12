@@ -12,11 +12,12 @@ import VaalinCore
 ///
 /// ## Visual Design
 ///
-/// List format with color-coded time remaining:
+/// Scrollable list format with color-coded time remaining:
 /// - Low time (< 33%): Red warning color (#f38ba8)
 /// - Medium time (33-66%): Orange caution color (#fab387)
 /// - High time (> 66%): Green normal color (#a6e3a1)
 ///
+/// When multiple spells are active, the list becomes scrollable within the fixed panel height.
 /// Empty states show "No active spells" centered with secondary color and italic style.
 ///
 /// ## PanelContainer Integration
@@ -30,7 +31,7 @@ import VaalinCore
 /// ## EventBus Updates
 ///
 /// Updates automatically via `SpellsPanelViewModel` which subscribes to:
-/// - `metadata/dialogData/spellfront` - Active spell updates
+/// - `metadata/dialogData/Active Spells` - Active spell updates
 ///
 /// The view model calls `setup()` in the `.task` modifier to initialize EventBus subscriptions.
 ///
@@ -92,17 +93,19 @@ public struct SpellsPanel: View {
                     .italic()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // Populated state
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(viewModel.activeSpells) { spell in
-                        SpellRow(spell: spell)
-                            .accessibilityElement(children: AccessibilityChildBehavior.combine)
-                            .accessibilityLabel(accessibilityLabel(for: spell))
+                // Populated state - scrollable when list is long
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(viewModel.activeSpells) { spell in
+                            SpellRow(spell: spell)
+                                .accessibilityElement(children: AccessibilityChildBehavior.combine)
+                                .accessibilityLabel(accessibilityLabel(for: spell))
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
         .task {

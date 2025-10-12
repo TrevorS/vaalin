@@ -140,7 +140,7 @@ struct InjuriesPanelTests {
             ],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: injuriesDialog)
+        await eventBus.publish("metadata/dialogData/injuries", data: injuriesDialog)
 
         // Then - verify injuries are set correctly
         #expect(viewModel.injuries[.head]?.severity == 3)
@@ -183,7 +183,7 @@ struct InjuriesPanelTests {
             ],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: scarsDialog)
+        await eventBus.publish("metadata/dialogData/injuries", data: scarsDialog)
 
         // Then - verify scars are set correctly
         #expect(viewModel.injuries[.head]?.severity == 3)
@@ -224,7 +224,7 @@ struct InjuriesPanelTests {
             ],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialog1)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialog1)
 
         // Capture grid structure via reflection
         let panel1 = InjuriesPanel(viewModel: viewModel)
@@ -242,7 +242,7 @@ struct InjuriesPanelTests {
             ],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialog2)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialog2)
 
         // Capture grid structure again
         let panel2 = InjuriesPanel(viewModel: viewModel)
@@ -287,7 +287,7 @@ struct InjuriesPanelTests {
             ],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: mixedDialog)
+        await eventBus.publish("metadata/dialogData/injuries", data: mixedDialog)
 
         // Then - verify panel renders with correct states
         let panel = InjuriesPanel(viewModel: viewModel)

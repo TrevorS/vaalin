@@ -23,7 +23,7 @@ struct MainViewTests {
     /// Test that MainView initializes with default settings
     ///
     /// Acceptance Criteria:
-    /// - Default left panels: ["hands", "vitals"]
+    /// - Default left panels: ["hands", "vitals", "injuries"]
     /// - Default right panels: ["compass", "spells"]
     /// - Default streams height: 200pt
     @Test("MainView initializes with default settings")
@@ -41,7 +41,7 @@ struct MainViewTests {
     /// Test that default settings have correct layout configuration
     ///
     /// Acceptance Criteria:
-    /// - Left column: ["hands", "vitals"]
+    /// - Left column: ["hands", "vitals", "injuries"]
     /// - Right column: ["compass", "spells"]
     /// - Streams height: 200pt
     /// - Default column width: 280pt (no overrides)
@@ -49,7 +49,7 @@ struct MainViewTests {
     func test_defaultSettingsLayout() async throws {
         let settings = Settings.makeDefault()
 
-        #expect(settings.layout.left == ["hands", "vitals"])
+        #expect(settings.layout.left == ["hands", "vitals", "injuries"])
         #expect(settings.layout.right == ["compass", "spells"])
         #expect(settings.layout.streamsHeight == 200.0)
         #expect(settings.layout.colWidth.isEmpty)
@@ -527,7 +527,7 @@ struct MainViewTests {
         let settings = Settings.makeDefault()
 
         // Verify default configuration
-        #expect(settings.layout.left == ["hands", "vitals"])
+        #expect(settings.layout.left == ["hands", "vitals", "injuries"])
         #expect(settings.layout.right == ["compass", "spells"])
 
         // Verify streams height

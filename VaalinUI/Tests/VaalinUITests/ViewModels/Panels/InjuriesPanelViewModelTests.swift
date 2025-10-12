@@ -68,7 +68,7 @@ struct InjuriesPanelViewModelTests {
         await viewModel.setup()
 
         // Verify subscription exists
-        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData")
+        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/injuries")
         #expect(handlerCount == 1)
     }
 
@@ -102,7 +102,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify head injury updated
@@ -134,7 +134,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.injuries[.chest]?.injuryType == .injury)
@@ -165,7 +165,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.injuries[.abdomen]?.injuryType == .injury)
@@ -196,7 +196,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.injuries[.leftArm]?.injuryType == .scar)
@@ -227,7 +227,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.injuries[.rightArm]?.injuryType == .scar)
@@ -258,7 +258,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.injuries[.back]?.injuryType == .scar)
@@ -289,7 +289,7 @@ struct InjuriesPanelViewModelTests {
             children: [injuryTag],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialogTag1)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag1)
         try? await Task.sleep(for: .milliseconds(10))
         #expect(viewModel.injuries[.head]?.injuryType == .injury)
 
@@ -308,7 +308,7 @@ struct InjuriesPanelViewModelTests {
             children: [healthyTag],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialogTag2)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag2)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify healed
@@ -347,7 +347,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // healthSkin should be ignored, only head should update
@@ -382,7 +382,7 @@ struct InjuriesPanelViewModelTests {
             children: [injuryTag],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialogTag1)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag1)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.injuries[.chest]?.injuryType == .injury)
@@ -403,7 +403,7 @@ struct InjuriesPanelViewModelTests {
             children: [scarTag],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialogTag2)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag2)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should be scar now, not injury
@@ -464,7 +464,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify only head changed
@@ -514,7 +514,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all updated independently
@@ -554,7 +554,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should not crash, all parts still .none
@@ -587,7 +587,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should not crash, head still .none
@@ -618,7 +618,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should not crash, all parts still .none
@@ -651,7 +651,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should not crash, head still at default
@@ -688,7 +688,7 @@ struct InjuriesPanelViewModelTests {
                 children: [imageTag],
                 state: .closed
             )
-            await eventBus.publish("metadata/dialogData", data: dialogTag)
+            await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
             try? await Task.sleep(for: .milliseconds(5))
         }
 
@@ -733,7 +733,7 @@ struct InjuriesPanelViewModelTests {
             children: [headImage, chestImage],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialogTag1)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag1)
         try? await Task.sleep(for: .milliseconds(10))
 
         #expect(viewModel.injuries[.head]?.injuryType == .injury)
@@ -747,7 +747,7 @@ struct InjuriesPanelViewModelTests {
             children: [],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: emptyDialog)
+        await eventBus.publish("metadata/dialogData/injuries", data: emptyDialog)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify reset to defaults
@@ -774,7 +774,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: emptyDialog)
+        await eventBus.publish("metadata/dialogData/injuries", data: emptyDialog)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should not crash, all still .none
@@ -828,7 +828,7 @@ struct InjuriesPanelViewModelTests {
             await viewModel.setup()
 
             // Verify subscription exists
-            let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData")
+            let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/injuries")
             #expect(handlerCount == 1)
         }
 
@@ -837,7 +837,7 @@ struct InjuriesPanelViewModelTests {
         try? await Task.sleep(for: .milliseconds(50))
 
         // Verify subscription was removed
-        let handlerCountAfter = await eventBus.handlerCount(for: "metadata/dialogData")
+        let handlerCountAfter = await eventBus.handlerCount(for: "metadata/dialogData/injuries")
         #expect(handlerCountAfter == 0)
     }
 
@@ -853,7 +853,7 @@ struct InjuriesPanelViewModelTests {
         await viewModel2.setup()
 
         // Verify both subscribed
-        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData")
+        let handlerCount = await eventBus.handlerCount(for: "metadata/dialogData/injuries")
         #expect(handlerCount == 2)
 
         // Publish event
@@ -871,7 +871,7 @@ struct InjuriesPanelViewModelTests {
             children: [imageTag],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify both updated
@@ -909,7 +909,7 @@ struct InjuriesPanelViewModelTests {
                 state: .closed
             )
 
-            await eventBus.publish("metadata/dialogData", data: dialogTag)
+            await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
             try? await Task.sleep(for: .milliseconds(10))
 
             #expect(viewModel.injuries[bodyPart]?.injuryType == .injury)
@@ -930,7 +930,7 @@ struct InjuriesPanelViewModelTests {
                 children: [resetImage],
                 state: .closed
             )
-            await eventBus.publish("metadata/dialogData", data: resetDialog)
+            await eventBus.publish("metadata/dialogData/injuries", data: resetDialog)
             try? await Task.sleep(for: .milliseconds(10))
         }
     }
@@ -982,7 +982,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify count is 3
@@ -1018,7 +1018,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // No longer healthy
@@ -1032,7 +1032,7 @@ struct InjuriesPanelViewModelTests {
             children: [],
             state: .closed
         )
-        await eventBus.publish("metadata/dialogData", data: emptyDialog)
+        await eventBus.publish("metadata/dialogData/injuries", data: emptyDialog)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Healthy again
@@ -1069,7 +1069,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should detect nervous damage
@@ -1101,7 +1101,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Should detect nervous damage even from scar
@@ -1138,7 +1138,7 @@ struct InjuriesPanelViewModelTests {
                 state: .closed
             )
 
-            await eventBus.publish("metadata/dialogData", data: dialogTag)
+            await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
             try? await Task.sleep(for: .milliseconds(10))
 
             #expect(viewModel.nervousSeverity == severity)
@@ -1184,7 +1184,7 @@ struct InjuriesPanelViewModelTests {
             state: .closed
         )
 
-        await eventBus.publish("metadata/dialogData", data: dialogTag)
+        await eventBus.publish("metadata/dialogData/injuries", data: dialogTag)
         try? await Task.sleep(for: .milliseconds(10))
 
         // Verify all status properties updated

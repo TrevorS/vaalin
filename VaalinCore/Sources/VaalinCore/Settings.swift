@@ -95,10 +95,10 @@ public struct Settings: Codable, Sendable {
             self.panelVisibility = panelVisibility
         }
 
-        /// Default layout: hands/vitals on left, compass/spells on right
+        /// Default layout: hands/vitals/injuries on left, compass/spells on right
         public static func makeDefault() -> Layout {
             Layout(
-                left: ["hands", "vitals"],
+                left: ["hands", "vitals", "injuries"],
                 right: ["compass", "spells"],
                 colWidth: [:],
                 streamsHeight: 200.0,

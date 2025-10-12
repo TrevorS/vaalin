@@ -7,13 +7,13 @@ import VaalinCore
 
 /// View model for the active spells panel with real-time updates from EventBus.
 ///
-/// `SpellsPanelViewModel` subscribes to `metadata/dialogData/spellfront` events from the EventBus
+/// `SpellsPanelViewModel` subscribes to `metadata/dialogData/Active Spells` events from the EventBus
 /// and updates the active spells list when the game server sends spell/effect data.
 ///
 /// ## EventBus Integration
 ///
 /// Subscribes to one event on initialization:
-/// - `"metadata/dialogData/spellfront"` - Active spells dialog updates
+/// - `"metadata/dialogData/Active Spells"` - Active spells dialog updates
 ///
 /// When the parser emits these events (Issue #44), this view model receives them and updates
 /// the `activeSpells` list, which SwiftUI views automatically observe.
@@ -22,11 +22,11 @@ import VaalinCore
 ///
 /// The parser publishes `GameTag` events with progressBar children containing spell data:
 /// ```swift
-/// // Spellfront dialog example
+/// // Active Spells dialog example
 /// GameTag(
 ///     name: "dialogData",
 ///     text: nil,
-///     attrs: ["id": "spellfront"],
+///     attrs: ["id": "Active Spells"],
 ///     children: [
 ///         GameTag(
 ///             name: "progressBar",
@@ -56,7 +56,7 @@ import VaalinCore
 /// GameTag(
 ///     name: "dialogData",
 ///     text: nil,
-///     attrs: ["id": "spellfront"],
+///     attrs: ["id": "Active Spells"],
 ///     children: [],  // Empty children = clear all spells
 ///     state: .closed
 /// )
@@ -64,7 +64,7 @@ import VaalinCore
 ///
 /// ## Data Extraction Logic
 ///
-/// 1. **Tag filtering**: Only processes dialogData tags with `id="spellfront"`
+/// 1. **Tag filtering**: Only processes dialogData tags with `id="Active Spells"`
 /// 2. **Child filtering**: Only processes progressBar children
 /// 3. **Required fields**: Spells must have `id` and `text` attributes, text must not be empty
 /// 4. **Optional fields**:
@@ -97,17 +97,17 @@ import VaalinCore
 /// // Display in SwiftUI view
 /// SpellsPanel(viewModel: viewModel)
 ///
-/// // The parser will publish spellfront events:
+/// // The parser will publish Active Spells events:
 /// let spell = GameTag(
 ///     name: "progressBar",
 ///     attrs: ["id": "913", "text": "Melgorehn's Aura", "time": "14:32", "value": "85"]
 /// )
 /// let dialog = GameTag(
 ///     name: "dialogData",
-///     attrs: ["id": "spellfront"],
+///     attrs: ["id": "Active Spells"],
 ///     children: [spell]
 /// )
-/// await eventBus.publish("metadata/dialogData/spellfront", data: dialog)
+/// await eventBus.publish("metadata/dialogData/Active Spells", data: dialog)
 ///
 /// // SwiftUI view automatically updates with new spell list
 /// print(viewModel.activeSpells.count)  // 1
@@ -120,12 +120,12 @@ public final class SpellsPanelViewModel {
 
     /// List of currently active spells
     ///
-    /// Updated automatically when `metadata/dialogData/spellfront` events are published to EventBus.
+    /// Updated automatically when `metadata/dialogData/Active Spells` events are published to EventBus.
     /// SwiftUI views observing this property will automatically update when it changes.
     /// Empty array indicates no spells are currently active.
     public var activeSpells: [ActiveSpell] = []
 
-    /// EventBus reference for subscribing to spellfront events
+    /// EventBus reference for subscribing to Active Spells events
     private let eventBus: EventBus
 
     /// Subscription ID for cleanup on deinit
@@ -141,7 +141,7 @@ public final class SpellsPanelViewModel {
 
     /// Creates a new SpellsPanelViewModel with EventBus reference.
     ///
-    /// - Parameter eventBus: EventBus actor for subscribing to spellfront events
+    /// - Parameter eventBus: EventBus actor for subscribing to Active Spells events
     ///
     /// **Important:** Call `setup()` immediately after initialization to subscribe to events.
     /// This two-step init pattern is necessary because Swift doesn't support async initialization
@@ -152,7 +152,7 @@ public final class SpellsPanelViewModel {
         // Subscriptions happen in setup() method
     }
 
-    /// Sets up EventBus subscriptions to spellfront events.
+    /// Sets up EventBus subscriptions to Active Spells events.
     ///
     /// **Must be called immediately after init** to enable spells updates.
     /// In production code, this is typically called in the view's `.task` modifier.
@@ -172,10 +172,10 @@ public final class SpellsPanelViewModel {
             return
         }
 
-        // Subscribe to spellfront events
-        let eventName = "metadata/dialogData/spellfront"
+        // Subscribe to Active Spells events
+        let eventName = "metadata/dialogData/Active Spells"
         spellsSubscriptionID = await eventBus.subscribe(eventName) { [weak self] (tag: GameTag) in
-            await self?.handleSpellfrontEvent(tag)
+            await self?.handleActiveSpellsEvent(tag)
         }
         let subID = self.spellsSubscriptionID!
         logger.debug("Subscribed to \(eventName) events with ID: \(subID)")
@@ -201,13 +201,13 @@ public final class SpellsPanelViewModel {
 
     // MARK: - Private Methods
 
-    /// Handles incoming spellfront events from EventBus
+    /// Handles incoming Active Spells events from EventBus
     ///
-    /// - Parameter tag: GameTag containing spellfront dialog data
+    /// - Parameter tag: GameTag containing Active Spells dialog data
     ///
     /// ## Processing Logic:
     /// 1. Verify tag is dialogData type
-    /// 2. Verify ID matches "spellfront"
+    /// 2. Verify ID matches "Active Spells"
     /// 3. If children empty, clear all spells
     /// 4. Filter children for progressBar tags
     /// 5. Extract spell data from each progressBar
@@ -221,21 +221,21 @@ public final class SpellsPanelViewModel {
     /// - `time`: Time remaining (String, can be nil)
     /// - `value`: Percentage remaining (Int, can be nil or invalid)
     @MainActor
-    private func handleSpellfrontEvent(_ tag: GameTag) {
+    private func handleActiveSpellsEvent(_ tag: GameTag) {
         // Verify tag is dialogData type
         guard tag.name == "dialogData" else {
             logger.debug("Ignoring non-dialogData tag: \(tag.name)")
             return
         }
 
-        // Verify ID matches spellfront
-        guard let tagID = tag.attrs["id"], tagID == "spellfront" else {
+        // Verify ID matches Active Spells
+        guard let tagID = tag.attrs["id"], tagID == "Active Spells" else {
             logger.debug("Ignoring dialogData with wrong ID: \(tag.attrs["id"] ?? "nil")")
             return
         }
 
         // DEBUG: Log full tag structure
-        logger.debug("Processing spellfront - Tag: \(tag.name), ID: \(tagID), children count: \(tag.children.count)")
+        logger.debug("Processing Active Spells - Tag: \(tag.name), ID: \(tagID), children count: \(tag.children.count)")
 
         // Empty children = clear all spells
         if tag.children.isEmpty {
@@ -244,7 +244,7 @@ public final class SpellsPanelViewModel {
             return
         }
 
-        logger.debug("Processing spellfront event with \(tag.children.count) children")
+        logger.debug("Processing Active Spells event with \(tag.children.count) children")
 
         // Process progressBar children
         let newSpells = tag.children.compactMap(extractSpellFromProgressBar)
