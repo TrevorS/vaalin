@@ -66,7 +66,7 @@ struct GameLogRenderingIntegrationTests {
 
         // Append tags to view model (simulates AppState polling)
         for tag in tags {
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Verify messages rendered
@@ -122,7 +122,7 @@ struct GameLogRenderingIntegrationTests {
         // Poll and append
         let tags = await bridge.getParsedTags()
         for tag in tags {
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Verify messages arrived and were processed
@@ -175,7 +175,7 @@ struct GameLogRenderingIntegrationTests {
         // Poll and append
         let tags = await bridge.getParsedTags()
         for tag in tags {
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Verify NO timestamps
@@ -239,7 +239,7 @@ struct GameLogRenderingIntegrationTests {
         // Poll and append
         let tags = await bridge.getParsedTags()
         for tag in tags {
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Verify messages rendered
@@ -302,7 +302,7 @@ struct GameLogRenderingIntegrationTests {
         // Poll and append all tags
         let tags = await bridge.getParsedTags()
         for tag in tags {
-            await viewModel.appendMessage(tag)
+            await viewModel.appendMessage([tag])
         }
 
         // Verify we got messages from all scenarios

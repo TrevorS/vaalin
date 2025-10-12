@@ -184,8 +184,10 @@ public final class InjuriesPanelViewModel {
     /// Sets up EventBus subscriptions to injuries events.
     ///
     /// **Must be called immediately after init** to enable injuries updates.
-    /// In production code, this is typically called in the view's `onAppear` or
-    /// similar lifecycle method.
+    /// In production code, this is typically called in the view's `.task` modifier.
+    ///
+    /// **Idempotency**: This method can be called multiple times safely - it will only
+    /// subscribe once. Subsequent calls are ignored with a debug log.
     ///
     /// ## Example Usage
     /// ```swift
@@ -193,6 +195,12 @@ public final class InjuriesPanelViewModel {
     /// await viewModel.setup()  // Required!
     /// ```
     public func setup() async {
+        // Idempotency check - prevent duplicate subscriptions
+        guard subscriptionID == nil else {
+            Self.logger.debug("Already subscribed to EventBus, skipping setup")
+            return
+        }
+
         // Subscribe to dialogData events
         subscriptionID = await eventBus.subscribe("metadata/dialogData") { [weak self] (tag: GameTag) in
             await self?.handleDialogDataEvent(tag)

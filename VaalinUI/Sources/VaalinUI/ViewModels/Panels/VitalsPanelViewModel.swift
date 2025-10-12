@@ -238,8 +238,10 @@ public final class VitalsPanelViewModel {
     /// Sets up EventBus subscriptions to vitals events.
     ///
     /// **Must be called immediately after init** to enable vitals updates.
-    /// In production code, this is typically called in the view's `onAppear` or
-    /// similar lifecycle method.
+    /// In production code, this is typically called in the view's `.task` modifier.
+    ///
+    /// **Idempotency**: This method can be called multiple times safely - it will only
+    /// subscribe once. Subsequent calls are ignored with a debug log.
     ///
     /// ## Example Usage
     /// ```swift
@@ -247,6 +249,12 @@ public final class VitalsPanelViewModel {
     /// await viewModel.setup()  // Required!
     /// ```
     public func setup() async {
+        // Idempotency check - prevent duplicate subscriptions
+        guard healthSubscriptionID == nil else {
+            logger.debug("Already subscribed to EventBus, skipping setup")
+            return
+        }
+
         // Subscribe to health events
         healthSubscriptionID = await eventBus.subscribe("metadata/progressBar/health") { [weak self] (tag: GameTag) in
             await self?.handleProgressBarEvent(tag, expectedID: "health")
@@ -374,9 +382,12 @@ public final class VitalsPanelViewModel {
 
         // Verify ID matches expected vital
         guard let tagID = tag.attrs["id"], tagID == expectedID else {
-            logger.debug("Ignoring progressBar with wrong ID for \(expectedID)")
+            logger.debug("Ignoring progressBar with wrong ID for \(expectedID), got: \(tag.attrs["id"] ?? "nil")")
             return
         }
+
+        // DEBUG: Log raw tag data
+        logger.debug("Processing \(expectedID) - Raw attrs: \(tag.attrs)")
 
         // Extract both percentage and text
         let data = extractVitalData(from: tag)
@@ -386,23 +397,23 @@ public final class VitalsPanelViewModel {
         case "health":
             health = data.percentage
             healthText = data.text
-            logger.debug("Updated health: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
+            logger.debug("✓ Updated health: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
         case "mana":
             mana = data.percentage
             manaText = data.text
-            logger.debug("Updated mana: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
+            logger.debug("✓ Updated mana: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
         case "stamina":
             stamina = data.percentage
             staminaText = data.text
-            logger.debug("Updated stamina: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
+            logger.debug("✓ Updated stamina: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
         case "spirit":
             spirit = data.percentage
             spiritText = data.text
-            logger.debug("Updated spirit: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
+            logger.debug("✓ Updated spirit: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
         case "mindState":
             mind = data.percentage
             mindText = data.text
-            logger.debug("Updated mind: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
+            logger.debug("✓ Updated mind: \(data.percentage?.description ?? "nil"), text: \(data.text ?? "nil")")
         default:
             logger.warning("Unexpected vital ID: \(expectedID)")
         }
@@ -423,34 +434,48 @@ public final class VitalsPanelViewModel {
     /// send `value="0"` despite having valid fraction text.
     private func extractVitalData(from tag: GameTag) -> (percentage: Int?, text: String?) {
         // Extract text first (this is what we display)
-        let text = tag.attrs["text"]
+        var text = tag.attrs["text"]
+
+        // Clean text: extract ONLY the numeric fraction (e.g., "74/74"), strip any label prefix
+        // Server might send contaminated text like "Health 74/74" but we only want "74/74"
+        if let rawText = text, rawText.contains("/") {
+            let fractionPattern = #"\d+\s*/\s*\d+"#
+            if let range = rawText.range(of: fractionPattern, options: .regularExpression) {
+                text = String(rawText[range])  // Extract just "74/74" part
+                logger.debug("Cleaned text from '\(rawText)' to '\(text!)'")
+            }
+        }
 
         // Try getting value attribute for percentage
         if let valueString = tag.attrs["value"],
            let value = Int(valueString),
            value > 1 {
             // Valid percentage provided by server
+            logger.debug("Using server-provided percentage: \(value)")
             return (percentage: value, text: text)
         }
 
-        // Server bug: value is 0 or 1, try calculating from fraction
+        // Server bug workaround: value is 0 or 1, try calculating from fraction
         if let text = text, text.contains("/") {
-            let parts = text.split(separator: "/").map(String.init)
-            guard parts.count == 2,
-                  let current = Int(parts[0].trimmingCharacters(in: .whitespaces)),
-                  let max = Int(parts[1].trimmingCharacters(in: .whitespaces)),
-                  max > 0 else {
-                // Invalid fraction format or zero denominator
-                return (percentage: nil, text: text)
-            }
+            // Parse the cleaned fraction to calculate percentage
+            if let match = text.firstMatch(of: /(\d+)\s*\/\s*(\d+)/) {
+                let current = Int(match.1) ?? 0
+                let max = Int(match.2) ?? 1
 
-            // Calculate percentage from fraction
-            let percentage = Int(round(Double(current) / Double(max) * 100.0))
-            logger.debug("Calculated percentage from fraction \(text): \(percentage)%")
-            return (percentage: percentage, text: text)
+                guard max > 0 else {
+                    logger.warning("Zero denominator in fraction: \(text)")
+                    return (percentage: nil, text: text)
+                }
+
+                // Calculate percentage from fraction
+                let percentage = Int(round(Double(current) / Double(max) * 100.0))
+                logger.debug("Calculated percentage from fraction \(current)/\(max): \(percentage)%")
+                return (percentage: percentage, text: text)
+            }
         }
 
         // No valid percentage data available - indeterminate state
+        logger.debug("No valid percentage data, returning indeterminate state")
         return (percentage: nil, text: text)
     }
 
@@ -472,19 +497,22 @@ public final class VitalsPanelViewModel {
 
         // Verify ID matches stance
         guard let tagID = tag.attrs["id"], tagID == "pbarStance" else {
-            logger.debug("Ignoring progressBar with wrong ID for stance")
+            logger.debug("Ignoring progressBar with wrong ID for stance, got: \(tag.attrs["id"] ?? "nil")")
             return
         }
+
+        // DEBUG: Log raw tag data
+        logger.debug("Processing stance - Raw attrs: \(tag.attrs)")
 
         // Extract text and take first word
         if let text = tag.attrs["text"] {
             let firstWord = text.split(separator: " ").first.map(String.init) ?? text
             stance = firstWord
-            logger.debug("Updated stance: \(firstWord)")
+            logger.debug("✓ Updated stance: \(firstWord)")
         } else {
             // No text - use empty string
             stance = ""
-            logger.debug("Stance text missing, using empty string")
+            logger.debug("⚠️ Stance text missing, using empty string")
         }
     }
 
@@ -506,18 +534,21 @@ public final class VitalsPanelViewModel {
 
         // Verify ID matches encumbrance
         guard let tagID = tag.attrs["id"], tagID == "encumlevel" else {
-            logger.debug("Ignoring progressBar with wrong ID for encumbrance")
+            logger.debug("Ignoring progressBar with wrong ID for encumbrance, got: \(tag.attrs["id"] ?? "nil")")
             return
         }
+
+        // DEBUG: Log raw tag data
+        logger.debug("Processing encumbrance - Raw attrs: \(tag.attrs)")
 
         // Extract text and convert to lowercase
         if let text = tag.attrs["text"] {
             encumbrance = text.lowercased()
-            logger.debug("Updated encumbrance: \(text.lowercased())")
+            logger.debug("✓ Updated encumbrance: \(text.lowercased())")
         } else {
             // No text - use empty string
             encumbrance = ""
-            logger.debug("Encumbrance text missing, using empty string")
+            logger.debug("⚠️ Encumbrance text missing, using empty string")
         }
     }
 
@@ -544,9 +575,12 @@ public final class VitalsPanelViewModel {
 
         // Verify ID matches mind
         guard let tagID = tag.attrs["id"], tagID == "mindState" else {
-            logger.debug("Ignoring progressBar with wrong ID for mind")
+            logger.debug("Ignoring progressBar with wrong ID for mind, got: \(tag.attrs["id"] ?? "nil")")
             return
         }
+
+        // DEBUG: Log raw tag data
+        logger.debug("Processing mind - Raw attrs: \(tag.attrs)")
 
         // Extract percentage from value attribute
         if let valueString = tag.attrs["value"],
@@ -559,6 +593,6 @@ public final class VitalsPanelViewModel {
         // Extract text directly (no parsing, no splitting)
         mindText = tag.attrs["text"]
 
-        logger.debug("Updated mind: \(self.mind?.description ?? "nil"), text: \(self.mindText ?? "nil")")
+        logger.debug("✓ Updated mind: \(self.mind?.description ?? "nil"), text: \(self.mindText ?? "nil")")
     }
 }

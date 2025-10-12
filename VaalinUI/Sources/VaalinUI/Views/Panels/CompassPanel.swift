@@ -201,7 +201,7 @@ public struct CompassPanel: View {
                 Text("Room")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("\(viewModel.roomId)")
+                Text(String(viewModel.roomId))
                     .font(.system(size: 11, weight: .regular, design: .monospaced))
                     .foregroundStyle(.secondary)
             }

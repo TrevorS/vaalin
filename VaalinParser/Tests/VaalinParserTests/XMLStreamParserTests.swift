@@ -7,6 +7,21 @@ import Testing
 
 // swiftlint:disable file_length type_body_length
 
+/// Helper class for capturing events in test closures (Swift 6 concurrency-safe)
+@MainActor
+final class EventCapture {
+    var eventCount = 0
+    var receivedEvent: GameTag?
+    var eventOrder: [String] = []
+    var leftEvent: GameTag?
+    var rightEvent: GameTag?
+    var healthEvent: GameTag?
+    var manaEvent: GameTag?
+    var promptEvent: GameTag?
+
+    nonisolated init() {}
+}
+
 /// Test suite for XMLStreamParser actor
 /// Validates actor initialization, delegate conformance, state management, and chunked XML parsing
 ///
@@ -3686,12 +3701,13 @@ struct XMLStreamParserTests {
         let eventBus = EventBus()
         let parser = XMLStreamParser(eventBus: eventBus)
 
-        var eventCount = 0
-        var receivedEvent: GameTag?
+        let capture = EventCapture()
 
         await eventBus.subscribe("metadata/left") { (tag: GameTag) in
-            eventCount += 1
-            receivedEvent = tag
+            await MainActor.run {
+                capture.eventCount += 1
+                capture.receivedEvent = tag
+            }
         }
 
         // First chunk: incomplete tag
@@ -3700,7 +3716,7 @@ struct XMLStreamParserTests {
         try await Task.sleep(for: .milliseconds(50))
 
         // Event should NOT be published yet (tag not closed)
-        #expect(eventCount == 0)
+        #expect(await capture.eventCount == 0)
         #expect(tags1.isEmpty)
 
         // Second chunk: completes tag
@@ -3709,9 +3725,9 @@ struct XMLStreamParserTests {
         try await Task.sleep(for: .milliseconds(50))
 
         // Event should be published once when tag is complete
-        #expect(eventCount == 1)
-        #expect(receivedEvent != nil)
-        #expect(receivedEvent?.text == "magic sword")
+        #expect(await capture.eventCount == 1)
+        #expect(await capture.receivedEvent != nil)
+        #expect(await capture.receivedEvent?.text == "magic sword")
 
         #expect(tags2.count == 1)
         #expect(tags2[0].name == "left")
@@ -3723,16 +3739,22 @@ struct XMLStreamParserTests {
         let eventBus = EventBus()
         let parser = XMLStreamParser(eventBus: eventBus)
 
-        var eventOrder: [String] = []
+        let capture = EventCapture()
 
         await eventBus.subscribe("metadata/left") { (tag: GameTag) in
-            eventOrder.append("left")
+            await MainActor.run {
+                capture.eventOrder.append("left")
+            }
         }
         await eventBus.subscribe("metadata/right") { (tag: GameTag) in
-            eventOrder.append("right")
+            await MainActor.run {
+                capture.eventOrder.append("right")
+            }
         }
         await eventBus.subscribe("metadata/prompt") { (tag: GameTag) in
-            eventOrder.append("prompt")
+            await MainActor.run {
+                capture.eventOrder.append("prompt")
+            }
         }
 
         let xml = "<left>sword</left><right>shield</right><prompt>&gt;</prompt>"
@@ -3742,10 +3764,10 @@ struct XMLStreamParserTests {
         try await Task.sleep(for: .milliseconds(50))
 
         // Verify events were published in parse order
-        #expect(eventOrder.count == 3)
-        #expect(eventOrder[0] == "left")
-        #expect(eventOrder[1] == "right")
-        #expect(eventOrder[2] == "prompt")
+        #expect(await capture.eventOrder.count == 3)
+        #expect(await capture.eventOrder[0] == "left")
+        #expect(await capture.eventOrder[1] == "right")
+        #expect(await capture.eventOrder[2] == "prompt")
 
         #expect(tags.count == 3)
     }
@@ -3783,26 +3805,32 @@ struct XMLStreamParserTests {
         let eventBus = EventBus()
         let parser = XMLStreamParser(eventBus: eventBus)
 
-        var leftEvent: GameTag?
-        var rightEvent: GameTag?
-        var healthEvent: GameTag?
-        var manaEvent: GameTag?
-        var promptEvent: GameTag?
+        let capture = EventCapture()
 
         await eventBus.subscribe("metadata/left") { (tag: GameTag) in
-            leftEvent = tag
+            await MainActor.run {
+                capture.leftEvent = tag
+            }
         }
         await eventBus.subscribe("metadata/right") { (tag: GameTag) in
-            rightEvent = tag
+            await MainActor.run {
+                capture.rightEvent = tag
+            }
         }
         await eventBus.subscribe("metadata/progressBar/health") { (tag: GameTag) in
-            healthEvent = tag
+            await MainActor.run {
+                capture.healthEvent = tag
+            }
         }
         await eventBus.subscribe("metadata/progressBar/mana") { (tag: GameTag) in
-            manaEvent = tag
+            await MainActor.run {
+                capture.manaEvent = tag
+            }
         }
         await eventBus.subscribe("metadata/prompt") { (tag: GameTag) in
-            promptEvent = tag
+            await MainActor.run {
+                capture.promptEvent = tag
+            }
         }
 
         let xml = "<left>vultite longsword</left><right>mithril shield</right><progressBar id=\"health\" value=\"100\" left=\"100\" right=\"100\" text=\"100%\"/><progressBar id=\"mana\" value=\"85\" left=\"85\" right=\"100\" text=\"85%\"/><output>You look around the room.</output><prompt time=\"1234567890\">&gt;</prompt>"
@@ -3812,19 +3840,19 @@ struct XMLStreamParserTests {
         try await Task.sleep(for: .milliseconds(100))
 
         // Verify all metadata events were published
-        #expect(leftEvent != nil)
-        #expect(leftEvent?.text == "vultite longsword")
+        #expect(await capture.leftEvent != nil)
+        #expect(await capture.leftEvent?.text == "vultite longsword")
 
-        #expect(rightEvent != nil)
-        #expect(rightEvent?.text == "mithril shield")
+        #expect(await capture.rightEvent != nil)
+        #expect(await capture.rightEvent?.text == "mithril shield")
 
-        #expect(healthEvent != nil)
-        #expect(healthEvent?.attrs["value"] == "100")
+        #expect(await capture.healthEvent != nil)
+        #expect(await capture.healthEvent?.attrs["value"] == "100")
 
-        #expect(manaEvent != nil)
-        #expect(manaEvent?.attrs["value"] == "85")
+        #expect(await capture.manaEvent != nil)
+        #expect(await capture.manaEvent?.attrs["value"] == "85")
 
-        #expect(promptEvent != nil)
+        #expect(await capture.promptEvent != nil)
 
         // All tags should be returned (metadata + regular)
         #expect(tags.count == 6)

@@ -130,6 +130,10 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
     nonisolated(unsafe) private var currentCharacterBuffer: String = ""
     nonisolated(unsafe) private var currentParsedTags: [GameTag] = []
 
+    /// Tags that need EventBus publishing after parsing completes.
+    /// Accumulated during nonisolated delegate callbacks, published after parse() returns.
+    nonisolated(unsafe) private var tagsNeedingEventPublish: [GameTag] = []
+
     // MARK: - Initialization
 
     /// Creates a new XML stream parser with empty state.
@@ -184,6 +188,7 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         currentTagStack = []
         currentCharacterBuffer = ""
         currentParsedTags = []
+        tagsNeedingEventPublish = []  // Clear event publish queue
 
         // Handle empty/whitespace input
         if chunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -247,6 +252,11 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         #endif
         tagStack = currentTagStack
 
+        // Publish events for metadata tags (now that we're back in actor context with await support)
+        for tag in tagsNeedingEventPublish {
+            await publishEventIfNeeded(for: tag)
+        }
+
         // Return completed tags
         return currentParsedTags
     }
@@ -262,7 +272,7 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
     /// - Parameters:
     ///   - streamId: The stream ID from the pushStream tag
     ///   - attributes: The full attribute dictionary from the tag
-    nonisolated private func publishStreamEvent(streamId: String, attributes: [String: String]) {
+    private func publishStreamEvent(streamId: String, attributes: [String: String]) async {
         guard let eventBus = eventBus else { return }
 
         let streamTag = GameTag(
@@ -273,22 +283,21 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
             state: .closed,
             streamId: streamId
         )
-        Task {
-            await eventBus.publish("stream/\(streamId)", data: streamTag)
-        }
+        await eventBus.publish("stream/\(streamId)", data: streamTag)
+        logger.debug("Published stream event: stream/\(streamId)")
     }
 
     /// Publishes EventBus event for metadata tags.
     ///
     /// This method is called after a tag is fully constructed and closed.
-    /// Only metadata tags (left, right, spell, progressBar, prompt) and stream control
-    /// tags (pushStream) trigger events. Regular game output tags do not publish events.
+    /// Only metadata tags (left, right, spell, progressBar, prompt, nav, compass,
+    /// streamWindow, dialogData) and stream control tags (pushStream) trigger events.
+    /// Regular game output tags do not publish events.
     ///
-    /// Event publishing is non-blocking - events are published asynchronously via Task
-    /// to avoid impacting parser performance.
+    /// Event publishing is synchronous within the actor context to ensure reliable delivery.
     ///
     /// - Parameter tag: The completed GameTag to potentially publish
-    nonisolated private func publishEventIfNeeded(for tag: GameTag) {
+    private func publishEventIfNeeded(for tag: GameTag) async {
         guard let eventBus = eventBus else { return }
 
         // Determine event name based on tag type
@@ -309,6 +318,30 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         // Prompt
         case "prompt": "metadata/prompt"
 
+        // Navigation (compass panel)
+        case "nav": "metadata/nav"
+
+        // Compass (compass panel)
+        case "compass": "metadata/compass"
+
+        // Stream window (compass panel - room title)
+        case "streamWindow":
+            // Only publish for main window with subtitle (room title)
+            if let id = tag.attrs["id"], id == "main", tag.attrs["subtitle"] != nil {
+                "metadata/streamWindow/room"
+            } else {
+                nil
+            }
+
+        // Dialog data (spells panel, injuries panel)
+        case "dialogData":
+            // Publish with dynamic event name based on id
+            if let id = tag.attrs["id"] {
+                "metadata/dialogData/\(id)"
+            } else {
+                nil
+            }
+
         // Stream control - handled separately in didStartElement
         case "pushStream":
             if let id = tag.attrs["id"] {
@@ -323,10 +356,9 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
 
         guard let eventName = eventName else { return }
 
-        // Publish asynchronously - don't block parsing
-        Task {
-            await eventBus.publish(eventName, data: tag)
-        }
+        // Publish directly - we're in actor context
+        await eventBus.publish(eventName, data: tag)
+        logger.debug("Published event: \(eventName) for tag: \(tag.name)")
     }
 
     // MARK: - Testing Support
@@ -372,8 +404,12 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
             inStream = true
 
             // Publish stream event (even though this doesn't create a GameTag)
+            // Note: We can't use await here because didStartElement is nonisolated
+            // The event will be published when the parsing completes
             if let streamId = attributeDict["id"] {
-                publishStreamEvent(streamId: streamId, attributes: attributeDict)
+                Task {
+                    await publishStreamEvent(streamId: streamId, attributes: attributeDict)
+                }
             }
 
             // Don't create a GameTag - this is a stream control directive
@@ -543,8 +579,9 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
             currentTagStack.append(parent) // Put parent back on stack
         }
 
-        // Publish event for metadata tags (non-blocking)
-        publishEventIfNeeded(for: tag)
+        // Queue tag for event publishing (will be published after parse() completes)
+        // We can't use await here because didEndElement is nonisolated
+        tagsNeedingEventPublish.append(tag)
     }
 
     /// Called when parser encounters an error

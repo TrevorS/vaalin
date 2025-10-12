@@ -138,8 +138,10 @@ public final class HandsPanelViewModel {
     /// Sets up EventBus subscriptions to hands/spell events.
     ///
     /// **Must be called immediately after init** to enable hands/spell updates.
-    /// In production code, this is typically called in the view's `onAppear` or
-    /// similar lifecycle method.
+    /// In production code, this is typically called in the view's `.task` modifier.
+    ///
+    /// **Idempotency**: This method can be called multiple times safely - it will only
+    /// subscribe once. Subsequent calls are ignored with a debug log.
     ///
     /// ## Example Usage
     /// ```swift
@@ -147,6 +149,12 @@ public final class HandsPanelViewModel {
     /// await viewModel.setup()  // Required!
     /// ```
     public func setup() async {
+        // Idempotency check - prevent duplicate subscriptions
+        guard leftSubscriptionID == nil else {
+            logger.debug("Already subscribed to EventBus, skipping setup")
+            return
+        }
+
         // Subscribe to left hand events
         leftSubscriptionID = await eventBus.subscribe("metadata/left") { [weak self] (tag: GameTag) in
             await self?.handleLeftHandEvent(tag)
@@ -212,17 +220,23 @@ public final class HandsPanelViewModel {
             return
         }
 
+        // DEBUG: Log full tag structure
+        logger.debug("Processing left hand - Tag: \(tag.name), children count: \(tag.children.count)")
+        if let firstChild = tag.children.first {
+            logger.debug("  First child: name=\(firstChild.name), text=\(firstChild.text ?? "nil")")
+        }
+
         // Extract item name from first child's text
         // Per Illthorn reference: tag.children[0].text
         if let firstChild = tag.children.first,
            let itemText = firstChild.text,
            !itemText.isEmpty {
             leftHand = itemText
-            logger.debug("Updated left hand: \(itemText)")
+            logger.debug("✓ Updated left hand: \(itemText)")
         } else {
             // No children or nil/empty text -> empty hand
             leftHand = "Empty"
-            logger.debug("Left hand is now empty")
+            logger.debug("⚠️ Left hand is now empty (children: \(tag.children.count))")
         }
     }
 
@@ -240,17 +254,23 @@ public final class HandsPanelViewModel {
             return
         }
 
+        // DEBUG: Log full tag structure
+        logger.debug("Processing right hand - Tag: \(tag.name), children count: \(tag.children.count)")
+        if let firstChild = tag.children.first {
+            logger.debug("  First child: name=\(firstChild.name), text=\(firstChild.text ?? "nil")")
+        }
+
         // Extract item name from first child's text
         // Per Illthorn reference: tag.children[0].text
         if let firstChild = tag.children.first,
            let itemText = firstChild.text,
            !itemText.isEmpty {
             rightHand = itemText
-            logger.debug("Updated right hand: \(itemText)")
+            logger.debug("✓ Updated right hand: \(itemText)")
         } else {
             // No children or nil/empty text -> empty hand
             rightHand = "Empty"
-            logger.debug("Right hand is now empty")
+            logger.debug("⚠️ Right hand is now empty (children: \(tag.children.count))")
         }
     }
 
@@ -268,17 +288,23 @@ public final class HandsPanelViewModel {
             return
         }
 
+        // DEBUG: Log full tag structure
+        logger.debug("Processing prepared spell - Tag: \(tag.name), children count: \(tag.children.count)")
+        if let firstChild = tag.children.first {
+            logger.debug("  First child: name=\(firstChild.name), text=\(firstChild.text ?? "nil")")
+        }
+
         // Extract spell name from first child's text
         // Per Illthorn reference: tag.children[0].text
         if let firstChild = tag.children.first,
            let spellText = firstChild.text,
            !spellText.isEmpty {
             preparedSpell = spellText
-            logger.debug("Updated prepared spell: \(spellText)")
+            logger.debug("✓ Updated prepared spell: \(spellText)")
         } else {
             // No children or nil/empty text -> no spell
             preparedSpell = "None"
-            logger.debug("No spell prepared")
+            logger.debug("⚠️ No spell prepared (children: \(tag.children.count))")
         }
     }
 }

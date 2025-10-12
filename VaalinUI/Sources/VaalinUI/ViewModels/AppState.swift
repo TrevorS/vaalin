@@ -133,17 +133,18 @@ public final class AppState {
         // Initialize actor-based components
         self.connection = LichConnection()
 
+        // Initialize shared EventBus FIRST (parser needs it)
+        self.eventBus = EventBus()
+
         #if canImport(VaalinParser)
-        self.parser = XMLStreamParser()
+        // Pass eventBus to parser so it can publish metadata events
+        self.parser = XMLStreamParser(eventBus: eventBus)
         #else
         // For testing without VaalinParser module
         fatalError("VaalinParser module required")
         #endif
 
         self.bridge = ParserConnectionBridge(connection: connection, parser: parser)
-
-        // Initialize shared EventBus for panel/prompt communication
-        self.eventBus = EventBus()
 
         // Initialize command history (500 command buffer)
         self.commandHistory = CommandHistory(maxSize: 500)
@@ -266,7 +267,9 @@ public final class AppState {
     /// Start polling bridge for parsed tags.
     ///
     /// Creates a task that fetches tags from the bridge every 100ms and appends them
-    /// to the game log view model. The task runs until cancelled by `stopPolling()`.
+    /// to the game log view model as a single batch. Tags from one polling cycle are
+    /// rendered together with one timestamp, matching ProfanityFE and Illthorn behavior.
+    /// The task runs until cancelled by `stopPolling()`.
     ///
     /// ## Threading
     /// Polling task runs on MainActor to ensure thread-safe access to GameLogViewModel.
@@ -275,20 +278,18 @@ public final class AppState {
     /// ## Performance
     /// - **Interval**: 100ms (10 updates/second)
     /// - **Overhead**: < 1ms per empty poll
-    /// - **Batch processing**: < 5ms per 100 tags
+    /// - **Batch processing**: < 5ms per 100 tags (rendered as one message)
     private func startPolling() {
         pollingTask = Task { @MainActor in
             while !Task.isCancelled {
                 // Fetch tags from bridge (async actor call)
                 let tags = await bridge.getParsedTags()
 
-                // Process tags if any arrived
+                // Process tags if any arrived - render entire batch as ONE message
                 if !tags.isEmpty {
-                    // Render GameTags to Messages and append to view model
-                    for tag in tags {
-                        // appendMessage() now renders with TagRenderer + ThemeManager
-                        await gameLogViewModel.appendMessage(tag)
-                    }
+                    // appendMessage() renders all tags together with one timestamp
+                    // This matches ProfanityFE's approach of batching text between XML tags
+                    await gameLogViewModel.appendMessage(tags)
 
                     // Clear processed tags from bridge
                     await bridge.clearParsedTags()

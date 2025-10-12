@@ -155,8 +155,10 @@ public final class SpellsPanelViewModel {
     /// Sets up EventBus subscriptions to spellfront events.
     ///
     /// **Must be called immediately after init** to enable spells updates.
-    /// In production code, this is typically called in the view's `onAppear` or
-    /// similar lifecycle method.
+    /// In production code, this is typically called in the view's `.task` modifier.
+    ///
+    /// **Idempotency**: This method can be called multiple times safely - it will only
+    /// subscribe once. Subsequent calls are ignored with a debug log.
     ///
     /// ## Example Usage
     /// ```swift
@@ -164,6 +166,12 @@ public final class SpellsPanelViewModel {
     /// await viewModel.setup()  // Required!
     /// ```
     public func setup() async {
+        // Idempotency check - prevent duplicate subscriptions
+        guard spellsSubscriptionID == nil else {
+            logger.debug("Already subscribed to EventBus, skipping setup")
+            return
+        }
+
         // Subscribe to spellfront events
         let eventName = "metadata/dialogData/spellfront"
         spellsSubscriptionID = await eventBus.subscribe(eventName) { [weak self] (tag: GameTag) in
@@ -226,58 +234,20 @@ public final class SpellsPanelViewModel {
             return
         }
 
+        // DEBUG: Log full tag structure
+        logger.debug("Processing spellfront - Tag: \(tag.name), ID: \(tagID), children count: \(tag.children.count)")
+
         // Empty children = clear all spells
         if tag.children.isEmpty {
             activeSpells = []
-            logger.debug("Cleared all spells (empty children)")
+            logger.debug("✓ Cleared all spells (empty children)")
             return
         }
 
         logger.debug("Processing spellfront event with \(tag.children.count) children")
 
         // Process progressBar children
-        let newSpells = tag.children.compactMap { child -> ActiveSpell? in
-            // Only process progressBar tags
-            guard child.name == "progressBar" else {
-                logger.debug("Skipping non-progressBar child: \(child.name)")
-                return nil
-            }
-
-            // Extract required id field
-            guard let id = child.attrs["id"] else {
-                logger.debug("Skipping progressBar without id attribute")
-                return nil
-            }
-
-            // Extract required text field (spell name)
-            guard let name = child.attrs["text"], !name.isEmpty else {
-                logger.debug("Skipping progressBar \(id) without text or with empty text")
-                return nil
-            }
-
-            // Extract optional time field
-            let timeRemaining = child.attrs["time"]
-
-            // Extract optional percentage field (convert to Int)
-            var percentRemaining: Int?
-            if let valueString = child.attrs["value"],
-               let value = Int(valueString) {
-                percentRemaining = value
-            }
-
-            let spell = ActiveSpell(
-                id: id,
-                name: name,
-                timeRemaining: timeRemaining,
-                percentRemaining: percentRemaining
-            )
-
-            let timeStr = timeRemaining ?? "nil"
-            let percentStr = percentRemaining?.description ?? "nil"
-            logger.debug("Extracted spell: id=\(id), name=\(name), time=\(timeStr), percent=\(percentStr)")
-
-            return spell
-        }
+        let newSpells = tag.children.compactMap(extractSpellFromProgressBar)
 
         // Sort spells by numeric spell ID
         // Spell IDs are numeric strings (e.g., "202", "901", "1720")
@@ -291,5 +261,62 @@ public final class SpellsPanelViewModel {
         // Replace activeSpells with new sorted list
         activeSpells = sortedSpells
         logger.debug("Updated activeSpells: \(sortedSpells.count) spells, sorted by spell ID")
+    }
+
+    /// Extracts an ActiveSpell from a progressBar GameTag.
+    ///
+    /// - Parameter child: GameTag to process (expected to be progressBar)
+    /// - Returns: ActiveSpell if extraction succeeds, nil otherwise
+    ///
+    /// ## Extraction Logic:
+    /// 1. Verify tag is progressBar type
+    /// 2. Extract required id field (String)
+    /// 3. Extract required text field (String, must not be empty)
+    /// 4. Extract optional time field (String)
+    /// 5. Extract optional value field (String → Int conversion)
+    private func extractSpellFromProgressBar(_ child: GameTag) -> ActiveSpell? {
+        // Only process progressBar tags
+        guard child.name == "progressBar" else {
+            logger.debug("  Skipping non-progressBar child: \(child.name)")
+            return nil
+        }
+
+        // DEBUG: Log full child structure
+        logger.debug("  Processing child progressBar - attrs: \(child.attrs)")
+
+        // Extract required id field
+        guard let id = child.attrs["id"] else {
+            logger.debug("  ⚠️ Skipping progressBar without id attribute")
+            return nil
+        }
+
+        // Extract required text field (spell name)
+        guard let name = child.attrs["text"], !name.isEmpty else {
+            logger.debug("  ⚠️ Skipping progressBar \(id) without text or with empty text")
+            return nil
+        }
+
+        // Extract optional time field
+        let timeRemaining = child.attrs["time"]
+
+        // Extract optional percentage field (convert to Int)
+        var percentRemaining: Int?
+        if let valueString = child.attrs["value"],
+           let value = Int(valueString) {
+            percentRemaining = value
+        }
+
+        let spell = ActiveSpell(
+            id: id,
+            name: name,
+            timeRemaining: timeRemaining,
+            percentRemaining: percentRemaining
+        )
+
+        let timeStr = timeRemaining ?? "nil"
+        let percentStr = percentRemaining?.description ?? "nil"
+        logger.debug("  ✓ Extracted spell: id=\(id), name=\(name), time=\(timeStr), percent=\(percentStr)")
+
+        return spell
     }
 }

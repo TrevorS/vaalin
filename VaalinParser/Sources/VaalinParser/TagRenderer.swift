@@ -90,6 +90,54 @@ public actor TagRenderer {
         return result
     }
 
+    /// Renders an array of GameTags into a single styled AttributedString.
+    ///
+    /// This method concatenates multiple tags into a single logical message with one timestamp.
+    /// It matches the behavior of ProfanityFE and Illthorn where tags from a single server
+    /// message batch are rendered together, not as separate messages.
+    ///
+    /// - Parameters:
+    ///   - tags: Array of GameTags to render together
+    ///   - theme: Theme containing color and preset mappings
+    ///   - timestamp: Optional timestamp to prepend as `[HH:MM:SS] ` prefix (added once)
+    ///   - timestampSettings: Optional settings controlling timestamp display
+    /// - Returns: Styled AttributedString with all tags rendered and timestamp prepended once
+    ///
+    /// ## Example Usage
+    /// ```swift
+    /// // Render multiple item tags as one message
+    /// let tags = [
+    ///     GameTag(name: "a", text: "crumbling stone tower pin", ...),
+    ///     GameTag(name: "a", text: "some full leather", ...),
+    ///     GameTag(name: "a", text: "an amber silk satchel", ...)
+    /// ]
+    /// let message = await renderer.render(tags, theme: theme, timestamp: Date())
+    /// // Result: "[17:19:09] crumbling stone tower pin, some full leather, an amber silk satchel"
+    /// ```
+    public func render(
+        _ tags: [GameTag],
+        theme: Theme,
+        timestamp: Date? = nil,
+        timestampSettings: VaalinCore.Settings.StreamSettings.TimestampSettings? = nil
+    ) async -> AttributedString {
+        // Render all tags and concatenate them
+        var result = AttributedString()
+        for tag in tags {
+            let rendered = await renderTag(tag, theme: theme, inheritedBold: false)
+            result += rendered
+        }
+
+        // Prepend timestamp ONCE if enabled and timestamp is provided
+        if let timestamp = timestamp,
+           let settings = timestampSettings,
+           settings.gameLog {
+            let timestampPrefix = await renderTimestamp(timestamp, theme: theme)
+            result = timestampPrefix + result
+        }
+
+        return result
+    }
+
     // MARK: - Private Rendering Methods
 
     /// Internal recursive rendering method with bold inheritance tracking.

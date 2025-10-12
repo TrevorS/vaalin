@@ -104,24 +104,21 @@ public struct MainView: View {
             // Connection controls at top
             ConnectionControlsView(appState: appState)
                 .frame(height: 50)
+                .padding(.bottom, 8)
 
             // Three-column layout
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 // Left column: Panels from settings.layout.left
-                VStack(spacing: 12) {
+                VStack(alignment: .center, spacing: 12) {
                     ForEach(settings.layout.left, id: \.self) { panelID in
                         panelView(for: panelID)
                     }
                 }
-                .frame(width: columnWidth(for: "left"))
+                .frame(width: columnWidth(for: "left"), alignment: .top)
 
-                // Center column: Streams + GameLog + Prompt/Input
+                // Center column: GameLog + Prompt/Input
                 VStack(spacing: 0) {
-                    // Streams bar placeholder (Phase 4)
-                    StreamsBarView(height: settings.layout.streamsHeight)
-                        .padding(.bottom, 12)
-
-                    // Game log fills remaining space
+                    // Game log fills available space
                     GameLogView(
                         viewModel: appState.gameLogViewModel,
                         isConnected: appState.isConnected
@@ -132,10 +129,9 @@ public struct MainView: View {
                         PromptView(viewModel: appState.promptViewModel)
                             .frame(width: 44, height: 44)
 
-                        CommandInputView(viewModel: appState.commandInputViewModel) { command in
-                            Task {
-                                await appState.sendCommand(command)
-                            }
+                        CommandInputView(viewModel: appState.commandInputViewModel) { _ in
+                            // No-op handler - CommandInputViewModel already sends via connection
+                            // (Issue #29: connection is injected into viewModel at line 158 of AppState.swift)
                         }
                     }
                     .padding(.top, 12)
@@ -144,12 +140,12 @@ public struct MainView: View {
                 .frame(maxWidth: .infinity)
 
                 // Right column: Panels from settings.layout.right
-                VStack(spacing: 12) {
+                VStack(alignment: .center, spacing: 12) {
                     ForEach(settings.layout.right, id: \.self) { panelID in
                         panelView(for: panelID)
                     }
                 }
-                .frame(width: columnWidth(for: "right"))
+                .frame(width: columnWidth(for: "right"), alignment: .top)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 12)

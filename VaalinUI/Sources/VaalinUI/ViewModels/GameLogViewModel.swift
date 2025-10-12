@@ -89,10 +89,10 @@ public final class GameLogViewModel {
     private var currentTheme: Theme?
 
     /// Timestamp display settings for game log messages.
-    /// Timestamps are enabled by default to help track conversation and combat timing.
+    /// Timestamps are disabled by default to reduce visual clutter.
     private var timestampSettings =
         Settings.StreamSettings.TimestampSettings(
-            gameLog: true,  // Enabled by default
+            gameLog: false,  // Disabled by default
             perStream: [:]
         )
 
@@ -120,12 +120,13 @@ public final class GameLogViewModel {
 
     /// Appends a game message to the log buffer with theme-based rendering.
     ///
-    /// Renders the provided `GameTag` into a styled `Message` using TagRenderer and the
-    /// current theme. If the theme is not yet loaded, falls back to plain text rendering.
-    /// If the buffer exceeds `maxBufferSize` after appending, the oldest message is
-    /// automatically removed to maintain the size limit.
+    /// Renders the provided `GameTag` array into a styled `Message` using TagRenderer and the
+    /// current theme. Multiple tags are rendered together as a single logical message with one
+    /// timestamp, matching the behavior of ProfanityFE and Illthorn. If the theme is not yet
+    /// loaded, falls back to plain text rendering. If the buffer exceeds `maxBufferSize` after
+    /// appending, the oldest message is automatically removed to maintain the size limit.
     ///
-    /// - Parameter tag: The game tag to render and append
+    /// - Parameter tags: The game tags to render and append as a single message
     ///
     /// ## Performance
     /// - **Average case**: < 1ms (render + array append)
@@ -137,17 +138,28 @@ public final class GameLogViewModel {
     ///
     /// ## Example
     /// ```swift
-    /// let tag = GameTag(name: "preset", attrs: ["id": "speech"], text: "Hello!", state: .closed)
-    /// await viewModel.appendMessage(tag)
+    /// let tags = [
+    ///     GameTag(name: "a", text: "crumbling stone tower pin", state: .closed),
+    ///     GameTag(name: "a", text: "some full leather", state: .closed)
+    /// ]
+    /// await viewModel.appendMessage(tags)
     /// ```
-    public func appendMessage(_ tag: GameTag) async {
+    public func appendMessage(_ tags: [GameTag]) async {
+        // Skip empty tag arrays or arrays with no meaningful content
+        guard !tags.isEmpty, hasContentInArray(tags) else {
+            return
+        }
+
         let message: Message
         let timestamp = Date()  // Capture current timestamp
 
+        // Determine stream ID from tags (use first tag's stream ID)
+        let streamID = tags.first?.streamId
+
         if let theme = currentTheme {
-            // Render with theme colors and timestamp
+            // Render with theme colors and timestamp (added once for entire batch)
             let attributedText = await renderer.render(
-                tag,
+                tags,
                 theme: theme,
                 timestamp: timestamp,
                 timestampSettings: timestampSettings
@@ -155,12 +167,12 @@ public final class GameLogViewModel {
             message = Message(
                 timestamp: timestamp,
                 attributedText: attributedText,
-                tags: [tag],
-                streamID: tag.streamId
+                tags: tags,
+                streamID: streamID
             )
         } else {
             // Fallback: plain text rendering if theme not yet loaded
-            message = Message(from: [tag], streamID: tag.streamId, timestamp: timestamp)
+            message = Message(from: tags, streamID: streamID, timestamp: timestamp)
         }
 
         messages.append(message)
@@ -229,6 +241,59 @@ public final class GameLogViewModel {
     }
 
     // MARK: - Private Methods
+
+    /// Checks if an array of tags has any meaningful content.
+    ///
+    /// - Parameter tags: Array of GameTags to check
+    /// - Returns: true if any tag has non-whitespace text content, false otherwise
+    ///
+    /// This method checks if at least one tag in the array has meaningful content worth displaying.
+    /// Empty tag arrays, arrays with only whitespace-only text nodes, and arrays containing only
+    /// empty children are all considered to have no content.
+    ///
+    /// ## Checks:
+    /// 1. Iterates through all tags in the array
+    /// 2. For each tag, recursively checks if it has content
+    /// 3. Returns true as soon as one tag with content is found
+    ///
+    /// ## Edge Cases:
+    /// - Empty array → false
+    /// - Array of only whitespace-only `:text` nodes → false
+    /// - Array with at least one tag containing text → true
+    private func hasContentInArray(_ tags: [GameTag]) -> Bool {
+        return tags.contains(where: hasContentRecursive)
+    }
+
+    /// Recursively checks if a tag has any meaningful content.
+    ///
+    /// - Parameter tag: GameTag to check
+    /// - Returns: true if tag has non-whitespace text content, false otherwise
+    ///
+    /// This method recursively traverses the tag tree to determine if there's any
+    /// actual content worth displaying. Empty tags, whitespace-only text nodes,
+    /// and tags containing only empty children are all considered empty.
+    ///
+    /// ## Checks:
+    /// 1. If tag has direct text → check if non-whitespace
+    /// 2. If tag has children → recursively check each child
+    /// 3. If tag has no text and no children → empty
+    ///
+    /// ## Edge Cases:
+    /// - `:text` nodes with only whitespace → empty
+    /// - Nested tags with only whitespace descendants → empty
+    /// - Control tags (pushStream, popStream, etc.) with no content → empty
+    private func hasContentRecursive(_ tag: GameTag) -> Bool {
+        // Check direct text content
+        if let text = tag.text {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return true  // Found non-whitespace content
+            }
+        }
+
+        // No direct text - check children recursively
+        return tag.children.contains(where: hasContentRecursive)
+    }
 
     /// Loads the default Catppuccin Mocha theme from the app bundle.
     ///
