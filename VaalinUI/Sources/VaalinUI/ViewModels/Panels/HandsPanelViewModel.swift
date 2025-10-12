@@ -81,7 +81,7 @@ import VaalinCore
 /// ```
 @Observable
 @MainActor
-public final class HandsPanelViewModel {
+public final class HandsPanelViewModel: PanelViewModelBase {
     // MARK: - Properties
 
     /// Current left hand item (default: "Empty")
@@ -102,20 +102,16 @@ public final class HandsPanelViewModel {
     /// SwiftUI views observing this property will automatically update when it changes.
     public var preparedSpell: String = "None"
 
+    // MARK: - PanelViewModelBase Requirements
+
     /// EventBus reference for subscribing to hands/spell events
-    private let eventBus: EventBus
+    public let eventBus: EventBus
 
     /// Subscription IDs for cleanup on deinit
     /// Excluded from observation (not part of UI state) and marked nonisolated(unsafe)
     /// for access in deinit. Safe because handlers use weak self.
     @ObservationIgnored
-    nonisolated(unsafe) private var leftSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var rightSubscriptionID: EventBus.SubscriptionID?
-
-    @ObservationIgnored
-    nonisolated(unsafe) private var spellSubscriptionID: EventBus.SubscriptionID?
+    nonisolated(unsafe) public var subscriptionIDs: [EventBus.SubscriptionID] = []
 
     /// Logger for HandsPanelViewModel events and errors
     private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "HandsPanelViewModel")
@@ -150,58 +146,42 @@ public final class HandsPanelViewModel {
     /// ```
     public func setup() async {
         // Idempotency check - prevent duplicate subscriptions
-        guard leftSubscriptionID == nil else {
+        guard subscriptionIDs.isEmpty else {
             logger.debug("Already subscribed to EventBus, skipping setup")
             return
         }
 
         // Subscribe to left hand events
-        leftSubscriptionID = await eventBus.subscribe("metadata/left") { [weak self] (tag: GameTag) in
+        let leftID = await eventBus.subscribe("metadata/left") { [weak self] (tag: GameTag) in
             await self?.handleLeftHandEvent(tag)
         }
-        logger.debug("Subscribed to metadata/left events with ID: \(self.leftSubscriptionID!)")
+        subscriptionIDs.append(leftID)
+        logger.debug("Subscribed to metadata/left events with ID: \(leftID)")
 
         // Subscribe to right hand events
-        rightSubscriptionID = await eventBus.subscribe("metadata/right") { [weak self] (tag: GameTag) in
+        let rightID = await eventBus.subscribe("metadata/right") { [weak self] (tag: GameTag) in
             await self?.handleRightHandEvent(tag)
         }
-        logger.debug("Subscribed to metadata/right events with ID: \(self.rightSubscriptionID!)")
+        subscriptionIDs.append(rightID)
+        logger.debug("Subscribed to metadata/right events with ID: \(rightID)")
 
         // Subscribe to spell events
-        spellSubscriptionID = await eventBus.subscribe("metadata/spell") { [weak self] (tag: GameTag) in
+        let spellID = await eventBus.subscribe("metadata/spell") { [weak self] (tag: GameTag) in
             await self?.handleSpellEvent(tag)
         }
-        logger.debug("Subscribed to metadata/spell events with ID: \(self.spellSubscriptionID!)")
+        subscriptionIDs.append(spellID)
+        logger.debug("Subscribed to metadata/spell events with ID: \(spellID)")
     }
 
     // MARK: - Deinitialization
 
     /// Unsubscribes from EventBus on deallocation
     ///
-    /// **Note:** Cleanup happens asynchronously in detached tasks. The subscriptions
-    /// will be removed from EventBus after deinit completes. This is safe because
-    /// the handlers use `weak self` and won't be called after deallocation.
+    /// **Note:** Cleanup happens asynchronously via PanelViewModelBase.cleanup().
+    /// The subscriptions will be removed from EventBus after deinit completes.
+    /// This is safe because the handlers use `weak self` and won't be called after deallocation.
     deinit {
-        // Capture values for async cleanup
-        let bus = eventBus
-
-        if let id = leftSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = rightSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
-
-        if let id = spellSubscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
+        cleanup()
     }
 
     // MARK: - Private Methods

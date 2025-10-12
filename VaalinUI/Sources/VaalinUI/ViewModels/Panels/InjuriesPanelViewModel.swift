@@ -103,7 +103,36 @@ import VaalinCore
 /// ```
 @Observable
 @MainActor
-public final class InjuriesPanelViewModel {
+public final class InjuriesPanelViewModel: PanelViewModelBase {
+    // MARK: - Pattern Constants
+
+    /// String patterns for parsing injury image names
+    private enum InjuryPattern {
+        /// Injury prefix string
+        ///
+        /// Used to detect injury patterns like "Injury1", "Injury2", "Injury3".
+        /// Example: `imageName.hasPrefix(InjuryPattern.injuryPrefix)`
+        static let injuryPrefix = "Injury"
+
+        /// Length of injury prefix (character count)
+        ///
+        /// Used to extract severity from injury pattern.
+        /// Example: `imageName.dropFirst(InjuryPattern.injuryPrefixLength)` → "3"
+        static let injuryPrefixLength = 6  // "Injury".count
+
+        /// Scar prefix string
+        ///
+        /// Used to detect scar patterns like "Scar1", "Scar2", "Scar3".
+        /// Example: `imageName.hasPrefix(InjuryPattern.scarPrefix)`
+        static let scarPrefix = "Scar"
+
+        /// Length of scar prefix (character count)
+        ///
+        /// Used to extract severity from scar pattern.
+        /// Example: `imageName.dropFirst(InjuryPattern.scarPrefixLength)` → "2"
+        static let scarPrefixLength = 4  // "Scar".count
+    }
+
     // MARK: - Properties
 
     /// Current injuries by body part (all parts default to .none severity)
@@ -154,14 +183,16 @@ public final class InjuriesPanelViewModel {
         return nervesStatus.severity
     }
 
-    /// EventBus reference for subscribing to injuries events
-    private let eventBus: EventBus
+    // MARK: - PanelViewModelBase Requirements
 
-    /// Subscription ID for cleanup on deinit
+    /// EventBus reference for subscribing to injuries events
+    public let eventBus: EventBus
+
+    /// Subscription IDs for cleanup on deinit
     /// Excluded from observation (not part of UI state) and marked nonisolated(unsafe)
     /// for access in deinit. Safe because handlers use weak self.
     @ObservationIgnored
-    nonisolated(unsafe) private var subscriptionID: EventBus.SubscriptionID?
+    nonisolated(unsafe) public var subscriptionIDs: [EventBus.SubscriptionID] = []
 
     /// Logger for InjuriesPanelViewModel events and errors
     private static let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "InjuriesPanelViewModel")
@@ -196,37 +227,28 @@ public final class InjuriesPanelViewModel {
     /// ```
     public func setup() async {
         // Idempotency check - prevent duplicate subscriptions
-        guard subscriptionID == nil else {
+        guard subscriptionIDs.isEmpty else {
             Self.logger.debug("Already subscribed to EventBus, skipping setup")
             return
         }
 
         // Subscribe to dialogData events
-        subscriptionID = await eventBus.subscribe("metadata/dialogData/injuries") { [weak self] (tag: GameTag) in
+        let id = await eventBus.subscribe("metadata/dialogData/injuries") { [weak self] (tag: GameTag) in
             await self?.handleDialogDataEvent(tag)
         }
-        Self.logger.debug("Subscribed to metadata/dialogData/injuries events with ID: \(self.subscriptionID!)")
+        subscriptionIDs.append(id)
+        Self.logger.debug("Subscribed to metadata/dialogData/injuries events with ID: \(id)")
     }
 
     // MARK: - Deinitialization
 
     /// Unsubscribes from EventBus on deallocation
     ///
-    /// **Note:** Cleanup happens asynchronously after deinit completes. The subscription
-    /// may fire once more during cleanup before being removed from EventBus. This is safe
-    /// because:
-    /// - Handlers use `weak self` which becomes nil immediately after deallocation
-    /// - The weak self guard prevents any handler execution after deallocation
-    /// - EventBus will complete unsubscription shortly after deinit finishes
+    /// **Note:** Cleanup happens asynchronously via PanelViewModelBase.cleanup().
+    /// The subscriptions will be removed from EventBus after deinit completes.
+    /// This is safe because the handlers use `weak self` and won't be called after deallocation.
     deinit {
-        // Capture values for async cleanup
-        let bus = eventBus
-
-        if let id = subscriptionID {
-            Task.detached {
-                await bus.unsubscribe(id)
-            }
-        }
+        cleanup()
     }
 
     // MARK: - Private Methods
@@ -329,8 +351,8 @@ public final class InjuriesPanelViewModel {
         }
 
         // Parse Injury pattern (Injury1, Injury2, Injury3)
-        if imageName.hasPrefix("Injury") {
-            let severityStr = imageName.dropFirst(6)  // Drop "Injury" prefix
+        if imageName.hasPrefix(InjuryPattern.injuryPrefix) {
+            let severityStr = imageName.dropFirst(InjuryPattern.injuryPrefixLength)
             let severity = Int(severityStr) ?? 1
             injuries[bodyPart] = InjuryStatus(injuryType: .injury, severity: severity)
             Self.logger.debug("Set \(imageId) injury severity to \(severity)")
@@ -338,8 +360,8 @@ public final class InjuriesPanelViewModel {
         }
 
         // Parse Scar pattern (Scar1, Scar2, Scar3)
-        if imageName.hasPrefix("Scar") {
-            let severityStr = imageName.dropFirst(4)  // Drop "Scar" prefix
+        if imageName.hasPrefix(InjuryPattern.scarPrefix) {
+            let severityStr = imageName.dropFirst(InjuryPattern.scarPrefixLength)
             let severity = Int(severityStr) ?? 1
             injuries[bodyPart] = InjuryStatus(injuryType: .scar, severity: severity)
             Self.logger.debug("Set \(imageId) scar severity to \(severity)")
