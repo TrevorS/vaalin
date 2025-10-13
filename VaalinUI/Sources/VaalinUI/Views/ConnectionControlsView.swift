@@ -61,6 +61,24 @@ public struct ConnectionControlsView: View {
 
     public var body: some View {
         HStack(spacing: 12) {
+            // Connection status indicator
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(
+                        appState.isConnected
+                            ? Color(red: 166 / 255, green: 227 / 255, blue: 161 / 255)
+                            : Color(red: 243 / 255, green: 139 / 255, blue: 168 / 255)
+                    )
+                    .frame(width: 8, height: 8)
+                    .accessibilityLabel(appState.isConnected ? "Connected to server" : "Disconnected from server")
+                    .accessibilityAddTraits(.isStaticText)
+
+                Text(appState.isConnected ? "Connected" : "Disconnected")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 110, alignment: .leading)
+
             // Host input
             TextField("Host", text: $appState.host)
                 .textFieldStyle(.roundedBorder)

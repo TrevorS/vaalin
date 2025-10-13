@@ -116,6 +116,24 @@ public final class GameLogViewModel {
         }
     }
 
+    /// Creates a new GameLogViewModel with a specific theme (for previews/tests).
+    ///
+    /// This initializer bypasses async theme loading and sets the theme immediately,
+    /// making it ideal for Xcode previews where resource bundle loading may fail.
+    ///
+    /// - Parameter theme: The theme to use for rendering
+    ///
+    /// ## Example Usage
+    /// ```swift
+    /// // In preview:
+    /// let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+    /// ```
+    public init(theme: Theme) {
+        self.renderer = TagRenderer()
+        self.themeManager = ThemeManager()
+        self.currentTheme = theme  // Set immediately - no async loading needed
+    }
+
     // MARK: - Public Methods
 
     /// Appends a single game tag to the log buffer with theme-based rendering.
@@ -198,6 +216,31 @@ public final class GameLogViewModel {
         if messages.count > Self.maxBufferSize {
             messages = Array(messages.suffix(Self.maxBufferSize))
         }
+    }
+
+    /// Waits for the theme to finish loading.
+    ///
+    /// Use this method in previews or tests to ensure the theme is loaded before
+    /// appending messages. This prevents race conditions where messages are rendered
+    /// with plain text fallback before the theme is available.
+    ///
+    /// - Returns: When the theme has been loaded (or immediately if already loaded)
+    ///
+    /// ## Example
+    /// ```swift
+    /// let viewModel = GameLogViewModel()
+    /// await viewModel.waitForTheme()  // Wait for theme to load
+    /// await viewModel.appendMessage(tag)  // Now renders with theme colors
+    /// ```
+    public func waitForTheme() async {
+        // Poll every 10ms until theme is loaded (max 1 second timeout)
+        for _ in 0..<100 {
+            if currentTheme != nil {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        logger.warning("Theme loading timeout after 1 second")
     }
 
     /// Toggles timestamp display for game log messages.
@@ -324,8 +367,8 @@ public final class GameLogViewModel {
 
     /// Loads the default Catppuccin Mocha theme from the app bundle.
     ///
-    /// Called asynchronously during initialization. If loading fails, logs an error
-    /// and leaves `currentTheme` as `nil`, which triggers plain text fallback rendering.
+    /// Called asynchronously during initialization. If loading fails, falls back to
+    /// the hardcoded theme to ensure colors work in all environments (including previews).
     private func loadDefaultTheme() async {
         do {
             // Load theme JSON from SPM resource bundle
@@ -340,16 +383,19 @@ public final class GameLogViewModel {
                 forResource: "catppuccin-mocha",
                 withExtension: "json"
             ) else {
-                // Theme not found - fall back to plain text rendering
-                logger.warning("Failed to load theme: resource bundle or theme file not found")
+                // Resource bundle not found (common in previews) - use hardcoded fallback
+                logger.warning("Failed to load theme from bundle, using hardcoded fallback")
+                currentTheme = Theme.catppuccinMocha()
                 return
             }
 
             let data = try Data(contentsOf: url)
             currentTheme = try await themeManager.loadTheme(from: data)
-            logger.info("Successfully loaded Catppuccin Mocha theme")
+            logger.info("Successfully loaded Catppuccin Mocha theme from bundle")
         } catch {
-            logger.error("Failed to load theme: \(error.localizedDescription)")
+            // Error loading from bundle - use hardcoded fallback
+            logger.error("Failed to load theme from bundle (\(error.localizedDescription)), using fallback")
+            currentTheme = Theme.catppuccinMocha()
         }
     }
 }

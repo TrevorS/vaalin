@@ -36,22 +36,22 @@ Vaalin is a native macOS SwiftUI application for playing GemStone IV (a text-bas
 
 ### Project Status
 
-**Current State:** Active development (29 issues completed, 64 remaining)
+**Current State:** Active development (44 open issues)
 - Foundation complete (Issue #1-19)
 - Phase 1 complete (Parser + Network + Basic UI)
-- Currently in Phase 2 (MVP development)
+- Phase 2 in progress (MVP development)
 
 ### Standard Commands (via Makefile)
 
 Aligned with global development standards from `~/.claude/CLAUDE.md`:
 
 ```bash
+make run                 # Build and launch Vaalin.app (uses scripts/run-app.sh)
 make format              # Auto-fix SwiftLint issues
 make lint                # Check SwiftLint compliance (CI mode)
 make test                # Run all tests with coverage
 make build               # Build for development (Debug)
 make clean               # Clean build artifacts and derived data
-make docs                # Generate DocC documentation
 make help                # Show all available commands
 ```
 
@@ -208,11 +208,14 @@ VaalinUI/Sources/VaalinUI/Views/
 ### Build Output Locations
 
 ```bash
-# Debug builds
-build/Build/Products/Debug/Vaalin.app
+# Debug builds (xcodebuild)
+.build/xcode/Build/Products/Debug/Vaalin.app
+
+# Debug builds (swift build)
+.build/arm64-apple-macosx/debug/Vaalin
 
 # Release builds
-build/Build/Products/Release/Vaalin.app
+.build/xcode/Build/Products/Release/Vaalin.app
 
 # Archives (Phase 6)
 build/Vaalin.xcarchive
@@ -224,11 +227,22 @@ TestResults.xcresult
 ~/Library/Developer/Xcode/DerivedData/Vaalin-{hash}/
 ```
 
+### Automation Scripts
+
+**`scripts/run-app.sh`** - Build and launch Vaalin as proper macOS .app:
+- Uses xcodebuild with proper scheme and destination
+- Creates complete .app bundle structure (Contents/MacOS, Contents/Resources, Info.plist)
+- Copies executable and resource bundle into proper locations
+- Launches via `open` command
+- Use via `make run` or `./scripts/run-app.sh` directly
+
+**`scripts/capture-preview.sh`** - Automated preview screenshots (documented above)
+
 ## Project Structure
 
 **Organization**: Pure Swift Package Manager architecture (no `.xcodeproj` file).
 
-**Implemented in Issue #1** - current structure:
+**Current structure** (as of Issue #140):
 
 ```
 Vaalin/
@@ -236,75 +250,99 @@ Vaalin/
 ├── Makefile                       # Standard development commands
 ├── .swiftlint.yml                 # SwiftLint configuration
 ├── .gitignore                     # Git ignore (Xcode, SwiftPM, build artifacts)
+├── scripts/                       # Build and automation scripts
+│   ├── run-app.sh                 # Build and launch Vaalin.app with proper bundle
+│   └── capture-preview.sh         # Automated Xcode preview screenshots
 ├── Vaalin/                        # Main app target (macOS application)
 │   ├── VaalinApp.swift            # @main entry point
-│   ├── Views/                     # SwiftUI views
-│   │   ├── GameLogView.swift
-│   │   ├── CommandInputView.swift
-│   │   ├── MainView.swift         # Root layout (panels + log + input)
-│   │   ├── Panels/                # HUD panels
-│   │   │   ├── PanelContainer.swift
-│   │   │   ├── HandsPanel.swift
-│   │   │   ├── VitalsPanel.swift
-│   │   │   ├── CompassPanel.swift
-│   │   │   ├── InjuriesPanel.swift
-│   │   │   └── SpellsPanel.swift
-│   │   └── Streams/               # Stream filtering
-│   │       ├── StreamsBarView.swift
-│   │       ├── StreamChip.swift
-│   │       └── StreamView.swift
-│   ├── ViewModels/                # @Observable view models
-│   │   ├── GameLogViewModel.swift
-│   │   ├── CommandInputViewModel.swift
-│   │   └── Panels/
-│   │       ├── HandsPanelViewModel.swift
-│   │       ├── VitalsPanelViewModel.swift
-│   │       └── ...
-│   ├── Resources/                 # JSON data files, themes
-│   │   ├── item-categories.json
-│   │   ├── stream-config.json
-│   │   └── themes/
-│   │       └── catppuccin-mocha.json
+│   ├── Resources/                 # Bundled resources
 │   ├── Assets.xcassets/           # App icon, images
 │   └── Vaalin.entitlements        # Sandboxing, network access (Phase 6)
+├── VaalinUI/                      # Swift Package: SwiftUI views and view models
+│   ├── Sources/VaalinUI/
+│   │   ├── Views/                 # All SwiftUI views
+│   │   │   ├── MainView.swift     # Root layout (panels + log + input)
+│   │   │   ├── GameLogView.swift
+│   │   │   ├── CommandInputView.swift
+│   │   │   ├── PromptView.swift
+│   │   │   ├── StreamsBarView.swift
+│   │   │   ├── ConnectionControlsView.swift
+│   │   │   ├── Panels/
+│   │   │   │   ├── PanelContainer.swift
+│   │   │   │   ├── HandsPanel.swift
+│   │   │   │   ├── VitalsPanel.swift
+│   │   │   │   ├── CompassPanel.swift
+│   │   │   │   ├── CompassRose.swift
+│   │   │   │   ├── InjuriesPanel.swift
+│   │   │   │   └── SpellsPanel.swift
+│   │   │   └── Previews/          # Organized preview files
+│   │   │       ├── CommandInputView/
+│   │   │       ├── GameLogView/
+│   │   │       ├── Panels/
+│   │   │       │   ├── HandsPanel/
+│   │   │       │   ├── VitalsPanel/
+│   │   │       │   ├── CompassPanel/
+│   │   │       │   ├── InjuriesPanel/
+│   │   │       │   └── SpellsPanel/
+│   │   │       └── ...
+│   │   ├── ViewModels/            # @Observable view models
+│   │   │   ├── AppState.swift     # Root application state
+│   │   │   ├── GameLogViewModel.swift
+│   │   │   ├── CommandInputViewModel.swift
+│   │   │   ├── PromptViewModel.swift
+│   │   │   └── Panels/
+│   │   │       ├── PanelViewModelBase.swift
+│   │   │       ├── HandsPanelViewModel.swift
+│   │   │       ├── VitalsPanelViewModel.swift
+│   │   │       ├── CompassPanelViewModel.swift
+│   │   │       ├── InjuriesPanelViewModel.swift
+│   │   │       └── SpellsPanelViewModel.swift
+│   │   ├── Models/                # UI-specific models
+│   │   │   ├── ActiveSpell.swift
+│   │   │   ├── BodyPart.swift
+│   │   │   └── InjuryStatus.swift
+│   │   └── Extensions/
+│   │       └── ViewExtensions.swift
+│   └── Tests/VaalinUITests/       # View and ViewModel tests
 ├── VaalinParser/                  # Swift Package: XML parsing (actor-based)
-│   ├── Sources/
+│   ├── Sources/VaalinParser/
 │   │   ├── XMLStreamParser.swift  # Actor - stateful SAX parser
 │   │   └── TagRenderer.swift      # GameTag → AttributedString
-│   ├── Tests/
-│   │   └── XMLStreamParserTests.swift
+│   └── Tests/VaalinParserTests/
+│       └── XMLStreamParserTests.swift
 ├── VaalinNetwork/                 # Swift Package: Lich TCP connection
-│   ├── Sources/
+│   ├── Sources/VaalinNetwork/
 │   │   ├── LichConnection.swift          # Actor - NWConnection wrapper
 │   │   ├── ConnectionState.swift         # Connection state enum
-│   │   ├── CommandSending.swift          # Protocol - dependency injection for commands (Issue #29)
+│   │   ├── CommandSending.swift          # Protocol - dependency injection
 │   │   └── ParserConnectionBridge.swift  # Actor - integrates connection + parser
-│   ├── Tests/
-│   │   ├── LichConnectionTests.swift
-│   │   └── ParserConnectionBridgeTests.swift
+│   └── Tests/VaalinNetworkTests/
+│       ├── LichConnectionTests.swift
+│       └── ParserConnectionBridgeTests.swift
 ├── VaalinCore/                    # Swift Package: shared models/utilities
-│   ├── Sources/
-│   │   ├── GameTag.swift          # Parsed XML element model (moved from VaalinParser)
+│   ├── Sources/VaalinCore/
+│   │   ├── GameTag.swift          # Parsed XML element model
 │   │   ├── Message.swift          # Rendered game log entry with AttributedString
 │   │   ├── EventBus.swift         # Actor - pub/sub events
+│   │   ├── StreamRegistry.swift   # Actor - thread-safe stream metadata (Issue #49)
+│   │   ├── PanelRegistry.swift    # Actor - panel state management
 │   │   ├── Settings.swift         # Codable settings model
-│   │   ├── SettingsManager.swift  # Actor - JSON persistence
-│   │   ├── ItemCategorizer.swift  # Actor - item highlighting
-│   │   ├── ItemCategory.swift     # Codable category model
-│   │   ├── MacroManager.swift     # Keyboard macro system
 │   │   ├── CommandHistory.swift   # Command history buffer
-│   │   └── ThemeManager.swift     # Preset color theme loader
-│   ├── Tests/
-│   │   ├── GameTagTests.swift     # GameTag model tests (moved from VaalinParser)
-│   │   ├── MessageTests.swift     # Message model tests
-│   │   ├── EventBusTests.swift
-│   │   ├── SettingsTests.swift
-│   │   └── ItemCategorizerTests.swift
-├── VaalinTests/                   # Swift Testing framework (app-level tests)
+│   │   ├── ThemeManager.swift     # Preset color theme loader
+│   │   └── Theme/
+│   │       └── CatppuccinMocha.swift
+│   └── Tests/VaalinCoreTests/
+│       ├── GameTagTests.swift
+│       ├── MessageTests.swift
+│       ├── EventBusTests.swift
+│       └── SettingsTests.swift
+├── VaalinAppTests/                # App-level integration tests
 │   ├── IntegrationTests/
-│   └── PerformanceTests/
-└── VaalinUITests/                 # UI tests (critical paths)
-    └── VaalinUITests.swift
+│   ├── PerformanceTests/
+│   └── Mocks/
+├── TestTools/                     # Standalone test executables
+│   └── TestLichConnection/        # Manual Lich connection testing
+└── TestResults.xcresult           # Test coverage results (gitignored)
 ```
 
 **Package Structure** (Implemented in Issue #1):
@@ -317,10 +355,13 @@ Vaalin/
 - ✅ Cleaner git history without Xcode project file churn
 
 **Target organization:**
-- `Vaalin` (executable) → depends on VaalinParser, VaalinNetwork, VaalinCore
+- `Vaalin` (executable) → depends on VaalinUI, VaalinParser, VaalinNetwork, VaalinCore
+- `VaalinUI` (library) → depends on VaalinCore, VaalinNetwork, VaalinParser
 - `VaalinParser` (library) → depends on VaalinCore
-- `VaalinNetwork` (library) → depends on VaalinCore
-- `VaalinCore` (library) → no dependencies
+- `VaalinNetwork` (library) → depends on VaalinCore, VaalinParser
+- `VaalinCore` (library) → no dependencies (foundational models and utilities)
+
+**Key architectural principle**: UI concerns are isolated in VaalinUI package, main app target is minimal.
 
 **File Naming Conventions**:
 - Swift files: `PascalCase.swift` (e.g., `GameLogView.swift`)
@@ -644,18 +685,48 @@ Performance tests must assert benchmarks:
 ### Test Organization
 
 ```
-VaalinTests/
-├── IntegrationTests/          # End-to-end flows (Phase checkpoints)
+VaalinAppTests/                         # App-level integration tests
+├── IntegrationTests/                   # End-to-end flows (Phase checkpoints)
 │   ├── Phase1IntegrationTests.swift
 │   └── Phase2IntegrationTests.swift
-└── PerformanceTests/          # Benchmark assertions
-    └── ParserPerformanceTests.swift
+├── PerformanceTests/                   # Benchmark assertions
+│   └── ParserPerformanceTests.swift
+└── Mocks/                              # Mock data for integration tests
 
-VaalinParser/Tests/
-└── XMLStreamParserTests.swift  # Unit tests for parser
+VaalinUI/Tests/VaalinUITests/           # View and ViewModel tests
+├── ViewModels/
+│   ├── AppStateIntegrationTests.swift
+│   ├── GameLogViewModelTests.swift
+│   ├── CommandInputViewModelTests.swift
+│   ├── PromptViewModelTests.swift
+│   └── Panels/
+│       ├── HandsPanelViewModelTests.swift
+│       ├── VitalsPanelViewModelTests.swift
+│       ├── CompassPanelViewModelTests.swift
+│       ├── InjuriesPanelViewModelTests.swift
+│       └── SpellsPanelViewModelTests.swift
+└── Views/
+    ├── MainViewTests.swift
+    └── Panels/
+        ├── VitalsPanelTests.swift
+        ├── HandsPanelTests.swift
+        └── InjuriesPanelTests.swift
 
-VaalinUITests/
-└── VaalinUITests.swift        # UI automation tests
+VaalinParser/Tests/VaalinParserTests/
+└── XMLStreamParserTests.swift          # Parser unit tests
+
+VaalinNetwork/Tests/VaalinNetworkTests/
+├── LichConnectionTests.swift
+└── ParserConnectionBridgeTests.swift
+
+VaalinCore/Tests/VaalinCoreTests/
+├── GameTagTests.swift
+├── MessageTests.swift
+├── EventBusTests.swift
+└── SettingsTests.swift
+
+TestTools/
+└── TestLichConnection/                 # Standalone manual testing tool
 ```
 
 ### CI/CD Integration
@@ -807,6 +878,20 @@ make build
 - Check xcodebuild command includes `-destination 'platform=macOS'`
 - Verify Xcode command-line tools: `xcode-select -p` (should show Xcode.app path)
 - Reset command-line tools: `sudo xcode-select --reset`
+
+**KeyPath Sendable warnings (Expected, can be ignored)**:
+```
+<unknown>:0: warning: cannot form key path that captures non-Sendable type 'KeyPath<AttributeScopes.SwiftUIAttributes, ...>'
+Swift.KeyPath:1:14: note: generic class 'KeyPath' does not conform to the 'Sendable' protocol
+```
+
+These warnings are **harmless and expected** during Swift 6 migration:
+- They originate from Apple's Swift standard library, not our code (note `<unknown>:0` location)
+- Occur because `KeyPath` hasn't been made `Sendable` yet in Swift's AttributedString APIs
+- Do not indicate actual concurrency safety problems in our code
+- Cannot be fixed by us - waiting on Apple to update Swift's standard library
+- Will disappear in a future Swift release when Apple makes `KeyPath` conform to `Sendable`
+- Safe to ignore - they're warnings, not errors, and don't affect runtime behavior
 
 ### Xcode Previews Not Working
 

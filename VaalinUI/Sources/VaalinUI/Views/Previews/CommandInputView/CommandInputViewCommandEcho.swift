@@ -69,7 +69,7 @@ struct CommandInputViewCommandEchoPreview: PreviewProvider {
                 Divider()
 
                 // Game log showing echoed commands
-                GameLogView(viewModel: gameLog, isConnected: false)
+                GameLogView(viewModel: gameLog)
                     .frame(height: 300)
 
                 Divider()

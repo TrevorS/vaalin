@@ -167,9 +167,9 @@ public actor TagRenderer {
     ///
     /// - Parameters:
     ///   - tag: Text tag (name: ":text")
-    ///   - theme: Theme (unused for plain text)
+    ///   - theme: Theme for default text color
     ///   - inheritedBold: Whether to apply bold from parent
-    /// - Returns: AttributedString with optional bold formatting
+    /// - Returns: AttributedString with default text color and optional bold formatting
     private func renderText(
         _ tag: GameTag,
         theme: Theme,
@@ -181,6 +181,11 @@ public actor TagRenderer {
         // Apply bold if inherited from parent tag
         if inheritedBold {
             attributed.font = boldFont
+        }
+
+        // Apply default text color from theme (Catppuccin Mocha Text: #cdd6f4)
+        if let textColor = await themeManager.semanticColor(for: "text", theme: theme) {
+            attributed.foregroundColor = textColor
         }
 
         return attributed
