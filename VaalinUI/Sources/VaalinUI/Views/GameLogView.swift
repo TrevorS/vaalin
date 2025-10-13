@@ -56,9 +56,21 @@ public struct GameLogView: NSViewRepresentable {
         // Configure NSTextView for read-only, selectable game log
         configureTextView(textView)
 
-        // Force TextKit 1 for predictable performance (BEFORE any text operations)
-        // TextKit 2 has known issues with large documents and rapid updates
-        // Accessing layoutManager before text operations prevents TextKit 2 initialization
+        // Force TextKit 1 for proven stability and performance with large documents
+        //
+        // TextKit 2 has well-documented issues with 10k+ line buffers:
+        // - Performance degrades significantly above ~3k lines (10k is "nightmare" per developers)
+        // - Crashes with excessive memory usage on very large documents
+        // - Unstable scrolling and unreliable height estimates even after 4 years
+        // - Apple's own TextEdit suffers from these issues as of macOS 14
+        //
+        // References:
+        // - https://stackoverflow.com/questions/76184162 (UITextView performance issues)
+        // - https://indiestack.com/2022/11/opting-out-of-textkit2-in-nstextview/
+        // - https://developer.apple.com/forums/thread/729491 (Apple Forums)
+        //
+        // Accessing layoutManager before text operations forces TextKit 1 initialization
+        // (macOS 13+ defaults to TextKit 2, this forces the fallback)
         if let layoutManager = textView.layoutManager,
            let textContainer = textView.textContainer {
             // Verify TextKit 1 initialized correctly (defensive check)
@@ -217,8 +229,9 @@ public struct GameLogView: NSViewRepresentable {
         /// Auto-scroll enabled (disabled when user scrolls up)
         var autoScrollEnabled: Bool = true
 
-        /// Timer to re-enable auto-scroll after user idle (3 seconds)
-        nonisolated(unsafe) private var autoScrollReenableTimer: Timer?
+        /// Task to re-enable auto-scroll after user idle (3 seconds)
+        /// Uses Task cancellation instead of Timer for Swift 6 concurrency safety
+        private var autoScrollReenableTask: Task<Void, Never>?
 
         /// Cache of converted NSAttributedStrings (keyed by Message.id)
         /// Prevents repeated AttributedString → NSAttributedString conversion
@@ -289,9 +302,10 @@ public struct GameLogView: NSViewRepresentable {
 
             // Clean cache periodically (prevent unbounded growth)
             // Use async cleanup to avoid blocking append operation
+            // CRITICAL: Must use @MainActor task (not detached) for safe cache access
             if nsAttributedCache.count > 10_000 {
                 let currentIDs = Set(currentMessages.map { $0.id })
-                Task(priority: .utility) { @MainActor [weak self] in
+                Task { @MainActor [weak self] in
                     guard let self = self else { return }
                     self.nsAttributedCache = self.nsAttributedCache.filter { currentIDs.contains($0.key) }
                 }
@@ -389,28 +403,25 @@ public struct GameLogView: NSViewRepresentable {
                 autoScrollEnabled = false
 
                 // Re-enable auto-scroll after 3 seconds of idle
-                autoScrollReenableTimer?.invalidate()
-                autoScrollReenableTimer = Timer.scheduledTimer(
-                    withTimeInterval: 3.0,
-                    repeats: false
-                ) { [weak self] timer in
-                    timer.invalidate()  // Explicit invalidation
-                    Task { @MainActor [weak self] in
-                        self?.autoScrollEnabled = true
-                    }
+                // Uses Task cancellation for Swift 6 concurrency safety
+                autoScrollReenableTask?.cancel()
+                autoScrollReenableTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    self?.autoScrollEnabled = true
                 }
             } else {
                 // Back at bottom, re-enable immediately
                 autoScrollEnabled = true
-                autoScrollReenableTimer?.invalidate()
+                autoScrollReenableTask?.cancel()
             }
         }
 
         // MARK: - Cleanup
 
         deinit {
-            // Invalidate timer (prevent memory leak)
-            autoScrollReenableTimer?.invalidate()
+            // Cancel pending task (Thread-safe: Task is Sendable)
+            autoScrollReenableTask?.cancel()
 
             // Remove notification observers (prevent zombie objects)
             NotificationCenter.default.removeObserver(self)

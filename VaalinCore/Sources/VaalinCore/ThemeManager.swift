@@ -34,86 +34,60 @@ public struct Theme: Codable, Sendable {
         self.semantic = semantic
     }
 
-    // swiftlint:disable function_body_length
     /// Creates the default Catppuccin Mocha theme.
     ///
-    /// This method provides a hardcoded theme for use in previews and fallback scenarios
-    /// where resource bundle loading may fail. The theme matches catppuccin-mocha.json exactly.
+    /// Attempts to load from bundled JSON resource first, falls back to embedded JSON string
+    /// if bundle loading fails (common in previews and tests).
     ///
     /// - Returns: Catppuccin Mocha theme with full color palette
     public static func catppuccinMocha() -> Theme {
-        return Theme(
-            name: "Catppuccin Mocha",
-            palette: [
-                "rosewater": "#f5e0dc",
-                "flamingo": "#f2cdcd",
-                "pink": "#f5c2e7",
-                "mauve": "#cba6f7",
-                "red": "#f38ba8",
-                "maroon": "#eba0ac",
-                "peach": "#fab387",
-                "yellow": "#f9e2af",
-                "green": "#a6e3a1",
-                "teal": "#94e2d5",
-                "sky": "#89dceb",
-                "sapphire": "#74c7ec",
-                "blue": "#89b4fa",
-                "lavender": "#b4befe",
-                "text": "#cdd6f4",
-                "subtext1": "#bac2de",
-                "subtext0": "#a6adc8",
-                "overlay2": "#9399b2",
-                "overlay1": "#7f849c",
-                "overlay0": "#6c7086",
-                "surface2": "#585b70",
-                "surface1": "#45475a",
-                "surface0": "#313244",
-                "base": "#1e1e2e",
-                "mantle": "#181825",
-                "crust": "#11111b"
-            ],
-            presets: [
-                "speech": "green",
-                "whisper": "teal",
-                "thought": "subtext1",
-                "damage": "red",
-                "heal": "sky",
-                "monster": "peach",
-                "roomName": "lavender",
-                "roomDesc": "subtext0",
-                "bold": "text",
-                "watching": "yellow",
-                "link": "blue",
-                "prompt": "text",
-                "command": "subtext1",
-                "macro": "mauve",
-                "channel": "sapphire"
-            ],
-            categories: [
-                "weapon": "red",
-                "armor": "sapphire",
-                "clothing": "flamingo",
-                "gem": "yellow",
-                "jewelry": "pink",
-                "reagent": "mauve",
-                "food": "peach",
-                "valuable": "rosewater",
-                "box": "overlay1",
-                "junk": "overlay0"
-            ],
-            semantic: [
-                "text": "text",
-                "link": "blue",
-                "command": "subtext1",
-                "success": "green",
-                "warning": "yellow",
-                "danger": "red",
-                "info": "blue",
-                "timestamp": "overlay0"
-            ]
-        )
+        // Try to load from SPM resource bundle first
+        if let resourceBundleURL = Bundle.main.url(forResource: "Vaalin_Vaalin", withExtension: "bundle"),
+           let resourceBundle = Bundle(url: resourceBundleURL),
+           let url = resourceBundle.url(forResource: "catppuccin-mocha", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let theme = try? JSONDecoder().decode(Theme.self, from: data) {
+            return theme
+        }
+
+        // Fallback: embedded JSON for previews and tests where bundle loading fails
+        let embeddedJSON = """
+        {
+          "name": "Catppuccin Mocha",
+          "palette": {
+            "rosewater": "#f5e0dc", "flamingo": "#f2cdcd", "pink": "#f5c2e7", "mauve": "#cba6f7",
+            "red": "#f38ba8", "maroon": "#eba0ac", "peach": "#fab387", "yellow": "#f9e2af",
+            "green": "#a6e3a1", "teal": "#94e2d5", "sky": "#89dceb", "sapphire": "#74c7ec",
+            "blue": "#89b4fa", "lavender": "#b4befe", "text": "#cdd6f4", "subtext1": "#bac2de",
+            "subtext0": "#a6adc8", "overlay2": "#9399b2", "overlay1": "#7f849c", "overlay0": "#6c7086",
+            "surface2": "#585b70", "surface1": "#45475a", "surface0": "#313244",
+            "base": "#1e1e2e", "mantle": "#181825", "crust": "#11111b"
+          },
+          "presets": {
+            "speech": "green", "whisper": "teal", "thought": "subtext1", "damage": "red",
+            "heal": "sky", "monster": "peach", "roomName": "lavender", "roomDesc": "subtext0",
+            "bold": "text", "watching": "yellow", "link": "blue", "prompt": "text",
+            "command": "subtext1", "macro": "mauve", "channel": "sapphire"
+          },
+          "categories": {
+            "weapon": "red", "armor": "sapphire", "clothing": "flamingo", "gem": "yellow",
+            "jewelry": "pink", "reagent": "mauve", "food": "peach", "valuable": "rosewater",
+            "box": "overlay1", "junk": "overlay0"
+          },
+          "semantic": {
+            "text": "text", "link": "blue", "command": "subtext1", "success": "green",
+            "warning": "yellow", "danger": "red", "info": "blue", "timestamp": "overlay0"
+          }
+        }
+        """
+
+        guard let data = embeddedJSON.data(using: .utf8),
+              let theme = try? JSONDecoder().decode(Theme.self, from: data) else {
+            fatalError("Failed to decode embedded Catppuccin Mocha theme - this should never happen")
+        }
+
+        return theme
     }
-    // swiftlint:enable function_body_length
 }
 
 /// Thread-safe theme manager for loading themes and providing color lookups
