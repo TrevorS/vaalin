@@ -93,6 +93,22 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
     /// subsequent chunks complete them.
     private var tagStack: [GameTag] = []
 
+    /// Active stream tag for wrapping stream content (like Illthorn's collectStreamContent).
+    ///
+    /// When `<pushStream id="X">` is encountered, we create a synthetic `stream` tag
+    /// with `attrs.id = "X"` and `state = .open`. All subsequent content becomes children
+    /// of this stream tag until `<popStream>` is encountered.
+    ///
+    /// This matches Illthorn's architecture:
+    /// - Stream content is WRAPPED in a parent stream tag
+    /// - Filtering removes the ENTIRE stream tag (and all children)
+    /// - Prevents individual tags from "leaking" into main log
+    ///
+    /// SAFETY: Although marked nonisolated(unsafe), this is accessed from XMLParserDelegate
+    /// callbacks which are called synchronously during parse(). Since parse() is actor-isolated
+    /// and executes serially, only one parse() can run at a time, making this safe.
+    nonisolated(unsafe) private var activeStreamTag: GameTag?
+
     /// Buffer for accumulating character data across multiple foundCharacters() callbacks.
     ///
     /// Foundation's XMLParser can split character data into multiple calls.
@@ -231,8 +247,10 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         // Parse succeeded - clear buffer
         xmlBuffer = ""
 
-        // If there's remaining character data at the end and we're at root level,
-        // create a final :text node
+        // If there's remaining character data at the end, create a final :text node
+        // Priority routing (same as other text nodes):
+        // 1. If inside stream, add to activeStreamTag children
+        // 2. If at root level, add to parsed tags
         if !currentCharacterBuffer.isEmpty && currentTagStack.isEmpty {
             let textNode = GameTag(
                 name: ":text",
@@ -242,7 +260,17 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
                 state: .closed,
                 streamId: inStream ? currentStream : nil
             )
-            currentParsedTags.append(textNode)
+
+            if let activeStream = activeStreamTag {
+                // Inside a stream - add to stream wrapper's children
+                var streamTag = activeStream
+                streamTag.children.append(textNode)
+                activeStreamTag = streamTag
+            } else {
+                // At root level - add to parsed tags
+                currentParsedTags.append(textNode)
+            }
+
             currentCharacterBuffer = ""
         }
 
@@ -395,24 +423,38 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         }
 
         // STREAM CONTROL: Handle pushStream tag
-        // <pushStream id="X"/> sets the current stream context
-        // This is a control directive, not a game tag, so return early
+        // <pushStream id="X"/> creates a synthetic stream wrapper tag and sets stream context
+        // This matches Illthorn's collectStreamContent() pattern
         if elementName == "pushStream" {
             // Extract stream ID from id attribute
-            // If no id attribute, set currentStream to nil (graceful handling)
             currentStream = attributeDict["id"]
             inStream = true
 
-            // Publish stream event (even though this doesn't create a GameTag)
-            // Note: We can't use await here because didStartElement is nonisolated
-            // The event will be published when the parsing completes
+            // DEBUG: Log stream state change
+            if let streamId = currentStream {
+                logger.debug("🌊 pushStream: entering stream '\(streamId, privacy: .public)'")
+            }
+
+            // Create synthetic stream wrapper tag (like Illthorn does)
+            // This tag will collect all content as children until popStream
+            let streamTag = GameTag(
+                name: "stream",
+                text: nil,
+                attrs: ["id": currentStream ?? "unknown"],
+                children: [],
+                state: .open,
+                streamId: currentStream
+            )
+            activeStreamTag = streamTag
+
+            // Publish stream event
             if let streamId = attributeDict["id"] {
                 Task {
                     await publishStreamEvent(streamId: streamId, attributes: attributeDict)
                 }
             }
 
-            // Don't create a GameTag - this is a stream control directive
+            // Don't add to tag stack - stream wrapper is handled separately
             return
         }
 
@@ -421,6 +463,11 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         // For self-closing tags, XMLParser calls didStartElement first
         // This is a control directive, not a game tag, so return early
         if elementName == "popStream" {
+            // DEBUG: Log stream state change (before clearing)
+            if let streamId = currentStream {
+                logger.debug("🌊 popStream: leaving stream '\(streamId, privacy: .public)'")
+            }
+
             currentStream = nil
             inStream = false
 
@@ -450,7 +497,16 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
                 streamId: inStream ? currentStream : nil
             )
 
-            if currentTagStack.isEmpty {
+            // Priority routing (same as tag routing):
+            // 1. If inside stream, add to activeStreamTag children
+            // 2. If inside parent tag, add to parent's children
+            // 3. Otherwise, add to root-level parsed tags
+            if let activeStream = activeStreamTag {
+                // Inside a stream - add to stream wrapper's children
+                var streamTag = activeStream
+                streamTag.children.append(textNode)
+                activeStreamTag = streamTag
+            } else if currentTagStack.isEmpty {
                 // At root level - add text node to parsed tags
                 currentParsedTags.append(textNode)
             } else {
@@ -502,11 +558,29 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         }
 
         // STREAM CONTROL: Handle popStream tag
-        // <popStream/> clears the current stream context
-        // This is a control directive, not a game tag, so return early
+        // <popStream/> closes the active stream wrapper and clears stream context
+        // This matches Illthorn's pattern of completing the stream tag
         if elementName == "popStream" {
+            // DEBUG: Log stream state change (before clearing)
+            if let streamId = currentStream {
+                logger.debug("🌊 popStream (didEndElement): leaving stream '\(streamId, privacy: .public)'")
+            }
+
+            // Close and finalize the active stream wrapper tag
+            if var streamTag = activeStreamTag {
+                streamTag.state = .closed
+
+                // Add completed stream tag to parsed tags
+                currentParsedTags.append(streamTag)
+
+                // Queue for event publishing
+                tagsNeedingEventPublish.append(streamTag)
+            }
+
+            // Clear stream context
             currentStream = nil
             inStream = false
+            activeStreamTag = nil
 
             // Don't process as a normal tag - this is a stream control directive
             return
@@ -566,9 +640,15 @@ public actor XMLStreamParser: NSObject, XMLParserDelegate {
         currentCharacterBuffer = ""
 
         // CRITICAL NESTING LOGIC:
-        // If there's a parent tag on the stack, add this tag as a child of the parent
-        // Otherwise, add to the root-level parsed tags
-        if currentTagStack.isEmpty {
+        // Priority 1: If we're inside a stream, add to activeStreamTag children
+        // Priority 2: If there's a parent tag on the stack, add as child of parent
+        // Priority 3: Otherwise, add to root-level parsed tags
+        if let activeStream = activeStreamTag {
+            // Inside a stream - add to stream wrapper's children
+            var streamTag = activeStream
+            streamTag.children.append(tag)
+            activeStreamTag = streamTag
+        } else if currentTagStack.isEmpty {
             // No parent - this is a root-level tag
             currentParsedTags.append(tag)
         } else {

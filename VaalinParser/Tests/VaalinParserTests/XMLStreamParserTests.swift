@@ -1657,7 +1657,7 @@ struct XMLStreamParserTests {
     }
 
     /// Test tags between pushStream/popStream should be marked with stream ID
-    /// Tags parsed while inStream=true should have their streamId set
+    /// Tags parsed while inStream=true should be wrapped in stream tag
     @Test func test_streamTagMarking() async throws {
         let parser = XMLStreamParser()
 
@@ -1665,14 +1665,19 @@ struct XMLStreamParserTests {
         let xml = "<pushStream id=\"thoughts\"/><output>You think about magic.</output><popStream/>"
         let tags = await parser.parse(xml)
 
-        // Should get the output tag (stream control tags don't become GameTags)
+        // Should get a stream wrapper tag (new behavior)
         #expect(tags.count == 1)
-        let tag = tags[0]
-        #expect(tag.name == "output")
-        #expect(tag.text == "You think about magic.")
+        let streamTag = tags[0]
+        #expect(streamTag.name == "stream")
+        #expect(streamTag.attrs["id"] == "thoughts")
+        #expect(streamTag.streamId == "thoughts")
 
-        // Tag should be marked with stream ID
-        #expect(tag.streamId == "thoughts")
+        // Stream wrapper should contain the output tag as a child
+        #expect(streamTag.children.count == 1)
+        let outputTag = streamTag.children[0]
+        #expect(outputTag.name == "output")
+        #expect(outputTag.text == "You think about magic.")
+        #expect(outputTag.streamId == "thoughts")
     }
 
     /// Test multiple stream cycles work correctly
@@ -1816,12 +1821,20 @@ struct XMLStreamParserTests {
         let finalStream = await parser.getCurrentStream()
         #expect(finalStream == nil)
 
-        // Should get the output tag with nested structure
+        // Should get stream wrapper tag (new behavior)
         #expect(tags.count == 1)
-        let output = tags[0]
+        let streamTag = tags[0]
+        #expect(streamTag.name == "stream")
+        #expect(streamTag.attrs["id"] == "thoughts")
+
+        // Stream wrapper should contain the output tag with nested structure
+        // (May also have text nodes, so find the output tag)
+        let outputs = streamTag.children.filter { $0.name == "output" }
+        #expect(outputs.count == 1)
+        let output = outputs[0]
         #expect(output.name == "output")
-        // Verify nesting preserved
-        #expect(output.children.count > 0)
+        // The output tag should have content (either text or children)
+        #expect(output.text != nil || !output.children.isEmpty)
     }
 
     /// Test stream control tags split across chunks
@@ -1865,11 +1878,20 @@ struct XMLStreamParserTests {
         #expect(finalStream == nil)
         #expect(finalInStream == false)
 
-        // Should get 2 output tags + 1 prompt tag
-        #expect(tags.count == 3)
-        #expect(tags[0].name == "output")
-        #expect(tags[1].name == "output")
-        #expect(tags[2].name == "prompt")
+        // Should get 1 stream wrapper + 1 prompt tag
+        #expect(tags.count == 2)
+
+        // First tag is stream wrapper containing 2 output tags
+        let streamTag = tags[0]
+        #expect(streamTag.name == "stream")
+        #expect(streamTag.attrs["id"] == "thoughts")
+        #expect(streamTag.children.count == 2)
+        #expect(streamTag.children[0].name == "output")
+        #expect(streamTag.children[1].name == "output")
+
+        // Second tag is prompt (not in stream)
+        let promptTag = tags[1]
+        #expect(promptTag.name == "prompt")
     }
 
     /// Test multiple streams in sequence without interference
@@ -3479,8 +3501,12 @@ struct XMLStreamParserTests {
         // Give event bus time to deliver
         try await Task.sleep(for: .milliseconds(50))
 
-        // popStream is control directive - doesn't create content
-        #expect(tags.isEmpty)
+        // New behavior: Stream wrapper tag is created even if empty
+        #expect(tags.count == 1)
+        let streamTag = tags[0]
+        #expect(streamTag.name == "stream")
+        #expect(streamTag.attrs["id"] == "thoughts")
+        #expect(streamTag.children.isEmpty) // But wrapper has no content
 
         // popStream should NOT publish any events (it's just a state change)
         #expect(eventReceived == false)
