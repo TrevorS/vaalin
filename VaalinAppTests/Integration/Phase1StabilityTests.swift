@@ -107,10 +107,10 @@ struct Phase1StabilityTests {
         try await appState.connect()
 
         // Send multiple scenarios with varying content
-        await server.sendScenario(.roomDescription)
-        await server.sendScenario(.promptSequence)
-        await server.sendScenario(.handsUpdate)
-        await server.sendScenario(.vitalsUpdate)
+        // Use scenarios that produce visible game log content (not just metadata)
+        await server.sendScenario(.combatSequence)  // Combat text (not filtered)
+        await server.sendScenario(.itemLoot)        // Item tags (not filtered)
+        await server.sendScenario(.complexNested)   // Mixed content (not filtered)
 
         // Wait for polling to process tags into messages
         // Polling interval is 100ms, give it enough time for multiple cycles

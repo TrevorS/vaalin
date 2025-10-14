@@ -3,6 +3,7 @@
 import Foundation
 import Network
 import os
+import VaalinCore
 
 /// Thread-safe actor that manages TCP connection to Lich's detachable client port
 ///
@@ -66,6 +67,12 @@ public actor LichConnection: CommandSending {
     /// Connection parameters (host, port) for reconnection
     private var connectionHost: String?
     private var connectionPort: UInt16?
+
+    /// Session/character name for debug logging
+    private var sessionName: String = "Unknown"
+
+    /// Optional debug data interceptor (only used in DEBUG builds)
+    private var debugInterceptor: (any DebugDataIntercepting)?
 
     /// Continuation for data streaming
     private var dataContinuation: AsyncStream<Data>.Continuation?
@@ -171,6 +178,25 @@ public actor LichConnection: CommandSending {
         // Use .idempotent for fire-and-forget semantics (faster, simpler)
         connection.send(content: commandData, completion: .idempotent)
         logger.debug("Sent command: \(command)")
+    }
+
+    /// Set the session/character name for debug logging
+    ///
+    /// - Parameter name: Character or session name
+    public func setSessionName(_ name: String) {
+        sessionName = name
+        logger.info("Session name set to: \(name)")
+    }
+
+    /// Set the debug data interceptor (DEBUG builds only)
+    ///
+    /// The interceptor receives raw XML data before it's parsed, allowing
+    /// debug windows to display the exact data received from Lich 5.
+    ///
+    /// - Parameter interceptor: Object conforming to DebugDataIntercepting
+    public func setDebugInterceptor(_ interceptor: (any DebugDataIntercepting)?) {
+        debugInterceptor = interceptor
+        logger.debug("Debug interceptor \(interceptor == nil ? "removed" : "set")")
     }
 
     /// Stream of incoming data from Lich
@@ -296,6 +322,16 @@ public actor LichConnection: CommandSending {
 
         if let data = data, !data.isEmpty {
             logger.debug("Received \(data.count) bytes")
+
+            // Intercept data for debug window BEFORE parsing (DEBUG only)
+            if let interceptor = debugInterceptor,
+               let text = String(data: data, encoding: .utf8) {
+                Task {
+                    await interceptor.interceptData(text, session: sessionName)
+                }
+            }
+
+            // Continue normal flow: yield to parser
             dataContinuation?.yield(data)
         }
 

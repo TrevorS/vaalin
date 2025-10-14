@@ -58,6 +58,9 @@
     "junk": "overlay0"
   },
   "semantic": {
+    "text": "text",
+    "link": "blue",
+    "command": "subtext1",
     "success": "green",
     "warning": "yellow",
     "danger": "red",

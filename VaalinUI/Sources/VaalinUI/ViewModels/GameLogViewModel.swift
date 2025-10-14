@@ -99,6 +99,15 @@ public final class GameLogViewModel {
     /// Logger for GameLogViewModel events and errors
     private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "GameLogViewModel")
 
+    /// Text of the last prompt message (for consecutive duplicate detection).
+    ///
+    /// Tracks the text content of the most recent prompt-only message to prevent
+    /// visual clutter from repeated prompts (e.g., `s>` appearing multiple times).
+    /// Only prompts are deduplicated - all other content is always displayed.
+    ///
+    /// Set to `nil` when a non-prompt message is appended to reset the tracking.
+    private var lastPromptText: String?
+
     // MARK: - Initialization
 
     /// Creates a new GameLogViewModel with an empty message buffer.
@@ -114,6 +123,24 @@ public final class GameLogViewModel {
         Task { @MainActor in
             await loadDefaultTheme()
         }
+    }
+
+    /// Creates a new GameLogViewModel with a specific theme (for previews/tests).
+    ///
+    /// This initializer bypasses async theme loading and sets the theme immediately,
+    /// making it ideal for Xcode previews where resource bundle loading may fail.
+    ///
+    /// - Parameter theme: The theme to use for rendering
+    ///
+    /// ## Example Usage
+    /// ```swift
+    /// // In preview:
+    /// let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+    /// ```
+    public init(theme: Theme) {
+        self.renderer = TagRenderer()
+        self.themeManager = ThemeManager()
+        self.currentTheme = theme  // Set immediately - no async loading needed
     }
 
     // MARK: - Public Methods
@@ -167,6 +194,26 @@ public final class GameLogViewModel {
             return
         }
 
+        // Check if this is a prompt-only message (for consecutive duplicate detection)
+        let isPromptOnly = tags.allSatisfy { $0.name == "prompt" }
+
+        if isPromptOnly {
+            // Extract prompt text for comparison
+            let promptText = extractTextContent(tags)
+
+            // Skip if duplicate of last prompt
+            if promptText == lastPromptText {
+                logger.debug("⏭️ Skipping consecutive duplicate prompt: \(promptText)")
+                return
+            }
+
+            // Track this prompt for next comparison
+            lastPromptText = promptText
+        } else {
+            // Non-prompt message - reset prompt tracking
+            lastPromptText = nil
+        }
+
         let message: Message
         let timestamp = Date()  // Capture current timestamp
 
@@ -198,6 +245,31 @@ public final class GameLogViewModel {
         if messages.count > Self.maxBufferSize {
             messages = Array(messages.suffix(Self.maxBufferSize))
         }
+    }
+
+    /// Waits for the theme to finish loading.
+    ///
+    /// Use this method in previews or tests to ensure the theme is loaded before
+    /// appending messages. This prevents race conditions where messages are rendered
+    /// with plain text fallback before the theme is available.
+    ///
+    /// - Returns: When the theme has been loaded (or immediately if already loaded)
+    ///
+    /// ## Example
+    /// ```swift
+    /// let viewModel = GameLogViewModel()
+    /// await viewModel.waitForTheme()  // Wait for theme to load
+    /// await viewModel.appendMessage(tag)  // Now renders with theme colors
+    /// ```
+    public func waitForTheme() async {
+        // Poll every 10ms until theme is loaded (max 1 second timeout)
+        for _ in 0..<100 {
+            if currentTheme != nil {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        logger.warning("Theme loading timeout after 1 second")
     }
 
     /// Toggles timestamp display for game log messages.
@@ -258,6 +330,26 @@ public final class GameLogViewModel {
     }
 
     // MARK: - Private Methods
+
+    /// Extracts all text content from tags for deduplication comparison.
+    ///
+    /// Recursively traverses tag tree to build complete text representation.
+    /// Used for consecutive prompt deduplication.
+    ///
+    /// - Parameter tags: Tags to extract text from
+    /// - Returns: Combined text content (trimmed)
+    private func extractTextContent(_ tags: [GameTag]) -> String {
+        var text = ""
+        for tag in tags {
+            if let tagText = tag.text {
+                text += tagText
+            }
+            if !tag.children.isEmpty {
+                text += extractTextContent(tag.children)
+            }
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     /// Checks if an array of tags has any meaningful content.
     ///
@@ -324,8 +416,8 @@ public final class GameLogViewModel {
 
     /// Loads the default Catppuccin Mocha theme from the app bundle.
     ///
-    /// Called asynchronously during initialization. If loading fails, logs an error
-    /// and leaves `currentTheme` as `nil`, which triggers plain text fallback rendering.
+    /// Called asynchronously during initialization. If loading fails, falls back to
+    /// the hardcoded theme to ensure colors work in all environments (including previews).
     private func loadDefaultTheme() async {
         do {
             // Load theme JSON from SPM resource bundle
@@ -340,16 +432,19 @@ public final class GameLogViewModel {
                 forResource: "catppuccin-mocha",
                 withExtension: "json"
             ) else {
-                // Theme not found - fall back to plain text rendering
-                logger.warning("Failed to load theme: resource bundle or theme file not found")
+                // Resource bundle not found (common in previews) - use hardcoded fallback
+                logger.warning("Failed to load theme from bundle, using hardcoded fallback")
+                currentTheme = Theme.catppuccinMocha()
                 return
             }
 
             let data = try Data(contentsOf: url)
             currentTheme = try await themeManager.loadTheme(from: data)
-            logger.info("Successfully loaded Catppuccin Mocha theme")
+            logger.info("Successfully loaded Catppuccin Mocha theme from bundle")
         } catch {
-            logger.error("Failed to load theme: \(error.localizedDescription)")
+            // Error loading from bundle - use hardcoded fallback
+            logger.error("Failed to load theme from bundle (\(error.localizedDescription)), using fallback")
+            currentTheme = Theme.catppuccinMocha()
         }
     }
 }

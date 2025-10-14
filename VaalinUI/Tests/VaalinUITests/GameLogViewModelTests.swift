@@ -167,4 +167,203 @@ struct GameLogViewModelTests {
         #expect(text.contains("#"))
         #expect(text.contains("@"))
     }
+
+    // MARK: - Consecutive Prompt Deduplication Tests
+
+    /// Test that consecutive identical prompts are deduplicated
+    ///
+    /// When the server sends the same prompt multiple times in a row,
+    /// only the first one should appear in the game log to reduce visual clutter.
+    @Test func test_consecutiveIdenticalPromptsDeduped() async throws {
+        let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+        await viewModel.waitForTheme()
+
+        let prompt1 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+        let prompt2 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+        let prompt3 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+
+        // Append first prompt - should be added
+        await viewModel.appendMessage([prompt1])
+        #expect(viewModel.messages.count == 1)
+        let text1 = String(viewModel.messages[0].attributedText.characters)
+        #expect(text1.contains("s>"))
+
+        // Append duplicate prompt - should be skipped
+        await viewModel.appendMessage([prompt2])
+        #expect(viewModel.messages.count == 1) // Still only 1 message
+
+        // Append another duplicate - should be skipped
+        await viewModel.appendMessage([prompt3])
+        #expect(viewModel.messages.count == 1) // Still only 1 message
+    }
+
+    /// Test that prompt deduplication resets after non-prompt content
+    ///
+    /// When content appears between prompts, the same prompt can appear again
+    /// because it's contextually different (e.g., after a command response).
+    @Test func test_promptDeduplicationResetsAfterContent() async throws {
+        let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+        await viewModel.waitForTheme()
+
+        let prompt1 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+        let content = GameTag(name: ":text", text: "You swing at the troll!", attrs: [:], children: [], state: .closed)
+        let prompt2 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+
+        // Append first prompt
+        await viewModel.appendMessage([prompt1])
+        #expect(viewModel.messages.count == 1)
+
+        // Append content - resets prompt tracking
+        await viewModel.appendMessage([content])
+        #expect(viewModel.messages.count == 2)
+
+        // Append same prompt again - should be added (not deduped)
+        await viewModel.appendMessage([prompt2])
+        #expect(viewModel.messages.count == 3)
+
+        // Verify both prompts are present
+        let text1 = String(viewModel.messages[0].attributedText.characters)
+        let text2 = String(viewModel.messages[1].attributedText.characters)
+        let text3 = String(viewModel.messages[2].attributedText.characters)
+        #expect(text1.contains("s>"))
+        #expect(text2.contains("You swing"))
+        #expect(text3.contains("s>"))
+    }
+
+    /// Test that different prompts are not deduplicated
+    ///
+    /// Only consecutive identical prompts should be deduped.
+    /// Different prompt texts should always be displayed.
+    @Test func test_differentPromptsNotDeduped() async throws {
+        let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+        await viewModel.waitForTheme()
+
+        let prompt1 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+        let prompt2 = GameTag(name: "prompt", text: ">", attrs: [:], children: [], state: .closed)
+        let prompt3 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+
+        // Append first prompt
+        await viewModel.appendMessage([prompt1])
+        #expect(viewModel.messages.count == 1)
+
+        // Append different prompt - should be added
+        await viewModel.appendMessage([prompt2])
+        #expect(viewModel.messages.count == 2)
+
+        // Append first prompt again - should be added (different from previous)
+        await viewModel.appendMessage([prompt3])
+        #expect(viewModel.messages.count == 3)
+
+        // Verify all prompts are present
+        let text1 = String(viewModel.messages[0].attributedText.characters)
+        let text2 = String(viewModel.messages[1].attributedText.characters)
+        let text3 = String(viewModel.messages[2].attributedText.characters)
+        #expect(text1.contains("s>"))
+        #expect(text2.contains(">"))
+        #expect(text3.contains("s>"))
+    }
+
+    /// Test that mixed tags (prompt + content) reset deduplication
+    ///
+    /// If tags array contains both prompt and non-prompt tags,
+    /// it should be treated as content and reset prompt tracking.
+    @Test func test_mixedTagsResetDeduplication() async throws {
+        let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+        await viewModel.waitForTheme()
+
+        let prompt1 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+        let mixedPrompt = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+        let mixedContent = GameTag(name: ":text", text: "You are ready.", attrs: [:], children: [], state: .closed)
+        let prompt2 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+
+        // Append first prompt
+        await viewModel.appendMessage([prompt1])
+        #expect(viewModel.messages.count == 1)
+
+        // Append mixed batch (prompt + content) - should reset tracking
+        await viewModel.appendMessage([mixedPrompt, mixedContent])
+        #expect(viewModel.messages.count == 2)
+
+        // Append same prompt again - should be added (tracking was reset)
+        await viewModel.appendMessage([prompt2])
+        #expect(viewModel.messages.count == 3)
+
+        // Verify prompts are present
+        let text1 = String(viewModel.messages[0].attributedText.characters)
+        let text3 = String(viewModel.messages[2].attributedText.characters)
+        #expect(text1.contains("s>"))
+        #expect(text3.contains("s>"))
+    }
+
+    /// Test that only prompt-only tags are deduplicated
+    ///
+    /// Non-prompt tags should never be deduplicated, even if they appear consecutively.
+    @Test func test_onlyPromptTagsDeduped() async throws {
+        let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+        await viewModel.waitForTheme()
+
+        let content1 = GameTag(name: ":text", text: "The troll roars!", attrs: [:], children: [], state: .closed)
+        let content2 = GameTag(name: ":text", text: "The troll roars!", attrs: [:], children: [], state: .closed)
+        let content3 = GameTag(name: ":text", text: "The troll roars!", attrs: [:], children: [], state: .closed)
+
+        // Append same content three times - should all be added
+        await viewModel.appendMessage([content1])
+        await viewModel.appendMessage([content2])
+        await viewModel.appendMessage([content3])
+
+        #expect(viewModel.messages.count == 3)
+
+        // Verify all three are present
+        for message in viewModel.messages {
+            let text = String(message.attributedText.characters)
+            #expect(text.contains("The troll roars!"))
+        }
+    }
+
+    /// Test that prompt deduplication works with complex text content
+    ///
+    /// Prompts may contain HTML entities, whitespace, special characters, etc.
+    /// Deduplication should handle these correctly.
+    @Test func test_promptDeduplicationComplexText() async throws {
+        let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+        await viewModel.waitForTheme()
+
+        let prompt1 = GameTag(name: "prompt", text: "s&gt;", attrs: [:], children: [], state: .closed)
+        let prompt2 = GameTag(name: "prompt", text: "s&gt;", attrs: [:], children: [], state: .closed)
+        let prompt3 = GameTag(name: "prompt", text: "s>", attrs: [:], children: [], state: .closed)
+
+        // Append first prompt with HTML entity
+        await viewModel.appendMessage([prompt1])
+        #expect(viewModel.messages.count == 1)
+
+        // Append duplicate with same HTML entity - should be deduped
+        await viewModel.appendMessage([prompt2])
+        #expect(viewModel.messages.count == 1)
+
+        // Append prompt with different text - should be added
+        await viewModel.appendMessage([prompt3])
+        #expect(viewModel.messages.count == 2)
+    }
+
+    /// Test that prompt deduplication handles nested tag structures
+    ///
+    /// Prompts with children should have text extracted recursively for comparison.
+    @Test func test_promptDeduplicationWithChildren() async throws {
+        let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+        await viewModel.waitForTheme()
+
+        let child1 = GameTag(name: ":text", text: ">", attrs: [:], children: [], state: .closed)
+        let prompt1 = GameTag(name: "prompt", text: "s", attrs: [:], children: [child1], state: .closed)
+
+        let child2 = GameTag(name: ":text", text: ">", attrs: [:], children: [], state: .closed)
+        let prompt2 = GameTag(name: "prompt", text: "s", attrs: [:], children: [child2], state: .closed)
+
+        // Append first prompt with nested structure
+        await viewModel.appendMessage([prompt1])
+        #expect(viewModel.messages.count == 1)
+
+        // Append duplicate with same nested structure - should be deduped
+        await viewModel.appendMessage([prompt2])
+        #expect(viewModel.messages.count == 1)
+    }
 }

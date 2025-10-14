@@ -158,8 +158,27 @@ public actor TagRenderer {
             return await renderCommand(tag, theme: theme, inheritedBold: inheritedBold)
 
         default:
-            // Unknown tags: render children without additional styling
-            return await renderChildren(tag.children, theme: theme, inheritedBold: inheritedBold)
+            // Unknown tags: render direct text and children without additional styling
+            var result = AttributedString()
+
+            // Render direct text if present
+            if let text = tag.text, !text.isEmpty {
+                var attributed = AttributedString(text)
+                if inheritedBold {
+                    attributed.font = boldFont
+                }
+                // Apply default text color from theme
+                if let textColor = await themeManager.semanticColor(for: "text", theme: theme) {
+                    attributed.foregroundColor = textColor
+                }
+                result = attributed
+            }
+
+            // Render children
+            let childrenResult = await renderChildren(tag.children, theme: theme, inheritedBold: inheritedBold)
+            result += childrenResult
+
+            return result
         }
     }
 
@@ -167,9 +186,9 @@ public actor TagRenderer {
     ///
     /// - Parameters:
     ///   - tag: Text tag (name: ":text")
-    ///   - theme: Theme (unused for plain text)
+    ///   - theme: Theme for default text color
     ///   - inheritedBold: Whether to apply bold from parent
-    /// - Returns: AttributedString with optional bold formatting
+    /// - Returns: AttributedString with default text color and optional bold formatting
     private func renderText(
         _ tag: GameTag,
         theme: Theme,
@@ -181,6 +200,11 @@ public actor TagRenderer {
         // Apply bold if inherited from parent tag
         if inheritedBold {
             attributed.font = boldFont
+        }
+
+        // Apply default text color from theme (Catppuccin Mocha Text: #cdd6f4)
+        if let textColor = await themeManager.semanticColor(for: "text", theme: theme) {
+            attributed.foregroundColor = textColor
         }
 
         return attributed

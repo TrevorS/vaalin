@@ -120,8 +120,7 @@ public struct MainView: View {
                 VStack(spacing: 0) {
                     // Game log fills available space
                     GameLogView(
-                        viewModel: appState.gameLogViewModel,
-                        isConnected: appState.isConnected
+                        viewModel: appState.gameLogViewModel
                     )
 
                     // Prompt + Command input at bottom
