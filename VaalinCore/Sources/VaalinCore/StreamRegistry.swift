@@ -27,7 +27,7 @@ import OSLog
 ///     aliases: []
 /// )
 /// ```
-public struct StreamInfo: Codable, Sendable, Equatable {
+public struct StreamInfo: Codable, Sendable, Equatable, Identifiable {
     /// Unique stream identifier (e.g., "thoughts", "speech", "whispers")
     /// Used for settings persistence and lookup
     public let id: String

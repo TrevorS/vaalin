@@ -172,7 +172,7 @@ public actor ThemeManager {
 
 // MARK: - Color Extension for Hex Conversion
 
-extension Color {
+public extension Color {
     /// Create a SwiftUI Color from a hex string
     /// - Parameter hex: Hex color string (e.g., "#f38ba8", "f38ba8", "#FFF")
     /// - Returns: SwiftUI Color if valid hex, nil otherwise
