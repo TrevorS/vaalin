@@ -158,8 +158,27 @@ public actor TagRenderer {
             return await renderCommand(tag, theme: theme, inheritedBold: inheritedBold)
 
         default:
-            // Unknown tags: render children without additional styling
-            return await renderChildren(tag.children, theme: theme, inheritedBold: inheritedBold)
+            // Unknown tags: render direct text and children without additional styling
+            var result = AttributedString()
+
+            // Render direct text if present
+            if let text = tag.text, !text.isEmpty {
+                var attributed = AttributedString(text)
+                if inheritedBold {
+                    attributed.font = boldFont
+                }
+                // Apply default text color from theme
+                if let textColor = await themeManager.semanticColor(for: "text", theme: theme) {
+                    attributed.foregroundColor = textColor
+                }
+                result = attributed
+            }
+
+            // Render children
+            let childrenResult = await renderChildren(tag.children, theme: theme, inheritedBold: inheritedBold)
+            result += childrenResult
+
+            return result
         }
     }
 

@@ -204,9 +204,10 @@ public struct GameLogView: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
         scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false  // Hidden by default, shown during scrollback
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
     }
 
     // MARK: - Coordinator
@@ -394,13 +395,14 @@ public struct GameLogView: NSViewRepresentable {
         /// Detect user manual scroll and disable auto-scroll
         ///
         /// This implements smart auto-scroll behavior:
-        /// - User scrolls up → disable auto-scroll (let them read history)
-        /// - After 3 seconds idle → re-enable auto-scroll
-        /// - User scrolls back to bottom → re-enable immediately
+        /// - User scrolls up → disable auto-scroll, show scrollbar
+        /// - After 3 seconds idle → re-enable auto-scroll, hide scrollbar
+        /// - User scrolls back to bottom → re-enable immediately, hide scrollbar
         @objc func scrollViewDidScroll(_ notification: Notification) {
             if !isScrolledToBottom(threshold: 50.0) {
-                // User scrolled up, disable auto-scroll
+                // User scrolled up, disable auto-scroll and show scrollbar
                 autoScrollEnabled = false
+                scrollView?.hasVerticalScroller = true
 
                 // Re-enable auto-scroll after 3 seconds of idle
                 // Uses Task cancellation for Swift 6 concurrency safety
@@ -409,10 +411,13 @@ public struct GameLogView: NSViewRepresentable {
                     try? await Task.sleep(for: .seconds(3))
                     guard !Task.isCancelled else { return }
                     self?.autoScrollEnabled = true
+                    // Hide scrollbar when auto-scroll re-enables
+                    self?.scrollView?.hasVerticalScroller = false
                 }
             } else {
-                // Back at bottom, re-enable immediately
+                // Back at bottom, re-enable immediately and hide scrollbar
                 autoScrollEnabled = true
+                scrollView?.hasVerticalScroller = false
                 autoScrollReenableTask?.cancel()
             }
         }

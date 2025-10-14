@@ -30,5 +30,32 @@ struct VaalinApp: App {
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 1200, height: 800)
+        .commands {
+            DebugWindowCommands()
+        }
+
+        Window("Debug Console - Raw XML Stream", id: "vaalin-debug-console") {
+            DebugConsoleView()
+        }
+        .defaultSize(width: 900, height: 600)
+        .defaultPosition(.bottomTrailing)
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.automatic)
+    }
+}
+
+/// Commands for debug window integration
+struct DebugWindowCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .windowArrangement) {
+            Divider()
+
+            Button("Show Debug Console") {
+                openWindow(id: "vaalin-debug-console")
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+        }
     }
 }

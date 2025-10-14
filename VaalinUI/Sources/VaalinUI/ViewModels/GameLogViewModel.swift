@@ -99,6 +99,15 @@ public final class GameLogViewModel {
     /// Logger for GameLogViewModel events and errors
     private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "GameLogViewModel")
 
+    /// Text of the last prompt message (for consecutive duplicate detection).
+    ///
+    /// Tracks the text content of the most recent prompt-only message to prevent
+    /// visual clutter from repeated prompts (e.g., `s>` appearing multiple times).
+    /// Only prompts are deduplicated - all other content is always displayed.
+    ///
+    /// Set to `nil` when a non-prompt message is appended to reset the tracking.
+    private var lastPromptText: String?
+
     // MARK: - Initialization
 
     /// Creates a new GameLogViewModel with an empty message buffer.
@@ -183,6 +192,26 @@ public final class GameLogViewModel {
         // Skip empty tag arrays or arrays with no meaningful content
         guard !tags.isEmpty, hasContentInArray(tags) else {
             return
+        }
+
+        // Check if this is a prompt-only message (for consecutive duplicate detection)
+        let isPromptOnly = tags.allSatisfy { $0.name == "prompt" }
+
+        if isPromptOnly {
+            // Extract prompt text for comparison
+            let promptText = extractTextContent(tags)
+
+            // Skip if duplicate of last prompt
+            if promptText == lastPromptText {
+                logger.debug("⏭️ Skipping consecutive duplicate prompt: \(promptText)")
+                return
+            }
+
+            // Track this prompt for next comparison
+            lastPromptText = promptText
+        } else {
+            // Non-prompt message - reset prompt tracking
+            lastPromptText = nil
         }
 
         let message: Message
@@ -301,6 +330,26 @@ public final class GameLogViewModel {
     }
 
     // MARK: - Private Methods
+
+    /// Extracts all text content from tags for deduplication comparison.
+    ///
+    /// Recursively traverses tag tree to build complete text representation.
+    /// Used for consecutive prompt deduplication.
+    ///
+    /// - Parameter tags: Tags to extract text from
+    /// - Returns: Combined text content (trimmed)
+    private func extractTextContent(_ tags: [GameTag]) -> String {
+        var text = ""
+        for tag in tags {
+            if let tagText = tag.text {
+                text += tagText
+            }
+            if !tag.children.isEmpty {
+                text += extractTextContent(tag.children)
+            }
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     /// Checks if an array of tags has any meaningful content.
     ///

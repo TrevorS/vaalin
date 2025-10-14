@@ -167,9 +167,12 @@ public final class AppState {
     /// - **Vitals**: progressBar (health, mana, stamina, etc.)
     /// - **Navigation**: nav, compass, streamWindow
     /// - **Dialog Data**: dialogData (spells, injuries from game dialogs)
-    /// - **Prompt**: prompt (displayed separately in PromptView)
     /// - **Stream Control**: pushStream, popStream, clearStream (routing directives)
+    /// - **Formatting Control**: pushBold, popBold (no visible content)
     /// - **Stream Wrappers**: stream (synthetic wrapper tags created by parser)
+    ///
+    /// **Note**: `prompt` tags are NOT filtered as metadata - they appear in game log
+    /// AND are published to PromptViewModel via EventBus for dedicated prompt display.
     ///
     /// ## Architecture Note
     /// This filtering happens at the session layer (AppState), matching illthorn's
@@ -192,17 +195,22 @@ public final class AppState {
         // Dialog data (spells panel, injuries panel)
         "dialogData",
 
-        // Prompt display (separate view)
-        "prompt",
-
         // Stream control directives (not visible content)
         "pushStream",
         "popStream",
-        "clearStream"
+        "clearStream",
+
+        // Formatting control tags (no visible content - control rendering only)
+        "pushBold",       // Bold formatting start (no text)
+        "popBold"         // Bold formatting end (no text)
 
         // NOTE: "stream" wrapper tags are NOT filtered as metadata
         // Instead, we filter specific stream types by their "id" attribute
         // This allows us to selectively show/hide streams based on panel availability
+        //
+        // NOTE: "prompt" tags are NOT filtered as metadata (as of Issue #142)
+        // Prompts now appear in game log to provide visual feedback like traditional MUD clients
+        // PromptViewModel still receives prompt events via EventBus for dedicated prompt display
     ]
 
     // MARK: - Initialization
@@ -274,6 +282,9 @@ public final class AppState {
     public func connect() async throws {
         // Connect to Lich
         try await connection.connect(host: host, port: port, autoReconnect: false)
+
+        // Set up debug interceptor for debug console window
+        await connection.setDebugInterceptor(DebugWindowManager.shared)
 
         // Start bridge data flow
         await bridge.start()
@@ -365,19 +376,7 @@ public final class AppState {
                 let tags = await bridge.getParsedTags()
 
                 // DEBUG: Log tag processing (temporary - remove after verification)
-                if !tags.isEmpty {
-                    logger.debug("📦 Polling: Fetched \(tags.count) tags from bridge")
-
-                    // VERBOSE: Log EVERY tag with streamId to diagnose "You also see" duplicates
-                    for tag in tags {
-                        let preview = tag.text?.prefix(50) ?? "(no text)"
-                        let stream = tag.streamId ?? "nil"
-                        logger.debug("""
-                          📝 Tag: name=\(tag.name, privacy: .public), streamId=\(stream, privacy: .public), \
-                          text=\(preview, privacy: .public)
-                          """)
-                    }
-                }
+                logFetchedTags(tags)
 
                 // Filter out metadata tags before sending to game log
                 // Metadata tags are already dispatched to panels via EventBus by the parser,
@@ -385,45 +384,17 @@ public final class AppState {
                 let contentTags = filterContentTags(tags)
 
                 // DEBUG: Log filtering results (temporary - remove after verification)
-                if !tags.isEmpty {
-                    let filteredCount = tags.count - contentTags.count
-                    if filteredCount > 0 {
-                        let metadataIDs = extractMetadataIDs(tags)
-                        let excludedStreams: Set<String> = [
-                            "room", "roomName", "roomDesc", "room objs", "room players", "room exits"
-                        ]
+                logFilteringResults(tags: tags, contentTags: contentTags)
 
-                        // Separate metadata vs stream filtering
-                        let metadataNames = tags
-                            .filter { metadataIDs.contains($0.id) }
-                            .map { $0.name }
-                        let streamTags = tags
-                            .filter { tag in
-                                tag.streamId != nil &&
-                                excludedStreams.contains(tag.streamId!) &&
-                                !metadataIDs.contains(tag.id)
-                            }
-                            .map { tag in
-                                "\(tag.name)[stream:\(tag.streamId ?? "nil")]"
-                            }
-
-                        logger.debug("🔍 Filtering: Removed \(filteredCount) tags")
-                        if !metadataNames.isEmpty {
-                            let list = metadataNames.joined(separator: ", ")
-                            logger.debug("  - Metadata (\(metadataNames.count)): \(list)")
-                        }
-                        if !streamTags.isEmpty {
-                            let list = streamTags.joined(separator: ", ")
-                            logger.debug("  - Streams (\(streamTags.count)): \(list)")
-                        }
-                    }
-                    logger.debug("✅ Content: Passing \(contentTags.count) tags to game log")
-                }
+                // Filter out whitespace-only tags (prevents blank lines from server newlines)
+                // Server sends newlines between tags like: <prompt>s></prompt>\n\n<component>...
+                // These become :text nodes with only whitespace, creating unwanted blank lines
+                let nonEmptyTags = contentTags.filter { hasContent($0) }
 
                 // Check for duplicates before rendering (200ms deduplication window)
                 // This catches server-side duplicates that slip through filtering
-                if !contentTags.isEmpty {
-                    if isDuplicate(contentTags) {
+                if !nonEmptyTags.isEmpty {
+                    if isDuplicate(nonEmptyTags) {
                         logger.debug("🔄 Deduplication: Skipping duplicate content")
                     } else {
                         // Process ONLY content tags - render entire batch as ONE message
@@ -431,7 +402,7 @@ public final class AppState {
                         // and ProfanityFE's approach: metadata tags return nil
                         // appendMessage() renders all tags together with one timestamp
                         // This matches ProfanityFE's approach of batching text between XML tags
-                        await gameLogViewModel.appendMessage(contentTags)
+                        await gameLogViewModel.appendMessage(nonEmptyTags)
                     }
                 }
 
@@ -454,6 +425,61 @@ public final class AppState {
     private func stopPolling() {
         pollingTask?.cancel()
         pollingTask = nil
+    }
+
+    /// Log fetched tags for debugging (temporary - remove after verification)
+    private func logFetchedTags(_ tags: [GameTag]) {
+        guard !tags.isEmpty else { return }
+
+        logger.debug("📦 Polling: Fetched \(tags.count) tags from bridge")
+
+        // VERBOSE: Log EVERY tag with streamId to diagnose duplicates
+        for tag in tags {
+            let preview = tag.text?.prefix(50) ?? "(no text)"
+            let stream = tag.streamId ?? "nil"
+            logger.debug("""
+              📝 Tag: name=\(tag.name, privacy: .public), streamId=\(stream, privacy: .public), \
+              text=\(preview, privacy: .public)
+              """)
+        }
+    }
+
+    /// Log filtering results for debugging (temporary - remove after verification)
+    private func logFilteringResults(tags: [GameTag], contentTags: [GameTag]) {
+        guard !tags.isEmpty else { return }
+
+        let filteredCount = tags.count - contentTags.count
+        if filteredCount > 0 {
+            let metadataIDs = extractMetadataIDs(tags)
+            let excludedStreams: Set<String> = [
+                "room", "roomName", "roomDesc", "room objs", "room players", "room exits"
+            ]
+
+            // Separate metadata vs stream filtering
+            let metadataNames = tags
+                .filter { metadataIDs.contains($0.id) }
+                .map { $0.name }
+            let streamTags = tags
+                .filter { tag in
+                    tag.streamId != nil &&
+                    excludedStreams.contains(tag.streamId!) &&
+                    !metadataIDs.contains(tag.id)
+                }
+                .map { tag in
+                    "\(tag.name)[stream:\(tag.streamId ?? "nil")]"
+                }
+
+            logger.debug("🔍 Filtering: Removed \(filteredCount) tags")
+            if !metadataNames.isEmpty {
+                let list = metadataNames.joined(separator: ", ")
+                logger.debug("  - Metadata (\(metadataNames.count)): \(list)")
+            }
+            if !streamTags.isEmpty {
+                let list = streamTags.joined(separator: ", ")
+                logger.debug("  - Streams (\(streamTags.count)): \(list)")
+            }
+        }
+        logger.debug("✅ Content: Passing \(contentTags.count) tags to game log")
     }
 
     // MARK: - Deduplication
@@ -520,6 +546,46 @@ public final class AppState {
 
     // MARK: - Tag Filtering
 
+    /// Recursively checks if a tag has any meaningful content.
+    ///
+    /// This mirrors `GameLogViewModel.hasContentRecursive()` to filter whitespace-only
+    /// tags at the session layer (AppState) instead of waiting for the view layer.
+    /// Prevents blank lines from server-sent newlines between XML tags.
+    ///
+    /// ## Whitespace Sources
+    ///
+    /// Server sends newlines between tags:
+    /// ```xml
+    /// <prompt>s></prompt>
+    /// \n\n
+    /// <component id='room objs'>...</component>
+    /// ```
+    ///
+    /// These newlines become `:text` nodes with `text = "\n\n"`. When batched with
+    /// content tags, they render as blank lines unless filtered here.
+    ///
+    /// - Parameter tag: GameTag to check for content
+    /// - Returns: True if tag has non-whitespace text content, false otherwise
+    ///
+    /// ## Example
+    /// ```swift
+    /// hasContent(GameTag(name: ":text", text: "\n\n"))     // true (newlines preserved for spacing)
+    /// hasContent(GameTag(name: "prompt", text: "s>"))      // true
+    /// hasContent(GameTag(name: ":text", text: "   "))      // false (spaces/tabs filtered)
+    /// ```
+    private func hasContent(_ tag: GameTag) -> Bool {
+        // Check direct text content
+        if let text = tag.text {
+            let trimmed = text.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                return true  // Found non-whitespace content
+            }
+        }
+
+        // No direct text - check children recursively
+        return tag.children.contains { hasContent($0) }
+    }
+
     /// Recursively extracts metadata tag IDs from tag tree.
     ///
     /// This helper traverses the entire tag tree (including nested children) and
@@ -544,12 +610,12 @@ public final class AppState {
     /// ```swift
     /// let tags = [
     ///     GameTag(name: "output", children: [
-    ///         GameTag(name: "prompt", ...),  // ← Nested metadata
+    ///         GameTag(name: "progressBar", ...),  // ← Nested metadata
     ///         GameTag(name: ":text", ...)
     ///     ])
     /// ]
     /// let metadataIDs = extractMetadataIDs(tags)
-    /// // Result: Set containing prompt tag's ID (not output or :text)
+    /// // Result: Set containing progressBar tag's ID (not output or :text)
     /// ```
     ///
     /// - Parameter tags: Tags to extract metadata from
@@ -573,7 +639,7 @@ public final class AppState {
     /// Filters out metadata tags and stream content that belong in dedicated panels.
     ///
     /// This implements selective stream filtering to prevent duplicates while showing appropriate content:
-    /// 1. **Metadata filtering**: Removes metadata tags (prompt, progressBar, left, right, etc.)
+    /// 1. **Metadata filtering**: Removes metadata tags (progressBar, left, right, pushBold, etc.)
     /// 2. **Selective stream filtering**: Filters specific stream types by their "id" attribute
     ///
     /// ## Stream Wrapper Architecture (Duplicate Fix)
