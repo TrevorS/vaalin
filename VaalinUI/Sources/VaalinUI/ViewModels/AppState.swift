@@ -104,7 +104,13 @@ public final class AppState {
     /// Shared EventBus for cross-component communication
     private let eventBus: EventBus
 
+    /// Stream buffer manager for routing stream content to independent buffers
+    private let streamBufferManager: StreamBufferManager
+
     // MARK: - State
+
+    /// Application settings for configuration (mirror mode, etc.)
+    public var settings: Settings = .makeDefault()
 
     /// The game log view model (main thread access only)
     public let gameLogViewModel: GameLogViewModel
@@ -222,6 +228,9 @@ public final class AppState {
 
         // Initialize shared EventBus FIRST (parser needs it)
         self.eventBus = EventBus()
+
+        // Initialize stream buffer manager for stream content routing
+        self.streamBufferManager = StreamBufferManager()
 
         #if canImport(VaalinParser)
         // Pass eventBus to parser so it can publish metadata events
@@ -352,6 +361,80 @@ public final class AppState {
         }
     }
 
+    // MARK: - Stream Buffer Management
+
+    /// Gets messages for a specific stream buffer.
+    ///
+    /// Returns messages from the specified stream's circular buffer in chronological order.
+    /// Useful for displaying stream-specific content in dedicated panels.
+    ///
+    /// - Parameter streamId: The stream identifier (e.g., "thoughts", "speech", "combat")
+    /// - Returns: Array of messages for the specified stream
+    ///
+    /// ## Example
+    /// ```swift
+    /// let thoughtMessages = await appState.streamMessages(forStream: "thoughts")
+    /// for message in thoughtMessages {
+    ///     print(message.attributedText)
+    /// }
+    /// ```
+    public func streamMessages(forStream streamId: String) async -> [Message] {
+        return await streamBufferManager.messages(forStream: streamId)
+    }
+
+    /// Gets the unread message count for a specific stream.
+    ///
+    /// Returns the number of messages added to the stream since it was last viewed.
+    ///
+    /// - Parameter streamId: The stream identifier
+    /// - Returns: Number of unread messages (0 if stream doesn't exist)
+    ///
+    /// ## Example
+    /// ```swift
+    /// let unread = await appState.streamUnreadCount(forStream: "thoughts")
+    /// if unread > 0 {
+    ///     print("You have \(unread) unread thoughts")
+    /// }
+    /// ```
+    public func streamUnreadCount(forStream streamId: String) async -> Int {
+        return await streamBufferManager.unreadCount(forStream: streamId)
+    }
+
+    /// Clears the unread count for a specific stream.
+    ///
+    /// Typically called when the user views the stream's content.
+    ///
+    /// - Parameter streamId: The stream identifier
+    ///
+    /// ## Example
+    /// ```swift
+    /// // User viewed thoughts stream
+    /// await appState.clearStreamUnreadCount(forStream: "thoughts")
+    /// ```
+    public func clearStreamUnreadCount(forStream streamId: String) async {
+        await streamBufferManager.clearUnreadCount(forStream: streamId)
+    }
+
+    /// Toggles mirror mode for stream content.
+    ///
+    /// When mirror mode is ON (default), stream content appears in both the stream buffer
+    /// and the main game log. When OFF, stream content only appears in stream buffers.
+    ///
+    /// - Parameter enabled: true to enable mirror mode, false to disable
+    ///
+    /// ## Example
+    /// ```swift
+    /// // Disable mirror mode - streams only in buffers
+    /// appState.setMirrorMode(false)
+    ///
+    /// // Re-enable mirror mode - streams in both places
+    /// appState.setMirrorMode(true)
+    /// ```
+    public func setMirrorMode(_ enabled: Bool) {
+        settings.streams.mirrorFilteredToMain = enabled
+        logger.info("Mirror mode \(enabled ? "enabled" : "disabled")")
+    }
+
     // MARK: - Polling Implementation
 
     /// Start polling bridge for parsed tags.
@@ -377,6 +460,10 @@ public final class AppState {
 
                 // DEBUG: Log tag processing (temporary - remove after verification)
                 logFetchedTags(tags)
+
+                // STREAM ROUTING: Extract and route stream wrapper tags to StreamBufferManager
+                // This happens BEFORE filtering so we can capture excluded streams
+                await routeStreamTags(tags)
 
                 // Filter out metadata tags before sending to game log
                 // Metadata tags are already dispatched to panels via EventBus by the parser,
@@ -732,6 +819,66 @@ public final class AppState {
 
             // Not metadata, not excluded stream - pass through
             return true
+        }
+    }
+
+    // MARK: - Stream Routing
+
+    /// Routes stream wrapper tags to StreamBufferManager and optionally to game log (mirror mode).
+    ///
+    /// Extracts `stream` wrapper tags (created by parser), renders them to Messages, and routes to
+    /// appropriate buffers based on mirror mode setting. This happens BEFORE content filtering so
+    /// we can capture streams even if they're excluded from the main game log.
+    ///
+    /// ## Stream Wrapper Architecture
+    ///
+    /// Parser wraps stream content in synthetic `stream` tags:
+    /// ```swift
+    /// // Server: <pushStream id="thoughts">You ponder...<popStream>
+    /// // Parser creates:
+    /// GameTag(name: "stream", attrs: ["id": "thoughts"], children: [...])
+    /// ```
+    ///
+    /// ## Mirror Mode
+    ///
+    /// - **ON (default)**: Stream content goes to BOTH stream buffer AND main game log
+    /// - **OFF**: Stream content goes ONLY to stream buffer
+    ///
+    /// ## Performance
+    ///
+    /// - **Per stream tag**: < 2ms (render + 2x append operations if mirror ON)
+    /// - **Typical case**: 0-2 stream tags per polling cycle
+    ///
+    /// - Parameter tags: All tags from parser (includes stream wrappers)
+    private func routeStreamTags(_ tags: [GameTag]) async {
+        // Extract stream wrapper tags
+        let streamTags = tags.filter { $0.name == "stream" }
+        guard !streamTags.isEmpty else { return }
+
+        // Process each stream tag
+        for streamTag in streamTags {
+            // Extract stream ID from attrs
+            guard let streamId = streamTag.attrs["id"] as? String else {
+                logger.warning("Stream tag missing 'id' attribute, skipping")
+                continue
+            }
+
+            // Create Message from stream tag children (render like GameLogViewModel)
+            let message = Message(
+                from: streamTag.children,
+                streamID: streamId,
+                timestamp: Date()
+            )
+
+            // Route to stream buffer
+            await streamBufferManager.append(message, toStream: streamId)
+
+            // If mirror mode is ON, also append to main game log
+            if settings.streams.mirrorFilteredToMain {
+                await gameLogViewModel.appendMessage(streamTag.children)
+            }
+
+            logger.debug("📨 Routed stream '\(streamId)' (mirror: \(self.settings.streams.mirrorFilteredToMain))")
         }
     }
 }
