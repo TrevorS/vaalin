@@ -8,8 +8,20 @@ import VaalinParser
     let streamBufferManager = StreamBufferManager()
     let activeStreamIDs: Set<String> = ["thoughts", "speech", "whispers"]
 
-    // Create sample messages across multiple streams
-    Task { @MainActor in
+    let viewModel = StreamViewModel(
+        streamBufferManager: streamBufferManager,
+        activeStreamIDs: activeStreamIDs,
+        theme: Theme.catppuccinMocha()
+    )
+
+    StreamView(
+        viewModel: viewModel,
+        activeStreamIDs: activeStreamIDs,
+        onDismiss: {}
+    )
+    .frame(width: 800, height: 600)
+    .task {
+        // Create sample messages across multiple streams
         let thoughtTag = GameTag(
             name: "preset",
             text: "You consider your next move carefully.",
@@ -59,17 +71,4 @@ import VaalinParser
             toStream: "thoughts"
         )
     }
-
-    let viewModel = StreamViewModel(
-        streamBufferManager: streamBufferManager,
-        activeStreamIDs: activeStreamIDs,
-        theme: Theme.catppuccinMocha()
-    )
-
-    StreamView(
-        viewModel: viewModel,
-        activeStreamIDs: activeStreamIDs,
-        onDismiss: {}
-    )
-    .frame(width: 800, height: 600)
 }
