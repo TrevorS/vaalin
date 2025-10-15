@@ -17,9 +17,7 @@ import VaalinCore
             unreadCount: 0,
             isActive: false, // Inactive state
             chipColor: Color(hex: "#74c7ec")!, // Catppuccin Mocha sapphire
-            onToggle: {
-                print("Toggled experience stream")
-            }
+            onToggle: { }
         )
 
         // Familiar stream - inactive, has unread (shows but dimmed)
@@ -34,9 +32,7 @@ import VaalinCore
             unreadCount: 3, // Badge still visible even when inactive
             isActive: false, // Inactive state
             chipColor: Color(hex: "#cba6f7")!, // Catppuccin Mocha mauve
-            onToggle: {
-                print("Toggled familiar stream")
-            }
+            onToggle: { }
         )
 
         // Mixed: active and inactive chips together

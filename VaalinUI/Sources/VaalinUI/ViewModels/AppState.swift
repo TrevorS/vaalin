@@ -662,16 +662,19 @@ public final class AppState {
     ///
     /// ## Example
     /// ```swift
-    /// hasContent(GameTag(name: ":text", text: "\n\n"))     // true (newlines preserved for spacing)
+    /// hasContent(GameTag(name: ":text", text: "\n"))       // true (structural newline preserved)
+    /// hasContent(GameTag(name: ":text", text: "\n\n"))     // true (multiple newlines kept - trimmed later)
     /// hasContent(GameTag(name: "prompt", text: "s>"))      // true
     /// hasContent(GameTag(name: ":text", text: "   "))      // false (spaces/tabs filtered)
     /// ```
     private func hasContent(_ tag: GameTag) -> Bool {
         // Check direct text content
         if let text = tag.text {
+            // Only trim spaces/tabs, NOT newlines
+            // Single newlines (\n) between tags provide structural separation
             let trimmed = text.trimmingCharacters(in: .whitespaces)
             if !trimmed.isEmpty {
-                return true  // Found non-whitespace content
+                return true  // Found content (including structural newlines)
             }
         }
 

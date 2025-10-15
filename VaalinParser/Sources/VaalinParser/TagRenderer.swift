@@ -408,8 +408,8 @@ public actor TagRenderer {
         timestampSettings: VaalinCore.Settings.StreamSettings.TimestampSettings?,
         theme: Theme
     ) async -> AttributedString {
-        // Trim trailing double newlines first
-        var result = trimTrailingDoubleNewlines(attributed)
+        // Trim ALL trailing newlines first (GameLogView will add one for separation)
+        var result = trimTrailingNewlines(attributed)
 
         // Prepend timestamp if enabled
         if let timestamp = timestamp,
@@ -422,12 +422,14 @@ public actor TagRenderer {
         return result
     }
 
-    /// Trims trailing double newlines from an AttributedString.
+    /// Trims ALL trailing newlines from an AttributedString.
     ///
     /// ## Rationale
     ///
-    /// The GemStone IV game server sends XML tags that can result in double newlines
-    /// at the end of rendered messages, creating unwanted blank lines in the game log.
+    /// The GemStone IV game server sends XML tags that can result in trailing newlines
+    /// at the end of rendered messages. Since GameLogView adds its own newline between
+    /// messages for proper separation, we need to remove ALL trailing newlines here to
+    /// prevent double newlines (blank lines) in the game log.
     ///
     /// **Common patterns from server**:
     /// - `<output>text\n</output>\n` → renders as `"text\n\n"` after tag processing
@@ -439,28 +441,27 @@ public actor TagRenderer {
     ///
     /// ## Trimming Rules
     ///
-    /// Only removes `\n\n` from the **end** of the string, preserving:
-    /// - Single trailing newlines (intentional line breaks)
+    /// Removes ALL `\n` characters from the **end** of the string, preserving:
     /// - Newlines in the middle of text (paragraph breaks, lists)
     /// - All character styling and attributes
     ///
-    /// This prevents blank lines at the end of messages while preserving
-    /// intentional formatting within the message content.
+    /// GameLogView will add back a single newline for message separation, ensuring
+    /// consistent spacing without blank lines.
     ///
     /// - Parameter attributed: The AttributedString to trim
-    /// - Returns: AttributedString with trailing double newlines removed
+    /// - Returns: AttributedString with ALL trailing newlines removed
     ///
     /// ## Examples
-    /// - `"Hello\n\n"` → `"Hello"` (server artifact removed)
-    /// - `"Hello\n"` → `"Hello\n"` (single newline preserved)
-    /// - `"Hello\nWorld\n\n"` → `"Hello\nWorld"` (middle newline preserved)
+    /// - `"Hello\n\n"` → `"Hello"` (all trailing newlines removed)
+    /// - `"Hello\n"` → `"Hello"` (single trailing newline removed)
+    /// - `"Hello\nWorld\n\n"` → `"Hello\nWorld"` (middle newline preserved, trailing removed)
     /// - `"Line1\nLine2\nLine3\n\n\n"` → `"Line1\nLine2\nLine3"` (all trailing newlines removed)
-    private func trimTrailingDoubleNewlines(_ attributed: AttributedString) -> AttributedString {
+    private func trimTrailingNewlines(_ attributed: AttributedString) -> AttributedString {
         var result = attributed
         let text = String(result.characters)
 
-        // Check if string ends with double newlines
-        if text.hasSuffix("\n\n") {
+        // Check if string ends with newline
+        if text.hasSuffix("\n") {
             // Find how many trailing newlines we have
             var trimCount = 0
             for char in text.reversed() {
@@ -471,8 +472,8 @@ public actor TagRenderer {
                 }
             }
 
-            // Only trim if we have 2+ trailing newlines (remove all but keep formatting)
-            if trimCount >= 2 {
+            // Trim ALL trailing newlines (GameLogView will add one for separation)
+            if trimCount > 0 {
                 let endIndex = result.characters.index(result.endIndex, offsetBy: -trimCount)
                 result = AttributedString(result[..<endIndex])
             }

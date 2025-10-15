@@ -17,9 +17,7 @@ import VaalinCore
             unreadCount: 5,
             isActive: true,
             chipColor: Color(hex: "#a6e3a1")!, // Catppuccin Mocha green
-            onToggle: {
-                print("Toggled thoughts stream")
-            }
+            onToggle: { }
         )
 
         // Speech stream - green, 12 unread
@@ -34,9 +32,7 @@ import VaalinCore
             unreadCount: 12,
             isActive: true,
             chipColor: Color(hex: "#a6e3a1")!, // Catppuccin Mocha green
-            onToggle: {
-                print("Toggled speech stream")
-            }
+            onToggle: { }
         )
 
         // Whispers stream - teal, 99+ unread
@@ -51,9 +47,7 @@ import VaalinCore
             unreadCount: 150, // Should display as "99+"
             isActive: true,
             chipColor: Color(hex: "#94e2d5")!, // Catppuccin Mocha teal
-            onToggle: {
-                print("Toggled whispers stream")
-            }
+            onToggle: { }
         )
     }
     .padding()
