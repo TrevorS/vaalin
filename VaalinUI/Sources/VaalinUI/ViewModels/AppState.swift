@@ -107,6 +107,9 @@ public final class AppState {
     /// Stream buffer manager for routing stream content to independent buffers
     private let streamBufferManager: StreamBufferManager
 
+    /// Stream router for routing stream content based on mirror mode
+    private let streamRouter: StreamRouter
+
     // MARK: - State
 
     /// Application settings for configuration (mirror mode, etc.)
@@ -231,6 +234,9 @@ public final class AppState {
 
         // Initialize stream buffer manager for stream content routing
         self.streamBufferManager = StreamBufferManager()
+
+        // Initialize stream router for routing logic
+        self.streamRouter = StreamRouter(bufferManager: streamBufferManager)
 
         #if canImport(VaalinParser)
         // Pass eventBus to parser so it can publish metadata events
@@ -461,14 +467,14 @@ public final class AppState {
                 // DEBUG: Log tag processing (temporary - remove after verification)
                 logFetchedTags(tags)
 
-                // STREAM ROUTING: Extract and route stream wrapper tags to StreamBufferManager
-                // This happens BEFORE filtering so we can capture excluded streams
-                await routeStreamTags(tags)
+                // STREAM ROUTING: Route stream wrapper tags to StreamBufferManager
+                // Returns tags for main log (streams unwrapped if mirror ON, excluded if mirror OFF)
+                let routedTags = await routeStreamTags(tags)
 
                 // Filter out metadata tags before sending to game log
                 // Metadata tags are already dispatched to panels via EventBus by the parser,
                 // so they should NOT appear in the game log (they have no visible content)
-                let contentTags = filterContentTags(tags)
+                let contentTags = filterContentTags(routedTags)
 
                 // DEBUG: Log filtering results (temporary - remove after verification)
                 logFilteringResults(tags: tags, contentTags: contentTags)
@@ -824,11 +830,10 @@ public final class AppState {
 
     // MARK: - Stream Routing
 
-    /// Routes stream wrapper tags to StreamBufferManager and optionally to game log (mirror mode).
+    /// Routes stream wrapper tags to StreamBufferManager and returns tags for main game log.
     ///
-    /// Extracts `stream` wrapper tags (created by parser), renders them to Messages, and routes to
-    /// appropriate buffers based on mirror mode setting. This happens BEFORE content filtering so
-    /// we can capture streams even if they're excluded from the main game log.
+    /// Uses StreamRouter actor to route stream content to buffers and determine what should
+    /// appear in the main game log based on mirror mode setting.
     ///
     /// ## Stream Wrapper Architecture
     ///
@@ -841,44 +846,24 @@ public final class AppState {
     ///
     /// ## Mirror Mode
     ///
-    /// - **ON (default)**: Stream content goes to BOTH stream buffer AND main game log
-    /// - **OFF**: Stream content goes ONLY to stream buffer
+    /// - **ON (default)**: Stream content goes to BOTH stream buffer AND main game log (unwrapped)
+    /// - **OFF**: Stream content goes ONLY to stream buffer (filtered from main log)
     ///
     /// ## Performance
     ///
-    /// - **Per stream tag**: < 2ms (render + 2x append operations if mirror ON)
+    /// - **Per stream tag**: < 2ms (render + routing operations)
     /// - **Typical case**: 0-2 stream tags per polling cycle
     ///
     /// - Parameter tags: All tags from parser (includes stream wrappers)
-    private func routeStreamTags(_ tags: [GameTag]) async {
-        // Extract stream wrapper tags
-        let streamTags = tags.filter { $0.name == "stream" }
-        guard !streamTags.isEmpty else { return }
+    /// - Returns: Tags that should appear in main game log (streams unwrapped if mirror ON)
+    private func routeStreamTags(_ tags: [GameTag]) async -> [GameTag] {
+        // Use StreamRouter to route tags and get main log tags based on mirror mode
+        let mainLogTags = await streamRouter.route(
+            tags,
+            mirrorMode: settings.streams.mirrorFilteredToMain
+        )
 
-        // Process each stream tag
-        for streamTag in streamTags {
-            // Extract stream ID from attrs
-            guard let streamId = streamTag.attrs["id"] as? String else {
-                logger.warning("Stream tag missing 'id' attribute, skipping")
-                continue
-            }
-
-            // Create Message from stream tag children (render like GameLogViewModel)
-            let message = Message(
-                from: streamTag.children,
-                streamID: streamId,
-                timestamp: Date()
-            )
-
-            // Route to stream buffer
-            await streamBufferManager.append(message, toStream: streamId)
-
-            // If mirror mode is ON, also append to main game log
-            if settings.streams.mirrorFilteredToMain {
-                await gameLogViewModel.appendMessage(streamTag.children)
-            }
-
-            logger.debug("📨 Routed stream '\(streamId)' (mirror: \(self.settings.streams.mirrorFilteredToMain))")
-        }
+        logger.debug("📨 Routed streams (mirror: \(self.settings.streams.mirrorFilteredToMain))")
+        return mainLogTags
     }
 }

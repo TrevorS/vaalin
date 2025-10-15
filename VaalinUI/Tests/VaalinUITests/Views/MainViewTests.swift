@@ -303,15 +303,33 @@ struct MainViewTests {
         // Default height is 200pt
         #expect(settings.layout.streamsHeight == 200.0)
 
-        // StreamsBarView takes height as parameter
+        // StreamsBarView takes viewModel and height as parameters
         await MainActor.run {
-            let streamsView = StreamsBarView(height: settings.layout.streamsHeight)
+            let bufferManager = StreamBufferManager()
+            let theme = Theme.catppuccinMocha()
+            let viewModel = StreamsBarViewModel(
+                streamBufferManager: bufferManager,
+                theme: theme
+            )
+            let streamsView = StreamsBarView(
+                viewModel: viewModel,
+                height: settings.layout.streamsHeight
+            )
             #expect(streamsView != nil)
         }
 
         // Test with custom height
         await MainActor.run {
-            let customStreamsView = StreamsBarView(height: 150.0)
+            let bufferManager = StreamBufferManager()
+            let theme = Theme.catppuccinMocha()
+            let viewModel = StreamsBarViewModel(
+                streamBufferManager: bufferManager,
+                theme: theme
+            )
+            let customStreamsView = StreamsBarView(
+                viewModel: viewModel,
+                height: 150.0
+            )
             #expect(customStreamsView != nil)
         }
     }
