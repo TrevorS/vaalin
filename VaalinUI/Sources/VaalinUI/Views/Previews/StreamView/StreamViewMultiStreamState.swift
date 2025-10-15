@@ -32,31 +32,31 @@ import VaalinParser
         )
 
         // Add messages with different timestamps to demonstrate chronological merging
-        await streamBufferManager.addToStream(
-            streamID: "thoughts",
-            Message(from: [thoughtTag], streamID: "thoughts")
+        await streamBufferManager.append(
+            Message(from: [thoughtTag], streamID: "thoughts"),
+            toStream: "thoughts"
         )
 
         // Simulate slight delay between messages
         try? await Task.sleep(for: .milliseconds(10))
 
-        await streamBufferManager.addToStream(
-            streamID: "speech",
-            Message(from: [speechTag], streamID: "speech")
+        await streamBufferManager.append(
+            Message(from: [speechTag], streamID: "speech"),
+            toStream: "speech"
         )
 
         try? await Task.sleep(for: .milliseconds(10))
 
-        await streamBufferManager.addToStream(
-            streamID: "whispers",
-            Message(from: [whisperTag], streamID: "whispers")
+        await streamBufferManager.append(
+            Message(from: [whisperTag], streamID: "whispers"),
+            toStream: "whispers"
         )
 
         try? await Task.sleep(for: .milliseconds(10))
 
-        await streamBufferManager.addToStream(
-            streamID: "thoughts",
-            Message(from: [thoughtTag], streamID: "thoughts")
+        await streamBufferManager.append(
+            Message(from: [thoughtTag], streamID: "thoughts"),
+            toStream: "thoughts"
         )
     }
 

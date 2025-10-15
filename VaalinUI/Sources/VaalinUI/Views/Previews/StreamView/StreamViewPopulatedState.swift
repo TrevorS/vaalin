@@ -38,24 +38,24 @@ import VaalinParser
         ]
 
         // Add messages to streams
-        await streamBufferManager.addToStream(
-            streamID: "thoughts",
-            Message(from: thoughtTags, streamID: "thoughts")
+        await streamBufferManager.append(
+            Message(from: thoughtTags, streamID: "thoughts"),
+            toStream: "thoughts"
         )
 
-        await streamBufferManager.addToStream(
-            streamID: "speech",
-            Message(from: speechTags, streamID: "speech")
+        await streamBufferManager.append(
+            Message(from: speechTags, streamID: "speech"),
+            toStream: "speech"
         )
 
-        await streamBufferManager.addToStream(
-            streamID: "thoughts",
-            Message(from: thoughtTags, streamID: "thoughts")
+        await streamBufferManager.append(
+            Message(from: thoughtTags, streamID: "thoughts"),
+            toStream: "thoughts"
         )
 
-        await streamBufferManager.addToStream(
-            streamID: "speech",
-            Message(from: damageTags, streamID: "speech")
+        await streamBufferManager.append(
+            Message(from: damageTags, streamID: "speech"),
+            toStream: "speech"
         )
     }
 
