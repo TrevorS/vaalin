@@ -2,7 +2,6 @@
 
 import SwiftUI
 import VaalinCore
-@testable import VaalinUI
 
 #Preview("Empty State") {
     let streamBufferManager = StreamBufferManager()

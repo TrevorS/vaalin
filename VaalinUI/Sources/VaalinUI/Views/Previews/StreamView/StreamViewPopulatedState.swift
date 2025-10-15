@@ -3,7 +3,6 @@
 import SwiftUI
 import VaalinCore
 import VaalinParser
-@testable import VaalinUI
 
 #Preview("Populated State") {
     let streamBufferManager = StreamBufferManager()
@@ -15,8 +14,8 @@ import VaalinParser
             GameTag(
                 name: "preset",
                 text: "You ponder the ancient runes carved into the stone wall.",
-                state: .closed,
-                attrs: ["id": "thought"]
+                attrs: ["id": "thought"],
+                state: .closed
             )
         ]
 
@@ -24,8 +23,8 @@ import VaalinParser
             GameTag(
                 name: "preset",
                 text: "You say, \"Hello, fellow adventurer!\"",
-                state: .closed,
-                attrs: ["id": "speech"]
+                attrs: ["id": "speech"],
+                state: .closed
             )
         ]
 
@@ -33,8 +32,8 @@ import VaalinParser
             GameTag(
                 name: "preset",
                 text: "You take 50 points of damage from the troll's club!",
-                state: .closed,
-                attrs: ["id": "damage"]
+                attrs: ["id": "damage"],
+                state: .closed
             )
         ]
 

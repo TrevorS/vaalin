@@ -3,7 +3,6 @@
 import SwiftUI
 import VaalinCore
 import VaalinParser
-@testable import VaalinUI
 
 #Preview("Multi-Stream State") {
     let streamBufferManager = StreamBufferManager()
@@ -14,22 +13,22 @@ import VaalinParser
         let thoughtTag = GameTag(
             name: "preset",
             text: "You consider your next move carefully.",
-            state: .closed,
-            attrs: ["id": "thought"]
+            attrs: ["id": "thought"],
+            state: .closed
         )
 
         let speechTag = GameTag(
             name: "preset",
             text: "Adventurer says, \"The path ahead looks treacherous!\"",
-            state: .closed,
-            attrs: ["id": "speech"]
+            attrs: ["id": "speech"],
+            state: .closed
         )
 
         let whisperTag = GameTag(
             name: "preset",
             text: "Someone whispers, \"Meet me at the tavern after dark.\"",
-            state: .closed,
-            attrs: ["id": "whisper"]
+            attrs: ["id": "whisper"],
+            state: .closed
         )
 
         // Add messages with different timestamps to demonstrate chronological merging
