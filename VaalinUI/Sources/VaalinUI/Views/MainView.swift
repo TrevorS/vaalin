@@ -10,6 +10,10 @@ import VaalinCore
 /// - **Center column**: Streams bar + game log + prompt/command input (fills remaining space)
 /// - **Right column**: HUD panels (compass, spells by default) - 280pt fixed width
 ///
+/// ## Phase 4 Integration (Issue #57)
+///
+/// StreamsBarView has been integrated above the game log, enabling stream filtering UI.
+///
 /// ## Architecture
 ///
 /// ```
@@ -18,7 +22,7 @@ import VaalinCore
 ///    └─ HStack (three columns)
 ///        ├─ Left: VStack of panels from settings.layout.left
 ///        ├─ Center: VStack {
-///        │     StreamsBarView (placeholder)
+///        │     StreamsBarView (Phase 4 - active stream filtering)
 ///        │     GameLogView (fills)
 ///        │     HStack { PromptView + CommandInputView }
 ///        │   }
@@ -92,6 +96,9 @@ public struct MainView: View {
     /// Default column width in points
     private let defaultColumnWidth: CGFloat = 280
 
+    /// Whether StreamView is currently presented
+    @State private var showingStreamView: Bool = false
+
     // MARK: - Initialization
 
     /// Creates a new MainView with default AppState and Settings.
@@ -116,8 +123,18 @@ public struct MainView: View {
                 }
                 .frame(width: columnWidth(for: "left"), alignment: .top)
 
-                // Center column: GameLog + Prompt/Input
+                // Center column: StreamsBar + GameLog + Prompt/Input
                 VStack(spacing: 0) {
+                    // Streams bar for stream filtering (Phase 4)
+                    StreamsBarView(
+                        viewModel: appState.streamsBarViewModel,
+                        height: settings.layout.streamsHeight,
+                        onViewStreams: {
+                            showingStreamView = true
+                        }
+                    )
+                    .padding(.bottom, 8)
+
                     // Game log fills available space
                     GameLogView(
                         viewModel: appState.gameLogViewModel
@@ -150,6 +167,25 @@ public struct MainView: View {
             .padding(.bottom, 12)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(isPresented: $showingStreamView) {
+            // Present StreamView for filtered content
+            let activeStreamIDs = appState.streamsBarViewModel.activeStreams
+            if !activeStreamIDs.isEmpty {
+                let streamViewModel = StreamViewModel(
+                    streamBufferManager: appState.streamBufferManager,
+                    activeStreamIDs: activeStreamIDs,
+                    theme: Theme.catppuccinMocha()
+                )
+                StreamView(
+                    viewModel: streamViewModel,
+                    activeStreamIDs: activeStreamIDs,
+                    onDismiss: {
+                        showingStreamView = false
+                    }
+                )
+                .frame(minWidth: 600, minHeight: 400)
+            }
+        }
     }
 
     // MARK: - Helper Methods

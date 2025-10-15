@@ -105,7 +105,7 @@ public final class AppState {
     private let eventBus: EventBus
 
     /// Stream buffer manager for routing stream content to independent buffers
-    private let streamBufferManager: StreamBufferManager
+    public let streamBufferManager: StreamBufferManager
 
     /// Stream router for routing stream content based on mirror mode
     private let streamRouter: StreamRouter
@@ -130,6 +130,9 @@ public final class AppState {
 
     /// Prompt view model for prompt display (Phase 2 layout)
     public let promptViewModel: PromptViewModel
+
+    /// Streams bar view model for stream filtering UI (Phase 4)
+    public let streamsBarViewModel: StreamsBarViewModel
 
     /// Command history actor for storing and recalling commands
     private let commandHistory: CommandHistory
@@ -269,6 +272,13 @@ public final class AppState {
 
         // Initialize prompt view model with EventBus subscription
         self.promptViewModel = PromptViewModel(eventBus: eventBus)
+
+        // Initialize streams bar view model with dependencies (Phase 4)
+        self.streamsBarViewModel = StreamsBarViewModel(
+            streamRegistry: .shared,
+            streamBufferManager: streamBufferManager,
+            theme: Theme.catppuccinMocha()
+        )
     }
 
     // MARK: - Connection Lifecycle
@@ -311,6 +321,9 @@ public final class AppState {
         await injuriesPanelViewModel.setup()
         await spellsPanelViewModel.setup()
         await promptViewModel.setup()
+
+        // Load stream configuration for streams bar (Phase 4)
+        await loadStreamConfiguration()
 
         // Update state
         isConnected = true
@@ -868,5 +881,34 @@ public final class AppState {
 
         logger.debug("📨 Routed streams (mirror: \(self.settings.streams.mirrorFilteredToMain))")
         return mainLogTags
+    }
+
+    // MARK: - Stream Configuration
+
+    /// Load stream configuration from bundled JSON resource.
+    ///
+    /// Loads stream-config.json from the app bundle and registers all streams
+    /// with the StreamRegistry. Then loads streams into the StreamsBarViewModel.
+    ///
+    /// This method is called during connect() to ensure streams are available
+    /// before starting data flow.
+    private func loadStreamConfiguration() async {
+        do {
+            // Try to load from SPM resource bundle
+            guard let resourceBundleURL = Bundle.main.url(forResource: "Vaalin_Vaalin", withExtension: "bundle"),
+                  let resourceBundle = Bundle(url: resourceBundleURL),
+                  let url = resourceBundle.url(forResource: "stream-config", withExtension: "json") else {
+                logger.warning("Stream configuration bundle not found - streams bar will be empty")
+                return
+            }
+
+            let data = try Data(contentsOf: url)
+            try await StreamRegistry.shared.load(from: data)
+            await streamsBarViewModel.loadStreams()
+
+            logger.info("✅ Loaded stream configuration successfully")
+        } catch {
+            logger.error("Failed to load stream configuration: \(error.localizedDescription)")
+        }
     }
 }

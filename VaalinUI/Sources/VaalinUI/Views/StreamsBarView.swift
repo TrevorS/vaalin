@@ -66,6 +66,9 @@ public struct StreamsBarView: View {
     /// State for tracking unread counts (refreshed periodically)
     @State private var unreadCounts: [String: Int] = [:]
 
+    /// Callback when user wants to view filtered streams
+    public var onViewStreams: (() -> Void)?
+
     // MARK: - Initialization
 
     /// Creates a streams bar with the specified view model and height.
@@ -73,12 +76,15 @@ public struct StreamsBarView: View {
     /// - Parameters:
     ///   - viewModel: View model managing stream state
     ///   - height: Height in points (default: 112)
+    ///   - onViewStreams: Optional callback when user wants to view streams
     public init(
         viewModel: StreamsBarViewModel,
-        height: CGFloat = 112
+        height: CGFloat = 112,
+        onViewStreams: (() -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.height = height
+        self.onViewStreams = onViewStreams
     }
 
     // MARK: - Body
@@ -104,22 +110,64 @@ public struct StreamsBarView: View {
     private var streamsContent: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                ForEach(viewModel.displayedStreams()) { streamInfo in
-                    StreamChip(
-                        streamInfo: streamInfo,
-                        unreadCount: unreadCounts[streamInfo.id] ?? 0,
-                        isActive: viewModel.isActive(streamInfo.id),
-                        chipColor: viewModel.chipColor(for: streamInfo),
-                        onToggle: {
-                            viewModel.toggleStream(streamInfo.id)
-                        }
-                    )
+                ForEach(Array(viewModel.displayedStreams().enumerated()), id: \.element.id) { index, streamInfo in
+                    streamChipWithShortcut(streamInfo: streamInfo, index: index)
+                }
+
+                // "View Streams" button (only if callback provided)
+                if let onViewStreams = onViewStreams,
+                   !viewModel.activeStreams.isEmpty {
+                    viewStreamsButton(action: onViewStreams)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Stream chip with keyboard shortcut (Cmd+1 through Cmd+6 for first 6 chips)
+    @ViewBuilder
+    private func streamChipWithShortcut(streamInfo: StreamInfo, index: Int) -> some View {
+        let chip = StreamChip(
+            streamInfo: streamInfo,
+            unreadCount: unreadCounts[streamInfo.id] ?? 0,
+            isActive: viewModel.isActive(streamInfo.id),
+            chipColor: viewModel.chipColor(for: streamInfo),
+            onToggle: {
+                viewModel.toggleStream(streamInfo.id)
+            }
+        )
+
+        // Add keyboard shortcut for first 6 chips (Cmd+1 through Cmd+6)
+        if index < 6 {
+            let key = KeyEquivalent(Character("\(index + 1)"))
+            chip.keyboardShortcut(key, modifiers: .command)
+        } else {
+            chip
+        }
+    }
+
+    /// "View Streams" button to open StreamView
+    private func viewStreamsButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "sidebar.right")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("View")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.blue.opacity(0.8))
+                    .shadow(color: Color.blue.opacity(0.3), radius: 4, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+        .help("View filtered stream content")
     }
 
     /// Translucent background with Liquid Glass styling
