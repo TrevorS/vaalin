@@ -24,22 +24,49 @@ import VaalinParser
         // Create sample messages across multiple streams
         let thoughtTag = GameTag(
             name: "preset",
-            text: "You consider your next move carefully.",
+            text: nil,
             attrs: ["id": "thought"],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: "You consider your next move carefully.",
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
             state: .closed
         )
 
         let speechTag = GameTag(
             name: "preset",
-            text: "Adventurer says, \"The path ahead looks treacherous!\"",
+            text: nil,
             attrs: ["id": "speech"],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: "Adventurer says, \"The path ahead looks treacherous!\"",
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
             state: .closed
         )
 
         let whisperTag = GameTag(
             name: "preset",
-            text: "Someone whispers, \"Meet me at the tavern after dark.\"",
+            text: nil,
             attrs: ["id": "whisper"],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: "Someone whispers, \"Meet me at the tavern after dark.\"",
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
             state: .closed
         )
 
@@ -70,5 +97,8 @@ import VaalinParser
             Message(from: [thoughtTag], streamID: "thoughts"),
             toStream: "thoughts"
         )
+
+        // Reload view model after populating data
+        await viewModel.loadStreamContent()
     }
 }

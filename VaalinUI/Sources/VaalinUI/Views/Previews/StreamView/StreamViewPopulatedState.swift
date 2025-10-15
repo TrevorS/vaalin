@@ -25,8 +25,17 @@ import VaalinParser
         let thoughtTags = [
             GameTag(
                 name: "preset",
-                text: "You ponder the ancient runes carved into the stone wall.",
+                text: nil,
                 attrs: ["id": "thought"],
+                children: [
+                    GameTag(
+                        name: ":text",
+                        text: "You ponder the ancient runes carved into the stone wall.",
+                        attrs: [:],
+                        children: [],
+                        state: .closed
+                    )
+                ],
                 state: .closed
             )
         ]
@@ -34,8 +43,17 @@ import VaalinParser
         let speechTags = [
             GameTag(
                 name: "preset",
-                text: "You say, \"Hello, fellow adventurer!\"",
+                text: nil,
                 attrs: ["id": "speech"],
+                children: [
+                    GameTag(
+                        name: ":text",
+                        text: "You say, \"Hello, fellow adventurer!\"",
+                        attrs: [:],
+                        children: [],
+                        state: .closed
+                    )
+                ],
                 state: .closed
             )
         ]
@@ -43,8 +61,17 @@ import VaalinParser
         let damageTags = [
             GameTag(
                 name: "preset",
-                text: "You take 50 points of damage from the troll's club!",
+                text: nil,
                 attrs: ["id": "damage"],
+                children: [
+                    GameTag(
+                        name: ":text",
+                        text: "You take 50 points of damage from the troll's club!",
+                        attrs: [:],
+                        children: [],
+                        state: .closed
+                    )
+                ],
                 state: .closed
             )
         ]
@@ -69,5 +96,8 @@ import VaalinParser
             Message(from: damageTags, streamID: "speech"),
             toStream: "speech"
         )
+
+        // Reload view model after populating data
+        await viewModel.loadStreamContent()
     }
 }
