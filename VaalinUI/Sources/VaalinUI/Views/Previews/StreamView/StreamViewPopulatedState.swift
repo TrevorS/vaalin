@@ -30,7 +30,10 @@ import VaalinParser
                 children: [
                     GameTag(
                         name: ":text",
-                        text: "You ponder the ancient runes carved into the stone wall.",
+                        text: """
+                        You carefully consider your tactical options, weighing the risks \
+                        of a direct assault against the potential for a more subtle approach.
+                        """,
                         attrs: [:],
                         children: [],
                         state: .closed
@@ -48,7 +51,7 @@ import VaalinParser
                 children: [
                     GameTag(
                         name: ":text",
-                        text: "You say, \"Hello, fellow adventurer!\"",
+                        text: "You say, \"The path ahead looks dangerous. We should proceed with caution.\"",
                         attrs: [:],
                         children: [],
                         state: .closed
@@ -66,7 +69,12 @@ import VaalinParser
                 children: [
                     GameTag(
                         name: ":text",
-                        text: "You take 50 points of damage from the troll's club!",
+                        text: """
+                        You swing a vultite longsword at a hill troll!
+                          AS: +246 vs DS: +84 with AvD: +42 + d100 roll: +91 = +295
+                           ... and hit for 128 points of damage!
+                           Massive blow punches a hole through the hill troll's chest!
+                        """,
                         attrs: [:],
                         children: [],
                         state: .closed

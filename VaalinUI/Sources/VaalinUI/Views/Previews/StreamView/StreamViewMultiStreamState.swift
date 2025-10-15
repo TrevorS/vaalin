@@ -29,7 +29,7 @@ import VaalinParser
             children: [
                 GameTag(
                     name: ":text",
-                    text: "You consider your next move carefully.",
+                    text: "You think you need only open yourself, when you are ready.",
                     attrs: [:],
                     children: [],
                     state: .closed
@@ -45,7 +45,7 @@ import VaalinParser
             children: [
                 GameTag(
                     name: ":text",
-                    text: "Adventurer says, \"The path ahead looks treacherous!\"",
+                    text: "Elaejia says, \"He swore that he hadn't arrested anyone in some time...\"",
                     attrs: [:],
                     children: [],
                     state: .closed
@@ -61,7 +61,10 @@ import VaalinParser
             children: [
                 GameTag(
                     name: ":text",
-                    text: "Someone whispers, \"Meet me at the tavern after dark.\"",
+                    text: """
+                    Elaejia leans over and whispers, "I think you need only open yourself, \
+                    when you are ready."
+                    """,
                     attrs: [:],
                     children: [],
                     state: .closed
