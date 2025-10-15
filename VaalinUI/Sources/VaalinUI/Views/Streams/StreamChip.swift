@@ -41,6 +41,26 @@ import VaalinCore
 /// - Hint: "Double tap to toggle stream filtering"
 /// - Value: "Active, 5 unread" or "Inactive"
 public struct StreamChip: View {
+    // MARK: - Constants
+
+    private enum Constants {
+        static let chipHeight: CGFloat = 32
+        static let cornerRadius: CGFloat = 16
+        static let horizontalPadding: CGFloat = 12
+        static let verticalPadding: CGFloat = 6
+        static let contentSpacing: CGFloat = 6
+        static let badgeOffsetX: CGFloat = 6
+        static let badgeOffsetY: CGFloat = -6
+        static let badgeMinWidth: CGFloat = 18
+        static let badgeMinHeight: CGFloat = 18
+        static let badgePaddingH: CGFloat = 6
+        static let badgePaddingV: CGFloat = 2
+        static let inactiveOpacity: CGFloat = 0.5
+        static let animationDuration: CGFloat = 0.2
+        static let fontSize: CGFloat = 12
+        static let badgeFontSize: CGFloat = 10
+    }
+
     // MARK: - Properties
 
     /// Stream metadata (id, label, etc.)
@@ -88,7 +108,7 @@ public struct StreamChip: View {
 
     public var body: some View {
         chipContent
-            .contentShape(RoundedRectangle(cornerRadius: 16))
+            .contentShape(RoundedRectangle(cornerRadius: Constants.cornerRadius))
             .onTapGesture {
                 onToggle()
             }
@@ -108,40 +128,40 @@ public struct StreamChip: View {
             // Unread badge overlay (top-right)
             if unreadCount > 0 {
                 unreadBadge
-                    .offset(x: 6, y: -6) // Position outside chip bounds
+                    .offset(x: Constants.badgeOffsetX, y: Constants.badgeOffsetY) // Position outside chip bounds
             }
         }
-        .opacity(isActive ? 1.0 : 0.5) // Dim inactive chips
-        .animation(.easeInOut(duration: 0.2), value: isActive)
+        .opacity(isActive ? 1.0 : Constants.inactiveOpacity) // Dim inactive chips
+        .animation(.easeInOut(duration: Constants.animationDuration), value: isActive)
     }
 
     /// Chip background with Liquid Glass styling
     private var chipBackground: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Constants.contentSpacing) {
             // Stream label text
             Text(streamInfo.label)
-                .font(.system(size: 12, weight: .medium, design: .default))
+                .font(.system(size: Constants.fontSize, weight: .medium, design: .default))
                 .foregroundStyle(textColor)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .frame(height: 32)
+        .padding(.horizontal, Constants.horizontalPadding)
+        .padding(.vertical, Constants.verticalPadding)
+        .frame(height: Constants.chipHeight)
         .background(chipBackgroundMaterial)
     }
 
     /// Liquid Glass material with color and border
     private var chipBackgroundMaterial: some View {
-        RoundedRectangle(cornerRadius: 16)
+        RoundedRectangle(cornerRadius: Constants.cornerRadius)
             .fill(chipColor.opacity(colorScheme == .dark ? 0.15 : 0.10))
             .background(
                 // Translucent glass effect
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Constants.cornerRadius)
                     .fill(.regularMaterial)
             )
             .overlay {
                 // Glass highlight
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Constants.cornerRadius)
                     .fill(
                         LinearGradient(
                             colors: [
@@ -155,7 +175,7 @@ public struct StreamChip: View {
             }
             .overlay {
                 // Border (solid when active, dashed when inactive)
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Constants.cornerRadius)
                     .strokeBorder(
                         chipColor.opacity(isActive ? 0.6 : 0.3),
                         style: StrokeStyle(
@@ -174,11 +194,11 @@ public struct StreamChip: View {
     /// Unread count badge (circular overlay)
     private var unreadBadge: some View {
         Text(unreadCountString)
-            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .font(.system(size: Constants.badgeFontSize, weight: .bold, design: .rounded))
             .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .frame(minWidth: 18, minHeight: 18)
+            .padding(.horizontal, Constants.badgePaddingH)
+            .padding(.vertical, Constants.badgePaddingV)
+            .frame(minWidth: Constants.badgeMinWidth, minHeight: Constants.badgeMinHeight)
             .background(
                 Circle()
                     .fill(chipColor)

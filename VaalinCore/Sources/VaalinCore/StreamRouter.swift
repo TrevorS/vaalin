@@ -115,7 +115,9 @@ public actor StreamRouter {
                 // Route stream content to buffer
                 await routeStreamTag(tag)
 
-                // If mirror mode ON, unwrap stream children for main log
+                // Mirror mode ON: Unwrap stream children for main log
+                // We return children (not the wrapper) so main log displays the content naturally
+                // without the synthetic "stream" tag wrapper that was added by the parser
                 if mirrorMode {
                     mainLogTags.append(contentsOf: tag.children)
                 }

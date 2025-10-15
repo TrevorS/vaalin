@@ -44,6 +44,10 @@ public class StreamsBarViewModel {
     /// Keys are stream IDs, values are always true (Set semantics)
     public var activeStreams: Set<String> = []
 
+    /// Whether streams are currently being loaded from registry
+    /// Used to show loading indicator while initial stream metadata is fetched
+    public var isLoading: Bool = true
+
     /// Cached stream info for display
     /// Loaded once from registry and cached for performance
     private var cachedStreams: [StreamInfo] = []
@@ -81,6 +85,8 @@ public class StreamsBarViewModel {
     /// Fetches all streams and caches them for display. If initialActiveStreams
     /// was not provided in init, populates activeStreams with all defaultOn streams.
     ///
+    /// Sets `isLoading` to false when complete, enabling views to hide loading indicators.
+    ///
     /// Call this once during view initialization:
     /// ```swift
     /// .task {
@@ -88,6 +94,9 @@ public class StreamsBarViewModel {
     /// }
     /// ```
     public func loadStreams() async {
+        isLoading = true
+        defer { isLoading = false }
+
         let allStreams = await streamRegistry.allStreams()
 
         // Sort by id for consistent ordering
