@@ -3,23 +3,23 @@
 import SwiftUI
 import VaalinCore
 
-/// Individual stream filtering chip with Liquid Glass styling.
+/// Individual stream filtering chip with minimal frosted styling.
 ///
 /// StreamChip displays a single stream filter with:
 /// - Stream label (from StreamInfo)
 /// - Background color from theme palette
-/// - Unread count badge (top-right corner)
+/// - Unread indicator dot (top-right corner, shows when unread)
 /// - Toggle state visual feedback
 /// - Tap gesture for toggling stream ON/OFF
 ///
 /// ## Design Specifications
 ///
-/// - **Material**: Liquid Glass translucent background
+/// - **Material**: Minimal frosted glass background (.ultraThinMaterial)
 /// - **Color**: Theme palette color for stream type
-/// - **Badge**: Circular overlay with count (hidden if 0)
-/// - **Active State**: Full opacity, solid border
+/// - **Badge**: Tiny dot indicator (8pt, hidden if 0 unread)
+/// - **Active State**: Full opacity, subtle border
 /// - **Inactive State**: Reduced opacity (0.5), dashed border
-/// - **Dimensions**: Height 32pt, width auto-sized to content
+/// - **Dimensions**: Height 19pt, width auto-sized to content
 ///
 /// ## Usage
 ///
@@ -44,21 +44,17 @@ public struct StreamChip: View {
     // MARK: - Constants
 
     private enum Constants {
-        static let chipHeight: CGFloat = 32
-        static let cornerRadius: CGFloat = 16
-        static let horizontalPadding: CGFloat = 12
-        static let verticalPadding: CGFloat = 6
-        static let contentSpacing: CGFloat = 6
-        static let badgeOffsetX: CGFloat = 6
-        static let badgeOffsetY: CGFloat = -6
-        static let badgeMinWidth: CGFloat = 18
-        static let badgeMinHeight: CGFloat = 18
-        static let badgePaddingH: CGFloat = 6
-        static let badgePaddingV: CGFloat = 2
+        static let chipHeight: CGFloat = 19
+        static let cornerRadius: CGFloat = 10
+        static let horizontalPadding: CGFloat = 8
+        static let verticalPadding: CGFloat = 3
+        static let contentSpacing: CGFloat = 4
+        static let badgeOffsetX: CGFloat = 4
+        static let badgeOffsetY: CGFloat = -4
+        static let badgeDiameter: CGFloat = 8
         static let inactiveOpacity: CGFloat = 0.5
         static let animationDuration: CGFloat = 0.2
-        static let fontSize: CGFloat = 12
-        static let badgeFontSize: CGFloat = 10
+        static let fontSize: CGFloat = 10
     }
 
     // MARK: - Properties
@@ -135,7 +131,7 @@ public struct StreamChip: View {
         .animation(.easeInOut(duration: Constants.animationDuration), value: isActive)
     }
 
-    /// Chip background with Liquid Glass styling
+    /// Chip background with minimal styling
     private var chipBackground: some View {
         HStack(spacing: Constants.contentSpacing) {
             // Stream label text
@@ -150,64 +146,31 @@ public struct StreamChip: View {
         .background(chipBackgroundMaterial)
     }
 
-    /// Liquid Glass material with color and border
+    /// Minimal frosted glass material with subtle styling
     private var chipBackgroundMaterial: some View {
         RoundedRectangle(cornerRadius: Constants.cornerRadius)
-            .fill(chipColor.opacity(colorScheme == .dark ? 0.15 : 0.10))
-            .background(
-                // Translucent glass effect
-                RoundedRectangle(cornerRadius: Constants.cornerRadius)
-                    .fill(.regularMaterial)
-            )
-            .overlay {
-                // Glass highlight
-                RoundedRectangle(cornerRadius: Constants.cornerRadius)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(colorScheme == .dark ? 0.08 : 0.12),
-                                Color.white.opacity(colorScheme == .dark ? 0.02 : 0.04)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
+            .fill(.ultraThinMaterial)
             .overlay {
                 // Border (solid when active, dashed when inactive)
                 RoundedRectangle(cornerRadius: Constants.cornerRadius)
                     .strokeBorder(
-                        chipColor.opacity(isActive ? 0.6 : 0.3),
-                        style: StrokeStyle(
-                            lineWidth: isActive ? 1.5 : 1.0,
-                            dash: isActive ? [] : [3, 2] // Dashed border when inactive
-                        )
+                        chipColor.opacity(isActive ? 0.4 : 0.2),
+                        lineWidth: 0.75
                     )
             }
             .shadow(
-                color: chipColor.opacity(0.15),
-                radius: 4,
-                y: 2
+                color: chipColor.opacity(0.06),
+                radius: 1.5,
+                y: 1
             )
     }
 
-    /// Unread count badge (circular overlay)
+    /// Unread indicator dot (tiny circle when unread)
     private var unreadBadge: some View {
-        Text(unreadCountString)
-            .font(.system(size: Constants.badgeFontSize, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, Constants.badgePaddingH)
-            .padding(.vertical, Constants.badgePaddingV)
-            .frame(minWidth: Constants.badgeMinWidth, minHeight: Constants.badgeMinHeight)
-            .background(
-                Circle()
-                    .fill(chipColor)
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-            )
-            .overlay {
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-            }
+        Circle()
+            .fill(chipColor)
+            .frame(width: Constants.badgeDiameter, height: Constants.badgeDiameter)
+            .shadow(color: .black.opacity(0.15), radius: 1, y: 0.5)
     }
 
     // MARK: - Helpers
@@ -218,20 +181,11 @@ public struct StreamChip: View {
         isActive ? chipColor : Color.secondary
     }
 
-    /// Formatted unread count string (e.g., "5", "99+")
-    private var unreadCountString: String {
-        if unreadCount > 99 {
-            return "99+"
-        } else {
-            return "\(unreadCount)"
-        }
-    }
-
     /// Accessibility value string describing chip state
     private var accessibilityValueString: String {
         if isActive {
             if unreadCount > 0 {
-                return "Active, \(unreadCount) unread"
+                return "Active, unread"
             } else {
                 return "Active"
             }

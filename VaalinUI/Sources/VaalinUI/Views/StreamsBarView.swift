@@ -7,19 +7,19 @@ import VaalinCore
 ///
 /// `StreamsBarView` displays a row of interactive StreamChip components for filtering
 /// game output by stream type (thoughts, speech, whispers, etc.). Features include:
-/// - Liquid Glass translucent background
+/// - Minimal frosted glass background
 /// - Horizontal scrolling for many streams
-/// - Real-time unread count badges
+/// - Unread indicator dots (instead of count badges)
 /// - Toggle stream filtering on/off via chip taps
 /// - Color-coded chips from theme palette
 ///
 /// ## Design Specifications
 ///
-/// - **Material**: `.regularMaterial` for translucent background
-/// - **Height**: Configurable via `height` parameter from `Settings.layout.streamsHeight`
+/// - **Material**: `.ultraThinMaterial` for minimal frosted background
+/// - **Height**: Configurable via `height` parameter (default: 38pt)
 /// - **Layout**: HStack with horizontal scrolling if needed
-/// - **Spacing**: 12pt between chips
-/// - **Padding**: 16pt horizontal, 12pt vertical
+/// - **Spacing**: 8pt between chips
+/// - **Padding**: 12pt horizontal, 6pt vertical
 ///
 /// ## Layout Integration
 ///
@@ -66,9 +66,6 @@ public struct StreamsBarView: View {
     /// State for tracking unread counts (refreshed periodically)
     @State private var unreadCounts: [String: Int] = [:]
 
-    /// Callback when user wants to view filtered streams
-    public var onViewStreams: (() -> Void)?
-
     // MARK: - Initialization
 
     /// Creates a streams bar with the specified view model and height.
@@ -76,15 +73,12 @@ public struct StreamsBarView: View {
     /// - Parameters:
     ///   - viewModel: View model managing stream state
     ///   - height: Height in points (default: 112)
-    ///   - onViewStreams: Optional callback when user wants to view streams
     public init(
         viewModel: StreamsBarViewModel,
-        height: CGFloat = 112,
-        onViewStreams: (() -> Void)? = nil
+        height: CGFloat = 112
     ) {
         self.viewModel = viewModel
         self.height = height
-        self.onViewStreams = onViewStreams
     }
 
     // MARK: - Body
@@ -109,19 +103,13 @@ public struct StreamsBarView: View {
     /// Main content with chip row
     private var streamsContent: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 ForEach(Array(viewModel.displayedStreams().enumerated()), id: \.element.id) { index, streamInfo in
                     streamChipWithShortcut(streamInfo: streamInfo, index: index)
                 }
-
-                // "View Streams" button (only if callback provided)
-                if let onViewStreams = onViewStreams,
-                   !viewModel.activeStreams.isEmpty {
-                    viewStreamsButton(action: onViewStreams)
-                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
         }
         .frame(maxWidth: .infinity)
     }
@@ -148,58 +136,22 @@ public struct StreamsBarView: View {
         }
     }
 
-    /// "View Streams" button to open StreamView
-    private func viewStreamsButton(action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: "sidebar.right")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("View")
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.blue.opacity(0.8))
-                    .shadow(color: Color.blue.opacity(0.3), radius: 4, y: 2)
-            )
-        }
-        .buttonStyle(.plain)
-        .help("View filtered stream content")
-    }
-
-    /// Translucent background with Liquid Glass styling
+    /// Minimal frosted glass background
     private var streamsBackground: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(.regularMaterial)
-            .overlay {
-                // Subtle glass highlight
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(colorScheme == .dark ? 0.03 : 0.05),
-                                Color.white.opacity(colorScheme == .dark ? 0.01 : 0.02)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
+        RoundedRectangle(cornerRadius: 6)
+            .fill(.ultraThinMaterial)
             .overlay {
                 // Subtle border
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 6)
                     .strokeBorder(
-                        Color.white.opacity(colorScheme == .dark ? 0.15 : 0.1),
+                        Color.white.opacity(colorScheme == .dark ? 0.08 : 0.05),
                         lineWidth: 0.5
                     )
             }
             .shadow(
-                color: Color.black.opacity(0.08),
-                radius: 4,
-                y: 2
+                color: Color.black.opacity(0.04),
+                radius: 1.5,
+                y: 1
             )
     }
 

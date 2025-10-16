@@ -134,6 +134,12 @@ public final class AppState {
     /// Streams bar view model for stream filtering UI (Phase 4)
     public let streamsBarViewModel: StreamsBarViewModel
 
+    /// Stream view model for displaying filtered stream content (Phase 4)
+    ///
+    /// Reactive to activeStreams changes - automatically reloads content when user toggles streams.
+    /// Shared across all views to maintain consistent rendering and performance.
+    public let streamViewModel: StreamViewModel
+
     /// Command history actor for storing and recalling commands
     private let commandHistory: CommandHistory
 
@@ -277,6 +283,14 @@ public final class AppState {
         self.streamsBarViewModel = StreamsBarViewModel(
             streamRegistry: .shared,
             streamBufferManager: streamBufferManager,
+            theme: Theme.catppuccinMocha()
+        )
+
+        // Initialize stream view model for displaying filtered stream content
+        // Starts with empty stream set - will update when user toggles streams in streamsBar
+        self.streamViewModel = StreamViewModel(
+            streamBufferManager: streamBufferManager,
+            activeStreamIDs: [],
             theme: Theme.catppuccinMocha()
         )
     }

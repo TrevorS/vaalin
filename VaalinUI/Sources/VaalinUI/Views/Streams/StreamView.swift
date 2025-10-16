@@ -17,7 +17,7 @@ import VaalinCore
 /// ## Features
 /// - **Styled Rendering**: Uses TagRenderer for preset colors (NOT plain text)
 /// - **Multi-Stream**: Union of multiple active streams merged chronologically
-/// - **Back Button**: Returns to main game log
+/// - **Inline Display**: Embedded directly in main layout below stream chips
 /// - **Unread Tracking**: Clears unread counts on view appear
 ///
 /// Uses `StreamViewModel` for message rendering and stream buffer access.
@@ -25,11 +25,8 @@ public struct StreamView: View {
     /// View model providing stream messages and buffer management
     @Bindable public var viewModel: StreamViewModel
 
-    /// Stream IDs being displayed (for header badge)
+    /// Stream IDs being displayed
     public let activeStreamIDs: Set<String>
-
-    /// Dismiss action to return to main log
-    public let onDismiss: () -> Void
 
     // MARK: - Initialization
 
@@ -38,15 +35,12 @@ public struct StreamView: View {
     /// - Parameters:
     ///   - viewModel: View model managing stream content
     ///   - activeStreamIDs: Set of stream IDs being displayed
-    ///   - onDismiss: Callback when user dismisses the view
     public init(
         viewModel: StreamViewModel,
-        activeStreamIDs: Set<String>,
-        onDismiss: @escaping () -> Void
+        activeStreamIDs: Set<String>
     ) {
         self.viewModel = viewModel
         self.activeStreamIDs = activeStreamIDs
-        self.onDismiss = onDismiss
     }
 
     // MARK: - Body
@@ -54,65 +48,15 @@ public struct StreamView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // Header with back button and stream badges
-            streamHeader
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.regularMaterial)
-
-            // Stream content (NSTextView-based)
-            StreamContentView(viewModel: viewModel)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .task {
-            // Load stream content when view appears
-            await viewModel.loadStreamContent()
-            await viewModel.clearUnreadCounts()
-        }
-    }
-
-    // MARK: - Subviews
-
-    /// Header with back button and active stream badges
-    private var streamHeader: some View {
-        HStack {
-            // Back button
-            Button(action: onDismiss) {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text("Back to Log")
-                        .font(.system(size: 13, weight: .medium))
-                }
-                .foregroundStyle(.primary)
+        // Stream content (NSTextView-based) - no header, sits directly under chips
+        StreamContentView(viewModel: viewModel)
+            .frame(maxWidth: .infinity)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .task {
+                // Load stream content when view appears
+                await viewModel.loadStreamContent()
+                await viewModel.clearUnreadCounts()
             }
-            .buttonStyle(.plain)
-            .help("Return to main game log")
-
-            Spacer()
-
-            // Active stream badges
-            HStack(spacing: 8) {
-                ForEach(Array(activeStreamIDs).sorted(), id: \.self) { streamID in
-                    streamBadge(for: streamID)
-                }
-            }
-        }
-    }
-
-    /// Badge for an active stream
-    private func streamBadge(for streamID: String) -> some View {
-        Text(streamID.capitalized)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(Color.secondary.opacity(0.5))
-            )
     }
 }
 

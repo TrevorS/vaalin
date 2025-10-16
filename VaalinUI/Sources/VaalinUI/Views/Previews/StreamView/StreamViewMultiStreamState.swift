@@ -16,8 +16,7 @@ import VaalinParser
 
     StreamView(
         viewModel: viewModel,
-        activeStreamIDs: activeStreamIDs,
-        onDismiss: {}
+        activeStreamIDs: activeStreamIDs
     )
     .frame(width: 800, height: 600)
     .task {
