@@ -194,3 +194,261 @@ public struct StreamChip: View {
         }
     }
 }
+
+// MARK: - Previews
+
+#Preview("Active, No Unread") {
+    VStack(spacing: 20) {
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "thoughts",
+                label: "Thoughts",
+                defaultOn: true,
+                color: "green",
+                aliases: []
+            ),
+            unreadCount: 0,
+            isActive: true,
+            chipColor: Color(hex: "#a6e3a1")!,
+            onToggle: { }
+        )
+        
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "speech",
+                label: "Speech",
+                defaultOn: true,
+                color: "green",
+                aliases: []
+            ),
+            unreadCount: 0,
+            isActive: true,
+            chipColor: Color(hex: "#a6e3a1")!,
+            onToggle: { }
+        )
+        
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "logons",
+                label: "Logons",
+                defaultOn: true,
+                color: "yellow",
+                aliases: ["logon", "logoff", "death"]
+            ),
+            unreadCount: 0,
+            isActive: true,
+            chipColor: Color(hex: "#f9e2af")!,
+            onToggle: { }
+        )
+    }
+    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(hex: "#1e1e2e"))
+}
+
+#Preview("Active with Unread") {
+    VStack(spacing: 20) {
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "thoughts",
+                label: "Thoughts",
+                defaultOn: true,
+                color: "green",
+                aliases: []
+            ),
+            unreadCount: 5,
+            isActive: true,
+            chipColor: Color(hex: "#a6e3a1")!,
+            onToggle: { }
+        )
+        
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "speech",
+                label: "Speech",
+                defaultOn: true,
+                color: "green",
+                aliases: []
+            ),
+            unreadCount: 12,
+            isActive: true,
+            chipColor: Color(hex: "#a6e3a1")!,
+            onToggle: { }
+        )
+        
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "whispers",
+                label: "Whispers",
+                defaultOn: true,
+                color: "teal",
+                aliases: ["whisper"]
+            ),
+            unreadCount: 150, // Should display as "99+"
+            isActive: true,
+            chipColor: Color(hex: "#94e2d5")!,
+            onToggle: { }
+        )
+    }
+    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(hex: "#1e1e2e"))
+}
+
+#Preview("Inactive/Disabled") {
+    VStack(spacing: 20) {
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "expr",
+                label: "Experience",
+                defaultOn: false,
+                color: "sapphire",
+                aliases: ["experience"]
+            ),
+            unreadCount: 0,
+            isActive: false,
+            chipColor: Color(hex: "#74c7ec")!,
+            onToggle: { }
+        )
+        
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "familiar",
+                label: "Familiar",
+                defaultOn: false,
+                color: "mauve",
+                aliases: []
+            ),
+            unreadCount: 3, // Badge still visible even when inactive
+            isActive: false,
+            chipColor: Color(hex: "#cba6f7")!,
+            onToggle: { }
+        )
+        
+        HStack(spacing: 12) {
+            StreamChip(
+                streamInfo: StreamInfo(
+                    id: "thoughts",
+                    label: "Thoughts",
+                    defaultOn: true,
+                    color: "green",
+                    aliases: []
+                ),
+                unreadCount: 2,
+                isActive: true,
+                chipColor: Color(hex: "#a6e3a1")!,
+                onToggle: {}
+            )
+            
+            StreamChip(
+                streamInfo: StreamInfo(
+                    id: "expr",
+                    label: "Experience",
+                    defaultOn: false,
+                    color: "sapphire",
+                    aliases: []
+                ),
+                unreadCount: 0,
+                isActive: false,
+                chipColor: Color(hex: "#74c7ec")!,
+                onToggle: {}
+            )
+        }
+    }
+    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(hex: "#1e1e2e"))
+}
+
+#Preview("Long Labels") {
+    VStack(spacing: 20) {
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "speech",
+                label: "Speech",
+                defaultOn: true,
+                color: "green",
+                aliases: []
+            ),
+            unreadCount: 5,
+            isActive: true,
+            chipColor: Color(hex: "#a6e3a1")!,
+            onToggle: {}
+        )
+        
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "verylongstream",
+                label: "Very Long Stream Name That Should Truncate",
+                defaultOn: true,
+                color: "teal",
+                aliases: []
+            ),
+            unreadCount: 12,
+            isActive: true,
+            chipColor: Color(hex: "#94e2d5")!,
+            onToggle: {}
+        )
+        
+        StreamChip(
+            streamInfo: StreamInfo(
+                id: "combat",
+                label: "Combat Events",
+                defaultOn: true,
+                color: "red",
+                aliases: []
+            ),
+            unreadCount: 0,
+            isActive: true,
+            chipColor: Color(hex: "#f38ba8")!,
+            onToggle: {}
+        )
+        
+        HStack(spacing: 12) {
+            StreamChip(
+                streamInfo: StreamInfo(
+                    id: "a",
+                    label: "A",
+                    defaultOn: true,
+                    color: "green",
+                    aliases: []
+                ),
+                unreadCount: 1,
+                isActive: true,
+                chipColor: Color(hex: "#a6e3a1")!,
+                onToggle: {}
+            )
+            
+            StreamChip(
+                streamInfo: StreamInfo(
+                    id: "medium",
+                    label: "Medium Label",
+                    defaultOn: true,
+                    color: "teal",
+                    aliases: []
+                ),
+                unreadCount: 10,
+                isActive: true,
+                chipColor: Color(hex: "#94e2d5")!,
+                onToggle: {}
+            )
+            
+            StreamChip(
+                streamInfo: StreamInfo(
+                    id: "longest",
+                    label: "Extremely Long Label Text",
+                    defaultOn: true,
+                    color: "sapphire",
+                    aliases: []
+                ),
+                unreadCount: 100,
+                isActive: true,
+                chipColor: Color(hex: "#74c7ec")!,
+                onToggle: {}
+            )
+        }
+    }
+    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(hex: "#1e1e2e"))
+}

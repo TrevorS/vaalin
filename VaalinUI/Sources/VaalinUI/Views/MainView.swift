@@ -276,3 +276,15 @@ public struct MainView: View {
         return defaultColumnWidth
     }
 }
+
+// MARK: - Previews
+
+#Preview("Default Layout") {
+    MainView()
+        .frame(width: 1200, height: 800)
+}
+
+#Preview("Compact Window") {
+    MainView()
+        .frame(width: 900, height: 600)
+}

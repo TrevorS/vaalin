@@ -193,42 +193,9 @@ public final class StreamViewModel {
 
         for message in allMessages {
             if let theme = currentTheme {
-                // Check cache for previously rendered version
-                if let cached = renderedMessageCache[message.id],
-                   cached.themeHash == currentThemeHash {
-                    // Cache hit - reuse cached AttributedString
-                    let cachedMessage = Message(
-                        id: message.id,
-                        timestamp: message.timestamp,
-                        attributedText: cached.attributed,
-                        tags: message.tags,
-                        streamID: message.streamID
-                    )
-                    styledMessages.append(cachedMessage)
-                } else {
-                    // Cache miss - render with theme and cache result
-                    let attributedText = await renderer.render(
-                        message.tags,
-                        theme: theme,
-                        timestamp: message.timestamp,
-                        timestampSettings: Settings.StreamSettings.TimestampSettings(
-                            gameLog: false,  // Timestamps off by default
-                            perStream: [:]
-                        )
-                    )
-
-                    // Store in cache
-                    renderedMessageCache[message.id] = (attributed: attributedText, themeHash: currentThemeHash)
-
-                    let styledMessage = Message(
-                        id: message.id,
-                        timestamp: message.timestamp,
-                        attributedText: attributedText,
-                        tags: message.tags,
-                        streamID: message.streamID
-                    )
-                    styledMessages.append(styledMessage)
-                }
+                // Render with theme and caching
+                let renderedMessage = await renderMessage(message, theme: theme)
+                styledMessages.append(renderedMessage)
             } else {
                 // Fallback: keep original message if theme not loaded yet
                 styledMessages.append(message)
@@ -306,6 +273,53 @@ public final class StreamViewModel {
 
     // MARK: - Private Methods
 
+    /// Renders a message with theme colors and caching.
+    ///
+    /// - Parameters:
+    ///   - message: Message to render
+    ///   - theme: Theme to use for rendering
+    /// - Returns: Rendered message with styled AttributedString
+    ///
+    /// Checks the render cache first. If the message was previously rendered
+    /// with the same theme (hash matches), returns cached version. Otherwise,
+    /// renders with TagRenderer and updates the cache.
+    private func renderMessage(_ message: Message, theme: Theme) async -> Message {
+        // Check cache for previously rendered version
+        if let cached = renderedMessageCache[message.id],
+           cached.themeHash == currentThemeHash {
+            // Cache hit - reuse cached AttributedString
+            return Message(
+                id: message.id,
+                timestamp: message.timestamp,
+                attributedText: cached.attributed,
+                tags: message.tags,
+                streamID: message.streamID
+            )
+        }
+
+        // Cache miss - render with theme and cache result
+        let attributedText = await renderer.render(
+            message.tags,
+            theme: theme,
+            timestamp: message.timestamp,
+            timestampSettings: Settings.StreamSettings.TimestampSettings(
+                gameLog: false,  // Timestamps off by default
+                perStream: [:]
+            )
+        )
+
+        // Store in cache
+        renderedMessageCache[message.id] = (attributed: attributedText, themeHash: currentThemeHash)
+
+        return Message(
+            id: message.id,
+            timestamp: message.timestamp,
+            attributedText: attributedText,
+            tags: message.tags,
+            streamID: message.streamID
+        )
+    }
+
     /// Loads the default Catppuccin Mocha theme from the app bundle.
     ///
     /// Called asynchronously during initialization. Falls back to hardcoded theme
@@ -376,7 +390,7 @@ public final class StreamViewModel {
     /// Used to fix race condition where content was loaded before theme was ready.
     /// Only re-renders if content exists and theme is now available.
     private func reloadContentWithTheme() async {
-        guard !messages.isEmpty && currentTheme != nil else { return }
+        guard !messages.isEmpty, let theme = currentTheme else { return }
 
         logger.debug("🎨 Re-rendering content after theme loaded")
 
@@ -384,25 +398,8 @@ public final class StreamViewModel {
         var styledMessages: [Message] = []
 
         for message in messages {
-            if let theme = currentTheme {
-                let attributedText = await renderer.render(
-                    message.tags,
-                    theme: theme,
-                    timestamp: message.timestamp,
-                    timestampSettings: Settings.StreamSettings.TimestampSettings(
-                        gameLog: false,
-                        perStream: [:]
-                    )
-                )
-
-                let styledMessage = Message(
-                    timestamp: message.timestamp,
-                    attributedText: attributedText,
-                    tags: message.tags,
-                    streamID: message.streamID
-                )
-                styledMessages.append(styledMessage)
-            }
+            let renderedMessage = await renderMessage(message, theme: theme)
+            styledMessages.append(renderedMessage)
         }
 
         // Update messages with newly styled versions

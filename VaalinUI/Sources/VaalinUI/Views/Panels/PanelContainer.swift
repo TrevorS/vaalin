@@ -168,3 +168,76 @@ public struct PanelContainer<Content: View>: View {
         )
     }
 }
+
+// MARK: - Previews
+
+#Preview("Expanded") {
+    StatefulPreviewWrapper(isCollapsed: false) { isCollapsed in
+        PanelContainer(
+            title: "Hands",
+            isCollapsed: isCollapsed,
+            height: 140
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Left: Empty")
+                    .font(.system(size: 13, design: .monospaced))
+                Text("Right: Empty")
+                    .font(.system(size: 13, design: .monospaced))
+                Text("Prepared: None")
+                    .font(.system(size: 13, design: .monospaced))
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+    .frame(width: 300, height: 200)
+    .padding()
+}
+
+#Preview("Collapsed") {
+    StatefulPreviewWrapper(isCollapsed: true) { isCollapsed in
+        PanelContainer(
+            title: "Vitals",
+            isCollapsed: isCollapsed,
+            height: 160
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Health:")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("100/100")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.green)
+                }
+                HStack {
+                    Text("Mana:")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("85/85")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+    .frame(width: 300, height: 200)
+    .padding()
+}
+
+// MARK: - Preview Helpers
+
+/// Wrapper to provide stateful binding for previews
+private struct StatefulPreviewWrapper<Content: View>: View {
+    @State private var isCollapsed: Bool
+    private let content: (Binding<Bool>) -> Content
+    
+    init(isCollapsed: Bool, @ViewBuilder content: @escaping (Binding<Bool>) -> Content) {
+        self._isCollapsed = State(initialValue: isCollapsed)
+        self.content = content
+    }
+    
+    var body: some View {
+        content($isCollapsed)
+    }
+}

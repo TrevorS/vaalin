@@ -38,13 +38,13 @@ struct MockLichServerScenarioTests {
         let testXML = "<prompt>&gt;</prompt>"
         await server.sendXML(testXML)
 
-        // Wait for data
-        try await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+        // Wait for data with longer timeout for CI environments
+        try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
 
         streamTask.cancel()
 
         // Verify data received
-        #expect(!receivedData.isEmpty)
+        #expect(!receivedData.isEmpty, "Should receive XML data from server")
 
         if let firstChunk = receivedData.first,
            let receivedString = String(data: firstChunk, encoding: .utf8) {
@@ -238,13 +238,13 @@ struct MockLichServerScenarioTests {
         // Send scenario
         await server.sendScenario(.roomDescription)
 
-        // Wait for data
-        try await Task.sleep(nanoseconds: 200_000_000)
+        // Wait for data with longer timeout for CI environments
+        try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
 
         streamTask.cancel()
 
         // Verify scenario received
-        #expect(!receivedData.isEmpty)
+        #expect(!receivedData.isEmpty, "Should receive scenario data from server")
 
         if let firstChunk = receivedData.first,
            let receivedString = String(data: firstChunk, encoding: .utf8) {

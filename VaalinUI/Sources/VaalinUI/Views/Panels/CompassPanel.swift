@@ -253,3 +253,39 @@ public struct CompassPanel: View {
         return handleDirectionTap
     }
 }
+
+// MARK: - Previews
+
+#Preview("Empty State") {
+    let eventBus = EventBus()
+    let viewModel = CompassPanelViewModel(eventBus: eventBus)
+    // Default state: roomName = "", roomId = 0, exits = []
+    
+    return CompassPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("Populated State") {
+    let eventBus = EventBus()
+    let viewModel = CompassPanelViewModel(eventBus: eventBus)
+    viewModel.roomName = "[Town Square, Market]"
+    viewModel.roomId = 228
+    viewModel.exits = ["n", "e", "s", "w"]
+    
+    return CompassPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("All Exits State") {
+    let eventBus = EventBus()
+    let viewModel = CompassPanelViewModel(eventBus: eventBus)
+    viewModel.roomName = "[Adventurer's Guild, Main Hall]"
+    viewModel.roomId = 456
+    viewModel.exits = ["n", "ne", "e", "se", "s", "sw", "w", "nw", "up", "down", "out"]
+    
+    return CompassPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}

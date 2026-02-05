@@ -195,7 +195,7 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
     nonisolated(unsafe) public var subscriptionIDs: [EventBus.SubscriptionID] = []
 
     /// Logger for InjuriesPanelViewModel events and errors
-    private static let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "InjuriesPanelViewModel")
+    private let logger = Logger(subsystem: "org.trevorstrieber.vaalin", category: "InjuriesPanelViewModel")
 
     // MARK: - Initialization
 
@@ -228,7 +228,7 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
     public func setup() async {
         // Idempotency check - prevent duplicate subscriptions
         guard subscriptionIDs.isEmpty else {
-            Self.logger.debug("Already subscribed to EventBus, skipping setup")
+            logger.debug("Already subscribed to EventBus, skipping setup")
             return
         }
 
@@ -237,7 +237,7 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
             await self?.handleDialogDataEvent(tag)
         }
         subscriptionIDs.append(id)
-        Self.logger.debug("Subscribed to metadata/dialogData/injuries events with ID: \(id)")
+        logger.debug("Subscribed to metadata/dialogData/injuries events with ID: \(id)")
     }
 
     // MARK: - Deinitialization
@@ -269,14 +269,14 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
     private func handleDialogDataEvent(_ tag: GameTag) {
         // Only process tags named "dialogData"
         guard tag.name == "dialogData" else {
-            Self.logger.debug("Ignoring non-dialogData tag: \(tag.name)")
+            logger.debug("Ignoring non-dialogData tag: \(tag.name)")
             return
         }
 
         // Only process injuries dialog (filter other dialogs like spells, familiar, etc.)
         // The injuries dialog has id="injuries" attribute
         guard tag.attrs["id"] == "injuries" else {
-            Self.logger.debug("Ignoring non-injuries dialogData (id=\(String(describing: tag.attrs["id"])))")
+            logger.debug("Ignoring non-injuries dialogData (id=\(String(describing: tag.attrs["id"])))")
             return
         }
 
@@ -288,7 +288,7 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
             parseInjuryImage(child)
         }
 
-        Self.logger.debug("Updated injuries state from dialogData")
+        logger.debug("Updated injuries state from dialogData")
     }
 
     /// Resets all injuries to default state
@@ -328,7 +328,7 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
     private func parseInjuryImage(_ tag: GameTag) {
         guard let imageId = tag.attrs["id"],
               let imageName = tag.attrs["name"] else {
-            Self.logger.warning("Image tag missing id or name attribute")
+            logger.warning("Image tag missing id or name attribute")
             return
         }
 
@@ -339,14 +339,14 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
 
         // Map to BodyPart enum
         guard let bodyPart = BodyPart(rawValue: imageId) else {
-            Self.logger.debug("Unknown body part ID: \(imageId)")
+            logger.debug("Unknown body part ID: \(imageId)")
             return
         }
 
         // Healthy state: name == id
         if imageName == imageId {
             injuries[bodyPart] = InjuryStatus(injuryType: .none, severity: 0)
-            Self.logger.debug("Set \(imageId) to healthy state")
+            logger.debug("Set \(imageId) to healthy state")
             return
         }
 
@@ -355,7 +355,7 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
             let severityStr = imageName.dropFirst(InjuryPattern.injuryPrefixLength)
             let severity = Int(severityStr) ?? 1
             injuries[bodyPart] = InjuryStatus(injuryType: .injury, severity: severity)
-            Self.logger.debug("Set \(imageId) injury severity to \(severity)")
+            logger.debug("Set \(imageId) injury severity to \(severity)")
             return
         }
 
@@ -364,11 +364,11 @@ public final class InjuriesPanelViewModel: PanelViewModelBase {
             let severityStr = imageName.dropFirst(InjuryPattern.scarPrefixLength)
             let severity = Int(severityStr) ?? 1
             injuries[bodyPart] = InjuryStatus(injuryType: .scar, severity: severity)
-            Self.logger.debug("Set \(imageId) scar severity to \(severity)")
+            logger.debug("Set \(imageId) scar severity to \(severity)")
             return
         }
 
         // Unknown pattern - log and ignore
-        Self.logger.warning("Unknown image name pattern for \(imageId): \(imageName)")
+        logger.warning("Unknown image name pattern for \(imageId): \(imageName)")
     }
 }

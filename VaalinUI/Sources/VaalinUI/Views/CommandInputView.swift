@@ -337,3 +337,100 @@ private struct OptionKeyHandlers: ViewModifier {
             }
     }
 }
+
+// MARK: - Previews
+
+// swiftlint:disable no_print_statements
+
+#Preview("Empty") {
+    let history = CommandHistory()
+    let viewModel = CommandInputViewModel(commandHistory: history)
+    
+    return CommandInputView(viewModel: viewModel) { command in
+        print("Submitted: \(command)")
+    }
+    .frame(width: 600, height: 80)
+    .padding()
+}
+
+#Preview("With Text") {
+    let history = CommandHistory()
+    let viewModel = CommandInputViewModel(commandHistory: history)
+    viewModel.currentInput = "look at my vultite greatsword"
+    
+    return CommandInputView(viewModel: viewModel) { command in
+        print("Submitted: \(command)")
+    }
+    .frame(width: 600, height: 80)
+    .padding()
+}
+
+#Preview("Command Echo Demo") {
+    CommandEchoDemo()
+}
+
+/// Preview demonstrating command echo feature (Issue #28)
+private struct CommandEchoDemo: View {
+    @State private var viewModel: CommandInputViewModel
+    @State private var gameLog: GameLogViewModel
+    
+    init() {
+        let history = CommandHistory()
+        let gameLogVM = GameLogViewModel()
+        let inputVM = CommandInputViewModel(
+            commandHistory: history,
+            gameLogViewModel: gameLogVM,
+            settings: .makeDefault()
+        )
+        
+        _viewModel = State(initialValue: inputVM)
+        _gameLog = State(initialValue: gameLogVM)
+        
+        // Pre-populate with sample echoed commands
+        Task { @MainActor in
+            await gameLogVM.echoCommand("look", prefix: "›")
+            await gameLogVM.echoCommand("inventory", prefix: "›")
+            await gameLogVM.echoCommand("cast 118 at troll", prefix: "›")
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 8) {
+                Text("Command Echo Feature")
+                    .font(.headline)
+                Text("Commands are echoed with '›' prefix in dimmed color")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color(nsColor: .controlBackgroundColor))
+            
+            Divider()
+            
+            // Game log showing echoed commands
+            GameLogView(viewModel: gameLog)
+                .frame(height: 300)
+            
+            Divider()
+            
+            // Command input
+            VStack(spacing: 8) {
+                Text("Type a command and press Enter to see it echo")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                CommandInputView(viewModel: viewModel) { command in
+                    print("Submitted: \(command)")
+                }
+            }
+            .padding(12)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .frame(width: 700, height: 500)
+    }
+}
+
+// swiftlint:enable no_print_statements

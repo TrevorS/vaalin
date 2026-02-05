@@ -186,3 +186,106 @@ private struct SpellRow: View {
         return CatppuccinMocha.severityColor(for: spell.percentRemaining)
     }
 }
+
+// MARK: - Previews
+
+#Preview("Empty State") {
+    let eventBus = EventBus()
+    let viewModel = SpellsPanelViewModel(eventBus: eventBus)
+    // Default state is empty (no spells)
+    
+    return SpellsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("Populated State") {
+    let eventBus = EventBus()
+    let viewModel = SpellsPanelViewModel(eventBus: eventBus)
+    
+    viewModel.activeSpells = [
+        ActiveSpell(
+            id: "401",  // Elemental Defense I (Minor Elemental)
+            name: "Elemental Defense I",
+            timeRemaining: "48:15",
+            percentRemaining: 92
+        ),
+        ActiveSpell(
+            id: "506",  // Celerity (Major Elemental)
+            name: "Celerity",
+            timeRemaining: "0:58",
+            percentRemaining: 30
+        ),
+        ActiveSpell(
+            id: "509",  // Strength (Major Elemental)
+            name: "Strength",
+            timeRemaining: "28:44",
+            percentRemaining: 68
+        ),
+        ActiveSpell(
+            id: "535",  // Haste (Major Elemental)
+            name: "Haste",
+            timeRemaining: "11:22",
+            percentRemaining: 55
+        ),
+        ActiveSpell(
+            id: "913",  // Melgorehn's Aura (Wizard Base)
+            name: "Melgorehn's Aura",
+            timeRemaining: "22:05",
+            percentRemaining: 75
+        )
+    ]
+    
+    return SpellsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("Low Time State") {
+    let eventBus = EventBus()
+    let viewModel = SpellsPanelViewModel(eventBus: eventBus)
+    
+    // All spells have < 33% remaining to show red warning colors
+    viewModel.activeSpells = [
+        ActiveSpell(
+            id: "401",  // Elemental Defense I (Minor Elemental)
+            name: "Elemental Defense I",
+            timeRemaining: "3:12",
+            percentRemaining: 15
+        ),
+        ActiveSpell(
+            id: "503",  // Thurfel's Ward (Major Elemental)
+            name: "Thurfel's Ward",
+            timeRemaining: "1:04",
+            percentRemaining: 8
+        ),
+        ActiveSpell(
+            id: "506",  // Celerity (Major Elemental) - short duration spell
+            name: "Celerity",
+            timeRemaining: "0:18",
+            percentRemaining: 5
+        ),
+        ActiveSpell(
+            id: "509",  // Strength (Major Elemental)
+            name: "Strength",
+            timeRemaining: "4:33",
+            percentRemaining: 25
+        ),
+        ActiveSpell(
+            id: "535",  // Haste (Major Elemental)
+            name: "Haste",
+            timeRemaining: "2:47",
+            percentRemaining: 18
+        ),
+        ActiveSpell(
+            id: "911",  // Mass Blur (Wizard Base)
+            name: "Mass Blur",
+            timeRemaining: "1:55",
+            percentRemaining: 12
+        )
+    ]
+    
+    return SpellsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}

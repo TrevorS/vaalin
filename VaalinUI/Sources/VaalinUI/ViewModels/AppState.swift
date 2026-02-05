@@ -841,7 +841,7 @@ public final class AppState {
             // Special handling for stream wrapper tags
             if tag.name == "stream" {
                 // Filter if this stream ID is in excluded list
-                if let streamID = tag.attrs["id"] as? String {
+                if let streamID = tag.attrs["id"] {
                     return !excludedStreamIDs.contains(streamID)
                 }
                 // If no ID attribute, keep it (shouldn't happen but be safe)

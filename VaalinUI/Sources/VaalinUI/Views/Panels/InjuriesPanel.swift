@@ -454,3 +454,60 @@ private struct StatusArea: View {
         return CatppuccinMocha.severityColor(for: percentage)
     }
 }
+
+// MARK: - Previews
+
+#Preview("Healthy State") {
+    let eventBus = EventBus()
+    let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+    // All body parts are healthy (default state - empty dictionary)
+    
+    return InjuriesPanel(viewModel: viewModel)
+        .frame(width: 300, height: 300)
+        .padding()
+}
+
+#Preview("Mixed State") {
+    let eventBus = EventBus()
+    let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+    
+    viewModel.injuries = [
+        .head: InjuryStatus(injuryType: .injury, severity: 3),       // Critical head wound
+        .chest: InjuryStatus(injuryType: .scar, severity: 1),        // Old chest scar
+        .leftArm: InjuryStatus(injuryType: .injury, severity: 2),    // Moderate left arm wound
+        .abdomen: InjuryStatus(injuryType: .injury, severity: 1),    // Minor abdomen wound
+        .back: InjuryStatus(injuryType: .scar, severity: 2),         // Old back scar
+        .rightHand: InjuryStatus(injuryType: .injury, severity: 1),  // Minor hand wound
+        .leftLeg: InjuryStatus(injuryType: .injury, severity: 2),    // Moderate leg wound
+        .nerves: InjuryStatus(injuryType: .injury, severity: 2)      // Moderate nervous damage
+    ]
+    
+    return InjuriesPanel(viewModel: viewModel)
+        .frame(width: 300, height: 300)
+        .padding()
+}
+
+#Preview("Critical State") {
+    let eventBus = EventBus()
+    let viewModel = InjuriesPanelViewModel(eventBus: eventBus)
+    
+    // Heavily injured character - nearly dead
+    viewModel.injuries = [
+        .head: InjuryStatus(injuryType: .injury, severity: 3),       // Severe head wound
+        .neck: InjuryStatus(injuryType: .injury, severity: 2),       // Moderate neck wound
+        .chest: InjuryStatus(injuryType: .injury, severity: 3),      // Severe chest wound
+        .leftArm: InjuryStatus(injuryType: .injury, severity: 3),    // Severe left arm wound
+        .abdomen: InjuryStatus(injuryType: .injury, severity: 3),    // Severe abdomen wound
+        .rightArm: InjuryStatus(injuryType: .injury, severity: 2),   // Moderate right arm wound
+        .leftHand: InjuryStatus(injuryType: .injury, severity: 2),   // Moderate left hand wound
+        .back: InjuryStatus(injuryType: .injury, severity: 3),       // Severe back wound
+        .rightHand: InjuryStatus(injuryType: .injury, severity: 1),  // Minor right hand wound
+        .leftLeg: InjuryStatus(injuryType: .injury, severity: 3),    // Severe left leg wound
+        .rightLeg: InjuryStatus(injuryType: .injury, severity: 2),   // Moderate right leg wound
+        .nerves: InjuryStatus(injuryType: .injury, severity: 3)      // Critical nervous damage
+    ]
+    
+    return InjuriesPanel(viewModel: viewModel)
+        .frame(width: 300, height: 300)
+        .padding()
+}

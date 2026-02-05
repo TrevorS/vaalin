@@ -516,3 +516,143 @@ extension Array where Element == Message {
         return result
     }
 }
+
+// MARK: - Previews
+
+#Preview("Empty State") {
+    GameLogView(viewModel: GameLogViewModel())
+        .frame(width: 800, height: 600)
+}
+
+#Preview("Connected - Few Messages") {
+    let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+    
+    Task { @MainActor in
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "Connecting to GemStone IV...", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "Connected successfully!", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "> look", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "[Abandoned Tower, Ruins]", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(
+                name: ":text",
+                text: """
+                Crumbling stone walls surround you. The ceiling has long since collapsed, \
+                leaving only jagged remnants reaching toward the sky. Rubble covers most of the floor, \
+                making passage difficult.
+                """,
+                state: .closed
+            )
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "Obvious exits: north, south, east", state: .closed)
+        )
+    }
+    
+    return GameLogView(viewModel: viewModel)
+        .frame(width: 800, height: 600)
+}
+
+#Preview("Combat Log") {
+    let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+    
+    Task { @MainActor in
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "> attack troll", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "You swing your sword at the troll!", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "The troll parries your attack with its club!", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "The troll swings at you!", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "You take 45 damage!", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "Health: 155/200", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "> attack", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "You strike the troll with your sword!", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "The troll staggers from the blow!", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "The troll collapses, defeated.", state: .closed)
+        )
+    }
+    
+    return GameLogView(viewModel: viewModel)
+        .frame(width: 800, height: 600)
+}
+
+#Preview("Long Lines") {
+    let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+    
+    Task { @MainActor in
+        await viewModel.appendMessage(
+            GameTag(
+                name: ":text",
+                text: """
+                This is a very long line that should wrap around to the next line when \
+                the text exceeds the width of the game log view. This tests the text wrapping \
+                behavior of NSTextView with monospaced fonts.
+                """,
+                state: .closed
+            )
+        )
+        await viewModel.appendMessage(
+            GameTag(name: ":text", text: "Short line.", state: .closed)
+        )
+        await viewModel.appendMessage(
+            GameTag(
+                name: ":text",
+                text: """
+                Another extremely long line with lots of text that goes on and on and on \
+                to demonstrate how the game log handles very long lines of text that need to \
+                wrap around multiple times. This simulates game descriptions or verbose output.
+                """,
+                state: .closed
+            )
+        )
+    }
+    
+    return GameLogView(viewModel: viewModel)
+        .frame(width: 800, height: 600)
+}
+
+#Preview("Many Messages") {
+    let viewModel = GameLogViewModel(theme: .catppuccinMocha())
+    
+    Task { @MainActor in
+        for i in 1...100 {
+            await viewModel.appendMessage(
+                GameTag(
+                    name: ":text",
+                    text: """
+                    Message \(i): This is a test message to demonstrate scrolling behavior \
+                    with many lines of text in the game log.
+                    """,
+                    state: .closed
+                )
+            )
+        }
+    }
+    
+    return GameLogView(viewModel: viewModel)
+        .frame(width: 800, height: 600)
+}

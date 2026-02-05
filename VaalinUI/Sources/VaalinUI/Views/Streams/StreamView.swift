@@ -282,3 +282,229 @@ private struct StreamContentView: NSViewRepresentable {
         }
     }
 }
+
+// MARK: - Previews
+
+#Preview("Empty State") {
+    let streamBufferManager = StreamBufferManager()
+    let activeStreamIDs: Set<String> = ["thoughts"]
+    
+    let viewModel = StreamViewModel(
+        streamBufferManager: streamBufferManager,
+        activeStreamIDs: activeStreamIDs,
+        theme: Theme.catppuccinMocha()
+    )
+    
+    return StreamView(
+        viewModel: viewModel,
+        activeStreamIDs: activeStreamIDs
+    )
+    .frame(width: 800, height: 600)
+}
+
+#Preview("Populated State") {
+    let streamBufferManager = StreamBufferManager()
+    let activeStreamIDs: Set<String> = ["thoughts", "speech"]
+    
+    let viewModel = StreamViewModel(
+        streamBufferManager: streamBufferManager,
+        activeStreamIDs: activeStreamIDs,
+        theme: Theme.catppuccinMocha()
+    )
+    
+    Task {
+        // Create sample messages with different presets
+        let thoughtTags = [
+            GameTag(
+                name: "preset",
+                text: nil,
+                attrs: ["id": "thought"],
+                children: [
+                    GameTag(
+                        name: ":text",
+                        text: """
+                        You carefully consider your tactical options, weighing the risks \
+                        of a direct assault against the potential for a more subtle approach.
+                        """,
+                        attrs: [:],
+                        children: [],
+                        state: .closed
+                    )
+                ],
+                state: .closed
+            )
+        ]
+        
+        let speechTags = [
+            GameTag(
+                name: "preset",
+                text: nil,
+                attrs: ["id": "speech"],
+                children: [
+                    GameTag(
+                        name: ":text",
+                        text: "You say, \"The path ahead looks dangerous. We should proceed with caution.\"",
+                        attrs: [:],
+                        children: [],
+                        state: .closed
+                    )
+                ],
+                state: .closed
+            )
+        ]
+        
+        let damageTags = [
+            GameTag(
+                name: "preset",
+                text: nil,
+                attrs: ["id": "damage"],
+                children: [
+                    GameTag(
+                        name: ":text",
+                        text: """
+                        You swing a vultite longsword at a hill troll!
+                          AS: +246 vs DS: +84 with AvD: +42 + d100 roll: +91 = +295
+                           ... and hit for 128 points of damage!
+                           Massive blow punches a hole through the hill troll's chest!
+                        """,
+                        attrs: [:],
+                        children: [],
+                        state: .closed
+                    )
+                ],
+                state: .closed
+            )
+        ]
+        
+        // Add messages to streams
+        await streamBufferManager.append(
+            Message(from: thoughtTags, streamID: "thoughts"),
+            toStream: "thoughts"
+        )
+        
+        await streamBufferManager.append(
+            Message(from: speechTags, streamID: "speech"),
+            toStream: "speech"
+        )
+        
+        await streamBufferManager.append(
+            Message(from: thoughtTags, streamID: "thoughts"),
+            toStream: "thoughts"
+        )
+        
+        await streamBufferManager.append(
+            Message(from: damageTags, streamID: "speech"),
+            toStream: "speech"
+        )
+        
+        // Reload view model after populating data
+        await viewModel.loadStreamContent()
+    }
+    
+    return StreamView(
+        viewModel: viewModel,
+        activeStreamIDs: activeStreamIDs
+    )
+    .frame(width: 800, height: 600)
+}
+
+#Preview("Multi-Stream State") {
+    let streamBufferManager = StreamBufferManager()
+    let activeStreamIDs: Set<String> = ["thoughts", "speech", "whispers"]
+    
+    let viewModel = StreamViewModel(
+        streamBufferManager: streamBufferManager,
+        activeStreamIDs: activeStreamIDs,
+        theme: Theme.catppuccinMocha()
+    )
+    
+    Task {
+        // Create sample messages across multiple streams
+        let thoughtTag = GameTag(
+            name: "preset",
+            text: nil,
+            attrs: ["id": "thought"],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: "You think you need only open yourself, when you are ready.",
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
+            state: .closed
+        )
+        
+        let speechTag = GameTag(
+            name: "preset",
+            text: nil,
+            attrs: ["id": "speech"],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: "Elaejia says, \"He swore that he hadn't arrested anyone in some time...\"",
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
+            state: .closed
+        )
+        
+        let whisperTag = GameTag(
+            name: "preset",
+            text: nil,
+            attrs: ["id": "whisper"],
+            children: [
+                GameTag(
+                    name: ":text",
+                    text: """
+                    Elaejia leans over and whispers, "I think you need only open yourself, \
+                    when you are ready."
+                    """,
+                    attrs: [:],
+                    children: [],
+                    state: .closed
+                )
+            ],
+            state: .closed
+        )
+        
+        // Add messages with different timestamps to demonstrate chronological merging
+        await streamBufferManager.append(
+            Message(from: [thoughtTag], streamID: "thoughts"),
+            toStream: "thoughts"
+        )
+        
+        try? await Task.sleep(for: .milliseconds(10))
+        
+        await streamBufferManager.append(
+            Message(from: [speechTag], streamID: "speech"),
+            toStream: "speech"
+        )
+        
+        try? await Task.sleep(for: .milliseconds(10))
+        
+        await streamBufferManager.append(
+            Message(from: [whisperTag], streamID: "whispers"),
+            toStream: "whispers"
+        )
+        
+        try? await Task.sleep(for: .milliseconds(10))
+        
+        await streamBufferManager.append(
+            Message(from: [thoughtTag], streamID: "thoughts"),
+            toStream: "thoughts"
+        )
+        
+        // Reload view model after populating data
+        await viewModel.loadStreamContent()
+    }
+    
+    return StreamView(
+        viewModel: viewModel,
+        activeStreamIDs: activeStreamIDs
+    )
+    .frame(width: 800, height: 600)
+}

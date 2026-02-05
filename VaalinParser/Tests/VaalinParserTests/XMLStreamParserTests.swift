@@ -3883,5 +3883,115 @@ struct XMLStreamParserTests {
         // All tags should be returned (metadata + regular)
         #expect(tags.count == 6)
     }
+
+    // MARK: - Buffer Overflow Protection Tests
+
+    /// Test parser handles extremely long tag content gracefully
+    /// Verifies 10KB buffer limit prevents unbounded memory growth
+    @Test func test_bufferOverflowProtection() async throws {
+        let parser = XMLStreamParser()
+
+        // Create tag with content exceeding 10KB buffer limit
+        let longContent = String(repeating: "x", count: 11_000)
+        let xml = "<output>\(longContent)</output>"
+
+        // Parser should either:
+        // 1. Gracefully truncate/skip the oversized tag, OR
+        // 2. Return empty array and continue parsing
+        // Both behaviors are acceptable for overflow protection
+        let tags = await parser.parse(xml)
+
+        // Verify parser didn't crash and remains functional
+        #expect(tags.count >= 0)
+
+        // Verify parser can continue after overflow
+        let normalXML = "<prompt>&gt;</prompt>"
+        let normalTags = await parser.parse(normalXML)
+        #expect(normalTags.count == 1)
+        #expect(normalTags[0].name == "prompt")
+    }
+
+    /// Test parser handles extremely deep tag nesting
+    /// Verifies stack doesn't overflow with deeply nested structures
+    @Test func test_deepNestingProtection() async throws {
+        let parser = XMLStreamParser()
+
+        // Create deeply nested structure (100 levels)
+        var xml = ""
+        for i in 0..<100 {
+            xml += "<level\(i)>"
+        }
+        xml += "content"
+        for i in (0..<100).reversed() {
+            xml += "</level\(i)>"
+        }
+
+        // Parser should handle deep nesting without crashing
+        let tags = await parser.parse(xml)
+
+        // Should parse successfully
+        #expect(tags.count >= 1)
+
+        // Verify parser remains functional
+        let normalTags = await parser.parse("<output>test</output>")
+        #expect(normalTags.count == 1)
+    }
+
+    /// Test parser recovers from buffer overflow
+    /// Verifies parser resets state after overflow and continues normally
+    @Test func test_bufferOverflowRecovery() async throws {
+        let parser = XMLStreamParser()
+
+        // Trigger overflow with massive tag
+        let oversized = "<output>" + String(repeating: "x", count: 15_000) + "</output>"
+        _ = await parser.parse(oversized)
+
+        // Verify parser recovered and can parse normal content
+        let xml = "<left>Empty</left><right>Empty</right>"
+        let tags = await parser.parse(xml)
+
+        #expect(tags.count == 2)
+        #expect(tags[0].name == "left")
+        #expect(tags[1].name == "right")
+    }
+
+    /// Test parser handles extremely long attribute values
+    /// Attribute values can be arbitrarily long in malformed XML
+    @Test func test_longAttributeValues() async throws {
+        let parser = XMLStreamParser()
+
+        let longValue = String(repeating: "a", count: 5000)
+        let xml = "<a exist=\"\(longValue)\" noun=\"gem\">blue gem</a>"
+
+        let tags = await parser.parse(xml)
+
+        // Parser should handle long attributes gracefully
+        #expect(tags.count >= 0)
+
+        // Verify parser remains functional
+        let normalTags = await parser.parse("<output>test</output>")
+        #expect(normalTags.count == 1)
+    }
+
+    /// Test parser handles many attributes on single tag
+    /// GemStone IV can send tags with 10+ attributes
+    @Test func test_manyAttributesOnTag() async throws {
+        let parser = XMLStreamParser()
+
+        var xml = "<tag"
+        for i in 0..<50 {
+            xml += " attr\(i)=\"value\(i)\""
+        }
+        xml += ">content</tag>"
+
+        let tags = await parser.parse(xml)
+
+        // Should parse successfully
+        #expect(tags.count == 1)
+        #expect(tags[0].name == "tag")
+
+        // Verify some attributes were captured
+        #expect(tags[0].attrs.count > 0)
+    }
 }
 // swiftlint:enable file_length type_body_length

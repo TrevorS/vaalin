@@ -95,3 +95,138 @@ public struct PromptView: View {
             )
     }
 }
+
+// MARK: - Previews
+
+// swiftlint:disable no_print_statements
+
+#Preview("Story Board - All Scenarios") {
+    PromptStoryBoard()
+}
+
+#Preview("With Command Input") {
+    PromptWithInputLayout()
+}
+
+/// Story board showing all realistic GemStone IV prompt scenarios in a grid
+private struct PromptStoryBoard: View {
+    @State private var scenarios: [(label: String, prompt: String)] = [
+        ("Normal", ">"),
+        ("Roundtime", "R>"),
+        ("Casting", "C>"),
+        ("Hidden/Invis/RT", "HiR>"),
+        ("Kneel/Sit/Poison", "KsP>"),
+        ("Bleed/Stun/Prone", "!Sp>"),
+        ("Joined/Webbed", "JW>"),
+        ("Disease/Immobile", "DI>"),
+        ("Unconscious", "U>"),
+        ("Kitchen Sink", "!DHIJKPRSW>")
+    ]
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 8) {
+                Text("GemStone IV Prompt Scenarios")
+                    .font(.headline)
+                Text("Testing 44x44px box with realistic status combinations")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color(nsColor: .controlBackgroundColor))
+            
+            Divider()
+            
+            ScrollView {
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ],
+                    spacing: 20
+                ) {
+                    ForEach(scenarios, id: \.label) { scenario in
+                        VStack(spacing: 8) {
+                            Text(scenario.label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            PromptView(viewModel: makeViewModel(scenario.prompt))
+                            
+                            Text("'\(scenario.prompt)'")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .fontDesign(.monospaced)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .frame(width: 800, height: 600)
+    }
+    
+    private func makeViewModel(_ promptText: String) -> PromptViewModel {
+        let eventBus = EventBus()
+        let viewModel = PromptViewModel(eventBus: eventBus)
+        viewModel.promptText = promptText
+        return viewModel
+    }
+}
+
+/// Preview showing PromptView positioned to the left of CommandInputView in HStack
+private struct PromptWithInputLayout: View {
+    @State private var promptViewModel: PromptViewModel
+    @State private var inputViewModel: CommandInputViewModel
+    
+    init() {
+        let eventBus = EventBus()
+        let history = CommandHistory()
+        
+        let prompt = PromptViewModel(eventBus: eventBus)
+        prompt.promptText = ">"
+        
+        let input = CommandInputViewModel(commandHistory: history)
+        
+        _promptViewModel = State(initialValue: prompt)
+        _inputViewModel = State(initialValue: input)
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 8) {
+                Text("Prompt Display Integration")
+                    .font(.headline)
+                Text("Compact 44x44 prompt box sits to the LEFT of command input")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color(nsColor: .controlBackgroundColor))
+            
+            Divider()
+            
+            Spacer()
+            
+            // Prompt + Input in HStack (positioned at bottom like in real app)
+            HStack(spacing: 8) {
+                PromptView(viewModel: promptViewModel)
+                
+                CommandInputView(viewModel: inputViewModel) { command in
+                    print("Submitted: \(command)")
+                }
+            }
+            .padding(12)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .frame(width: 700, height: 400)
+    }
+}
+
+// swiftlint:enable no_print_statements

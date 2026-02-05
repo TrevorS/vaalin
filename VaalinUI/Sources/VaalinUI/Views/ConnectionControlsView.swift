@@ -170,3 +170,30 @@ public struct ConnectionControlsView: View {
         await appState.disconnect()
     }
 }
+
+// MARK: - Previews
+
+#Preview("Disconnected") {
+    let state = AppState()
+    state.isConnected = false
+    
+    return ConnectionControlsView(appState: state)
+        .frame(width: 600, height: 60)
+}
+
+#Preview("Connected") {
+    let state = AppState()
+    state.isConnected = true
+    
+    return ConnectionControlsView(appState: state)
+        .frame(width: 600, height: 60)
+}
+
+#Preview("Connection Error") {
+    let state = AppState()
+    state.isConnected = false
+    // Note: Error message is internal @State, shown after failed connect attempt
+    
+    return ConnectionControlsView(appState: state)
+        .frame(width: 600, height: 60)
+}

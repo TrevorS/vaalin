@@ -167,3 +167,59 @@ public struct StreamsBarView: View {
         unreadCounts = counts
     }
 }
+
+// MARK: - Previews
+
+#Preview("Compact Height (80pt)") {
+    let bufferManager = StreamBufferManager()
+    let theme = Theme.catppuccinMocha()
+    let viewModel = StreamsBarViewModel(
+        streamBufferManager: bufferManager,
+        theme: theme,
+        initialActiveStreams: ["thoughts", "speech"]
+    )
+    
+    return StreamsBarView(
+        viewModel: viewModel,
+        height: 80
+    )
+    .frame(width: 600)
+    .padding()
+    .background(Color(hex: "#1e1e2e")!)
+}
+
+#Preview("Standard Height (112pt)") {
+    let bufferManager = StreamBufferManager()
+    let theme = Theme.catppuccinMocha()
+    let viewModel = StreamsBarViewModel(
+        streamBufferManager: bufferManager,
+        theme: theme,
+        initialActiveStreams: ["thoughts", "speech", "whispers", "logons"]
+    )
+    
+    return StreamsBarView(
+        viewModel: viewModel,
+        height: 112
+    )
+    .frame(width: 800)
+    .padding()
+    .background(Color(hex: "#1e1e2e")!)
+}
+
+#Preview("Tall Height (150pt)") {
+    let bufferManager = StreamBufferManager()
+    let theme = Theme.catppuccinMocha()
+    let viewModel = StreamsBarViewModel(
+        streamBufferManager: bufferManager,
+        theme: theme,
+        initialActiveStreams: ["thoughts", "speech", "whispers", "logons"]
+    )
+    
+    return StreamsBarView(
+        viewModel: viewModel,
+        height: 150
+    )
+    .frame(width: 1000)
+    .padding()
+    .background(Color(hex: "#1e1e2e")!)
+}

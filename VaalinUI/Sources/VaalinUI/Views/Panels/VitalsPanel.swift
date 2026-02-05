@@ -316,3 +316,57 @@ private struct VitalTextField: View {
         }
     }
 }
+
+// MARK: - Previews
+
+#Preview("Empty State") {
+    let eventBus = EventBus()
+    let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+    // Default state: all vitals nil (indeterminate), stance="offensive", encumbrance="none"
+    
+    return VitalsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("Populated State") {
+    let eventBus = EventBus()
+    let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+    viewModel.health = 68
+    viewModel.healthText = "68/100"
+    viewModel.mana = 53
+    viewModel.manaText = "45/85"
+    viewModel.stamina = 76
+    viewModel.staminaText = "72/95"
+    viewModel.spirit = 54
+    viewModel.spiritText = "54/100"
+    viewModel.mind = 0
+    viewModel.mindText = "clear"
+    viewModel.stance = "offensive"
+    viewModel.encumbrance = "light"
+    
+    return VitalsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("Critical State (Low Health)") {
+    let eventBus = EventBus()
+    let viewModel = VitalsPanelViewModel(eventBus: eventBus)
+    viewModel.health = 18
+    viewModel.healthText = "18/100"
+    viewModel.mana = 14
+    viewModel.manaText = "12/85"
+    viewModel.stamina = 26
+    viewModel.staminaText = "25/95"
+    viewModel.spirit = 38
+    viewModel.spiritText = "38/100"
+    viewModel.mind = 60
+    viewModel.mindText = "muddled"
+    viewModel.stance = "defensive"
+    viewModel.encumbrance = "heavy"
+    
+    return VitalsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}

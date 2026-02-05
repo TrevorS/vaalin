@@ -144,6 +144,42 @@ public struct HandsPanel: View {
     }
 }
 
+// MARK: - Previews
+
+#Preview("Empty State") {
+    let eventBus = EventBus()
+    let viewModel = HandsPanelViewModel(eventBus: eventBus)
+    // Default state: leftHand = "Empty", rightHand = "Empty", preparedSpell = "None"
+    
+    return HandsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("Populated State") {
+    let eventBus = EventBus()
+    let viewModel = HandsPanelViewModel(eventBus: eventBus)
+    viewModel.leftHand = "steel broadsword"
+    viewModel.rightHand = "wooden shield"
+    viewModel.preparedSpell = "Minor Shock"
+    
+    return HandsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
+#Preview("Long Names (Truncation)") {
+    let eventBus = EventBus()
+    let viewModel = HandsPanelViewModel(eventBus: eventBus)
+    viewModel.leftHand = "an enruned vultite greatsword with intricate silver filigree"
+    viewModel.rightHand = "a steel-reinforced tower shield with gold embossing"
+    viewModel.preparedSpell = "Mass Elemental Wave (410)"
+    
+    return HandsPanel(viewModel: viewModel)
+        .frame(width: 300)
+        .padding()
+}
+
 // MARK: - Subviews
 
 /// Individual row displaying an icon and content with appropriate styling.
